@@ -1,0 +1,26 @@
+{
+  "actions": [
+    {
+      "openPopupAction": {
+        "popup": {
+          "multiPageMenuRenderer": {
+            "header": {
+              "activeAccountHeaderRenderer": {
+                "accountName": { "simpleText": "Alex Example" },
+                "email": { "simpleText": "alex@example.com" },
+                "accountPhoto": {
+                  "thumbnails": [
+                    { "url": "https://lh3.googleusercontent.com/a/fixture=s32-c-mo", "width": 32, "height": 32 },
+                    { "url": "https://lh3.googleusercontent.com/a/fixture=s64-c-mo", "width": 64, "height": 64 },
+                    { "url": "https://lh3.googleusercontent.com/a/fixture=s176-c-mo", "width": 176, "height": 176 }
+                  ]
+                }
+              }
+            },
+            "sections": []
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.sirallap.solfa",
+  "name": "Solfa",
+  "version": "1.0.0",
+  "author": "SirAllap",
+  "license": "MIT",
+  "description": "Solfa — YouTube Music in the bar and a keyboard panel. Search, play, queue, library, lyrics and likes; the web app runs hidden as the engine and never takes focus.",
+  "kinds": ["bar-widget", "service"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "service": "Service.qml"
+  },
+  "barWidget": {
+    "displayName": "Solfa",
+    "description": "Now playing with a round cover, quick controls, and a panel for search, queue, library and lyrics",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": {
+      "barControls": true,
+      "showTitle": true,
+      "maxLabelWidth": 160,
+      "showWhenIdle": true,
+      "notify": true,
+      "globalKeys": true,
+      "autostart": true,
+      "browser": "",
+      "eqEnabled": false,
+      "eqPreset": "flat",
+      "eqBands": "[0,0,0,0,0,0,0,0,0,0]",
+      "eqPreamp": 0,
+      "eqLoudness": false,
+      "startPaused": false,
+      "startVolume": "last",
+      "recycleHeapMb": 400,
+      "recycleHours": 12
+    },
+    "schema": [
+      { "key": "barControls", "type": "bool", "label": "Previous, play/pause and next in the bar", "defaultValue": true },
+      { "key": "showTitle", "type": "bool", "label": "Song title in the bar", "defaultValue": true },
+      { "key": "maxLabelWidth", "type": "number", "label": "Title width in the bar (px)", "defaultValue": 160 },
+      { "key": "showWhenIdle", "type": "bool", "label": "Show in the bar when nothing is loaded", "defaultValue": true },
+      { "key": "notify", "type": "bool", "label": "Notify when the song changes", "defaultValue": true },
+      { "key": "globalKeys", "type": "bool", "label": "Shortcuts: Super+M panel, Super+Alt+M play/pause, Super+Alt+N next, Super+Alt+B previous, Super+Alt+L like (only keys nobody else uses)", "defaultValue": true },
+      { "key": "autostart", "type": "bool", "label": "Start YouTube Music with the shell", "defaultValue": true },
+      { "key": "browser", "type": "string", "label": "Browser for the engine", "defaultValue": "", "description": "An absolute path to a Chromium-family browser executable, e.g. /usr/bin/brave. Empty: the first found of chromium, google-chrome-stable, brave, brave-browser, vivaldi-stable, microsoft-edge-stable." },
+      { "key": "eqEnabled", "type": "bool", "label": "Equalizer", "defaultValue": false },
+      { "key": "eqPreset", "type": "string", "label": "Equalizer preset", "defaultValue": "flat", "description": "flat, bass, treble, vocal, loudness or custom." },
+      { "key": "eqBands", "type": "string", "label": "Equalizer band gains, dB (JSON array, 10 bands 32 Hz-16 kHz)", "defaultValue": "[0,0,0,0,0,0,0,0,0,0]" },
+      { "key": "eqPreamp", "type": "number", "label": "Equalizer preamp (dB)", "defaultValue": 0 },
+      { "key": "eqLoudness", "type": "bool", "label": "Even out loudness", "defaultValue": false },
+      { "key": "startPaused", "type": "bool", "label": "When Solfa starts, resume paused instead of playing", "defaultValue": false },
+      { "key": "startVolume", "type": "string", "label": "Volume when Solfa starts", "defaultValue": "last", "description": "\"last\" (the volume it had) or a 0-100 percent." },
+      { "key": "recycleHeapMb", "type": "number", "label": "Refresh the page past this JS heap (MB)", "defaultValue": 400, "description": "Applies on the next start." },
+      { "key": "recycleHours", "type": "number", "label": "Refresh the page at least every (hours)", "defaultValue": 12, "description": "Applies on the next start." }
+    ]
+  }
+}

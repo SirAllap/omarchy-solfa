@@ -1,0 +1,2685 @@
+#!/usr/bin/python3
+"""solfa-bridge — keeps Solfa's hidden YouTube Music engine alive and serves the shell.
+
+The engine is a Chromium app window with its own profile. The bridge starts it
+(or finds it running), attaches over the Chrome DevTools protocol on
+127.0.0.1, injects the page agent, and answers the shell on a unix socket
+with one JSON object per line. It also owns the engine window: the Hyprland
+rule that keeps it hidden, and the guard that puts it away if anything shows
+it. Signing in happens in a plain browser window on the same profile, with
+no DevTools port: Google refuses to sign in a browser it thinks is automated.
+
+Standard library only. One asyncio loop; no threads, no locks.
+"""
+
+import asyncio
+import contextlib
+import fcntl
+import hashlib
+import json
+import os
+import pathlib
+import pwd
+import re
+import shutil
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+PLUGIN_ID = "io.github.sirallap.solfa"
+OLD_PLUGIN_ID = "serallap.solfa"  # only for the one-time data-dir migration below
+
+
+def env_number(name, default, low, high):
+    """A number from the environment, clamped; the default if it is not one."""
+    try:
+        value = float(os.environ.get(name) or default)
+    except ValueError:
+        value = default
+    return min(high, max(low, value)) if value == value else default
+
+
+# --------------------------------------------------------------------------- trusted paths, fixed env
+#
+# Every external program this bridge runs is one of these fixed absolute
+# paths, never a bare name resolved through the inherited PATH (a maintainer
+# rejection: "security-relevant programs found through the inherited PATH").
+
+PROGRAMS = {
+    "hyprctl": "/usr/bin/hyprctl",
+}
+
+
+def program(name):
+    """The trusted absolute path for `name`, or "" when it is not installed
+    or not executable there. Never a PATH search."""
+    path = PROGRAMS.get(name, "")
+    return path if path and os.access(path, os.X_OK) else ""
+
+
+# A minimal, explicit environment for every child process this bridge spawns:
+# an allow-list, never the bridge's own full environment (which would hand a
+# child whatever launched the bridge, unfiltered). PATH is always fixed here,
+# never inherited from the parent and never taken from a caller's env.
+ENV_ALLOW_EXACT = {
+    "HOME", "USER", "LOGNAME", "LANG",
+    "XDG_RUNTIME_DIR", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE",
+    "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS",
+    "HYPRLAND_INSTANCE_SIGNATURE", "XCURSOR_THEME", "XCURSOR_SIZE",
+}
+CHILD_PATH = "/usr/bin:/bin"
+
+
+def child_env(extra=None):
+    """The environment a spawned child gets: the allow-list above (plus every
+    LC_* and XDG_*_HOME variable actually set, and any FAKE_* variable — the
+    test suite's own signal to tests/fake_engine.py, never set outside a
+    test), PATH fixed to CHILD_PATH, and `extra` applied last (e.g. a scratch
+    TMPDIR for the cookie import)."""
+    env = {"PATH": CHILD_PATH}
+    for k, v in os.environ.items():
+        if (k in ENV_ALLOW_EXACT or k.startswith("LC_") or (k.startswith("XDG_") and k.endswith("_HOME"))
+                or k.startswith("FAKE_")):
+            env[k] = v
+    if extra:
+        env.update(extra)
+    return env
+
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+APP_URL = "https://music.youtube.com/"
+APP_HOST = "music.youtube.com"
+SIGNIN_URL = ("https://accounts.google.com/ServiceLogin?service=youtube&passive=true"
+              "&continue=" + urllib.parse.quote("https://www.youtube.com/signin?action_handle_signin=true"
+                                                "&app=desktop&next=" + urllib.parse.quote(APP_URL, safe=""), safe=""))
+# Switch account: Google's account chooser (never passive: a Google session
+# still alive would sign the same account straight back in, unseen).
+ACCOUNT_CHOOSER_URL = ("https://accounts.google.com/AccountChooser?service=youtube"
+                       "&continue=" + urllib.parse.quote("https://www.youtube.com/signin?action_handle_signin=true"
+                                                         "&app=desktop&next=" + urllib.parse.quote(APP_URL, safe=""), safe=""))
+SIGNOUT_WAIT = 20.0       # seconds for Google's logout redirects to land back on the app
+# Google's sign-in cookies, as set on .youtube.com once an account is in.
+SIGNIN_COOKIES = ("SAPISID", "__Secure-3PAPISID")
+SIGNIN_POLL = float(os.environ.get("SOLFA_SIGNIN_POLL") or 0.5)  # seconds between looks at the sign-in window
+# The sign-in window's title once Google's redirects have landed on the app:
+# the flow is over, and the window is hidden at once. It is not closed yet:
+# Chromium writes new cookies to disk on a timer (about 30 s), and SIGTERM
+# does not write them first (measured: a cookie set 1 s or 3 s before a
+# SIGTERM is not on disk; 35 s before, it is). A window closed on its title
+# threw the new sign-in away. So it closes once Google's cookie is on disk,
+# or after SIGNIN_SAVE_WAIT seconds. Over is not signed in either: with
+# Google's own session alive and YouTube's step failed, the passive flow
+# lands on the app signed out. The engine's page, once back, says which it
+# was (signin_verdict).
+SIGNIN_DONE_TITLE = re.compile(r"YouTube Music")
+SIGNIN_SAVE_WAIT = env_number("SOLFA_SIGNIN_SAVE_WAIT", 45, 0.5, 60)
+# A sign-in window that never reaches the app (left open, stuck on a Google
+# page) is closed after this long: the panel never waits forever.
+SIGNIN_MAX = env_number("SOLFA_SIGNIN_MAX", 600, 1, 3600)
+# One click, one window: a sign-in asked for this soon after one ended (a
+# key repeat, a second click, a key meant for another window) is refused.
+SIGNIN_COOLDOWN = env_number("SOLFA_SIGNIN_COOLDOWN", 5, 0, 60)
+# Chromium names an --app window "<browser>-<host>__<path>-<profile dir>".
+# The profile directory name is ours, so the id is ours too.
+PROFILE_DIR_NAME = "Solfa"
+WINDOW_CLASS_RE = r"^[a-z-]*-music\.youtube\.com__-Solfa$"
+SPECIAL = "solfa"
+
+
+def read_version():
+    """manifest.json is the one source of truth for the version (H2): a
+    constant here that forgets to move when the manifest does is exactly
+    what used to send the shell and the bridge into a quit/restart loop."""
+    try:
+        with open(ROOT / "manifest.json", encoding="utf-8") as f:
+            return str(json.load(f).get("version") or "0.0.0")
+    except (OSError, ValueError):
+        return "0.0.0"
+
+
+VERSION = read_version()
+# What Service.qml started this bridge with (autostart|browser, today): it
+# echoes this back in `hello` so the shell can tell a stale bridge (started
+# under old settings) from the one it wants running, without restarting it
+# on every reconnect.
+LAUNCH_KEY = os.environ.get("SOLFA_LAUNCH_KEY", "")
+# The orphan lease: 0 (default) is off. Above zero, no `ui.attach` for this
+# long closes the bridge the same way bridge.quit does (Service.qml sets
+# this so disabling or removing the plugin does not leave the engine, the
+# bridge unit or the socket behind).
+ORPHAN_SECONDS = env_number("SOLFA_ORPHAN_SECONDS", 0, 0, 86400)
+
+
+def env_path(name, default):
+    value = os.environ.get(name)
+    return pathlib.Path(value) if value else default
+
+
+HOME = pathlib.Path.home()
+RUNTIME_DIR = env_path("SOLFA_RUNTIME_DIR", pathlib.Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}") / PLUGIN_ID)
+PROC_ROOT = env_path("SOLFA_PROC_ROOT", pathlib.Path("/proc"))  # only a test points this elsewhere
+DEFAULT_PROFILE_DIR = pathlib.Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / PLUGIN_ID / "engine"
+PROFILE_DIR = env_path("SOLFA_PROFILE_DIR", DEFAULT_PROFILE_DIR)
+STATE_DIR = env_path("SOLFA_STATE_DIR", pathlib.Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / PLUGIN_ID)
+CACHE_DIR = env_path("SOLFA_CACHE_DIR", pathlib.Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / PLUGIN_ID)
+
+# SOLFA_TEST=1 is the test marker: run-all.sh and every test file set it, on
+# top of pointing HOME/XDG_*/SOLFA_* at a throwaway temp dir. This is the
+# second, independent lock on top of that convention: even if a test (or a
+# future one) forgets to override one of those paths, a delete/rename helper
+# below still refuses to touch anything under the owner's REAL per-user dirs
+# — computed from the OS's own passwd entry, never from $HOME or any of the
+# XDG_*/SOLFA_* env vars, so a test that (accidentally or not) points those
+# at the real dirs cannot talk its way past this.
+TEST_MARKER = bool(os.environ.get("SOLFA_TEST"))
+
+
+def _real_home():
+    try:
+        return pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+    except (KeyError, OSError):
+        return HOME.resolve()
+
+
+def _real_forbidden_dirs():
+    """Every real, live location Solfa's data can be in, current or old id,
+    for this real user — independent of any env var a test controls."""
+    real_home = _real_home()
+    uid = os.getuid()
+    dirs = []
+    for plugin_id in (PLUGIN_ID, OLD_PLUGIN_ID):
+        dirs.append(real_home / ".local" / "share" / plugin_id)
+        dirs.append(real_home / ".cache" / plugin_id)
+        dirs.append(pathlib.Path(f"/run/user/{uid}") / plugin_id)
+    dirs.append(real_home / ".config" / "omarchy")
+    return dirs
+
+
+def refuse_if_real_path(path, action):
+    """True (and logs, refusing) only when SOLFA_TEST is set and `path`
+    resolves inside one of the owner's real dirs. Called before every
+    filesystem-destructive line in wipe_solfa_data/erase_profile/
+    migrate_old_data_dir, so the refusal always happens before the op, not
+    after. Outside of a test run (no SOLFA_TEST) this is a no-op: normal
+    operation is expected to touch exactly those real dirs."""
+    if not TEST_MARKER:
+        return False
+    candidate = pathlib.Path(os.path.normpath(str(path)))
+    for forbidden in _real_forbidden_dirs():
+        forbidden = pathlib.Path(os.path.normpath(str(forbidden)))
+        if candidate == forbidden or forbidden in candidate.parents or candidate in forbidden.parents:
+            log("REFUSED (SOLFA_TEST set):", action, "would touch the real", forbidden,
+                "via", candidate, "- not touching it")
+            return True
+    return False
+SOCKET_PATH = RUNTIME_DIR / "bridge.sock"
+
+STUCK_AFTER = 2           # failed liveness checks in a row
+CHECK_EVERY = float(os.environ.get("SOLFA_CHECK_EVERY") or 20.0)  # seconds of page silence before a liveness check
+# The page grows while it is open; past this JS heap (MB) or this age
+# (hours) it is swapped for a fresh one at the next quiet moment: a song
+# boundary, or a pause of RECYCLE_IDLE seconds. The page's process also
+# grows outside the JS heap (each skip loads media): past RECYCLE_RSS_MB
+# (its memory in MB, swap included) it is swapped too.
+
+
+# Settings > Advanced (same ranges as lib/Model.js): too low and the page is
+# swapped every hour, too high and V8's 768 MB ceiling comes first.
+RECYCLE_HEAP_MB = env_number("SOLFA_RECYCLE_HEAP_MB", 400, 200, 700)
+RECYCLE_RSS_MB = env_number("SOLFA_RECYCLE_RSS_MB", 800, 300, 8000)
+RECYCLE_HOURS = env_number("SOLFA_RECYCLE_HOURS", 12, 1, 72)
+RECYCLE_IDLE = float(os.environ.get("SOLFA_RECYCLE_IDLE") or 120)
+RECYCLE_CHECK = float(os.environ.get("SOLFA_RECYCLE_CHECK") or 300)  # seconds between heap reads
+RECYCLE_MIN_AGE = float(os.environ.get("SOLFA_RECYCLE_MIN_AGE") or 3600)  # never twice within this (s)
+START_WATCH = 10.0        # seconds after a fresh start in which a song that starts by itself is paused
+MAX_LINE = 1 << 20        # one request from the shell
+MAX_CDP_MESSAGE = 32 << 20
+MAX_CLIENT_BACKLOG = 4 << 20
+
+
+def log(*parts):
+    print("solfa-bridge:", *parts, file=sys.stderr, flush=True)
+
+
+# --------------------------------------------------------------------------- websocket
+
+def renderer_mb(proc_root=None, profile=None):
+    """The biggest renderer process of this engine, in MB (RSS + swap); 0 when
+    there is none or /proc cannot be read."""
+    root = proc_root or PROC_ROOT
+    mark = b"--user-data-dir=" + str(profile or PROFILE_DIR).encode()
+    best = 0.0
+    try:
+        entries = [d for d in root.iterdir() if d.name.isdigit()]
+    except OSError:
+        return 0.0
+    for d in entries:
+        try:
+            cmd = (d / "cmdline").read_bytes()
+            if b"--type=renderer" not in cmd or mark not in cmd:
+                continue
+            kb = 0
+            for line in (d / "status").read_text().splitlines():
+                if line.startswith(("VmRSS:", "VmSwap:")):
+                    kb += int(line.split()[1])
+            best = max(best, kb / 1024)
+        except (OSError, ValueError, IndexError):
+            continue
+    return best
+
+
+class PipeClosed(Exception):
+    pass
+
+
+class Pipe:
+    """The DevTools pipe transport (--remote-debugging-pipe): one JSON text
+    message per direction, terminated by a single NUL byte. By Chromium's
+    own convention the browser reads commands from fd 3 and writes events
+    and replies to fd 4; the bridge holds the other end of each: it writes
+    to what became the browser's fd 3, and reads from what became its fd 4.
+    """
+
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+        self.closed = False
+
+    @classmethod
+    async def open(cls, to_browser_fd, from_browser_fd):
+        """to_browser_fd/from_browser_fd are the bridge's own ends of the two
+        pipes (already dup'd for the child in launch()'s file actions)."""
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader(limit=MAX_CDP_MESSAGE)
+        read_file = os.fdopen(from_browser_fd, "rb", buffering=0)
+        await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), read_file)
+        write_file = os.fdopen(to_browser_fd, "wb", buffering=0)
+        write_transport, write_protocol = await loop.connect_write_pipe(asyncio.streams.FlowControlMixin, write_file)
+        writer = asyncio.StreamWriter(write_transport, write_protocol, reader, loop)
+        return cls(reader, writer)
+
+    async def send(self, text):
+        if self.closed:
+            raise PipeClosed("closed")
+        try:
+            self.writer.write(text.encode("utf-8") + b"\0")
+            await self.writer.drain()
+        except (ConnectionError, OSError) as e:
+            self.closed = True
+            raise PipeClosed("closed: " + str(e))
+
+    async def recv(self):
+        """The next text message, or None once the peer is gone. A message
+        that does not fit the cap before its NUL is a protocol violation:
+        fail closed, same as a peer that hung up."""
+        try:
+            data = await self.reader.readuntil(b"\0")
+        except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, ConnectionError, OSError):
+            self.closed = True
+            return None
+        return data[:-1].decode("utf-8", "replace")
+
+    def close(self):
+        self.closed = True
+        with contextlib.suppress(Exception):
+            self.writer.close()
+
+
+# --------------------------------------------------------------------------- devtools
+
+class CdpError(Exception):
+    pass
+
+
+class PageError(Exception):
+    """The page agent refused or failed; `code` is its short reason."""
+
+    def __init__(self, code, message=""):
+        super().__init__(message or code)
+        self.code = code
+
+
+class Cdp:
+    def __init__(self, ws, on_event):
+        self.ws = ws
+        self.on_event = on_event
+        self.next_id = 0
+        self.pending = {}
+        self.done = asyncio.Event()
+
+    async def run(self):
+        try:
+            while True:
+                text = await self.ws.recv()
+                if text is None:
+                    break
+                try:
+                    msg = json.loads(text)
+                except ValueError:
+                    continue
+                mid = msg.get("id")
+                if mid is not None:
+                    fut = self.pending.pop(mid, None)
+                    if fut and not fut.done():
+                        if "error" in msg:
+                            fut.set_exception(CdpError(str(msg["error"].get("message", "error"))))
+                        else:
+                            fut.set_result(msg.get("result") or {})
+                    continue
+                try:
+                    self.on_event(msg)
+                except Exception as e:  # an event handler bug must not kill the connection
+                    log("event handler:", repr(e))
+        finally:
+            self.ws.close()
+            for fut in self.pending.values():
+                if not fut.done():
+                    fut.set_exception(CdpError("closed"))
+            self.pending.clear()
+            self.done.set()
+
+    async def call(self, method, params=None, session=None, timeout=10.0):
+        if self.done.is_set():
+            raise CdpError("closed")
+        self.next_id += 1
+        mid = self.next_id
+        msg = {"id": mid, "method": method, "params": params or {}}
+        if session:
+            msg["sessionId"] = session
+        fut = asyncio.get_running_loop().create_future()
+        self.pending[mid] = fut
+        try:
+            await self.ws.send(json.dumps(msg))
+            return await asyncio.wait_for(fut, timeout)
+        except asyncio.TimeoutError:
+            raise CdpError("timeout")
+        except (PipeClosed, ConnectionError, OSError) as e:
+            raise CdpError("closed: " + str(e))
+        finally:
+            self.pending.pop(mid, None)
+
+    def close(self):
+        self.ws.close()
+
+
+# --------------------------------------------------------------------------- argument checks
+
+class BadArgs(Exception):
+    pass
+
+
+VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+LIST_ID = re.compile(r"[A-Za-z0-9_-]{2,120}")
+PARAMS = re.compile(r"[A-Za-z0-9_%=-]{1,400}")
+TOKEN = re.compile(r"[A-Za-z0-9_%=-]{1,6000}")
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def a_video(v):
+    if not isinstance(v, str) or not VIDEO_ID.fullmatch(v):
+        raise BadArgs("videoId")
+    return v
+
+
+def a_list(v, name="playlistId"):
+    if not isinstance(v, str) or not LIST_ID.fullmatch(v):
+        raise BadArgs(name)
+    return v
+
+
+def a_params(v):
+    if not isinstance(v, str) or not PARAMS.fullmatch(v):
+        raise BadArgs("params")
+    return v
+
+
+def a_token(v):
+    if not isinstance(v, str) or not TOKEN.fullmatch(v):
+        raise BadArgs("continuation")
+    return v
+
+
+def a_text(v, name, most):
+    if not isinstance(v, str) or not v.strip() or len(v) > most or CONTROL.search(v):
+        raise BadArgs(name)
+    return v
+
+
+def a_int(v, name, low, high):
+    if isinstance(v, bool) or not isinstance(v, int) or not low <= v <= high:
+        raise BadArgs(name)
+    return v
+
+
+def a_num(v, name, low, high):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or not low <= v <= high:
+        raise BadArgs(name)
+    return float(v)
+
+
+def a_bool(v, name):
+    if not isinstance(v, bool):
+        raise BadArgs(name)
+    return v
+
+
+def a_enum(v, name, allowed):
+    if v not in allowed:
+        raise BadArgs(name)
+    return v
+
+
+def only(args, *keys):
+    if not isinstance(args, dict):
+        raise BadArgs("args")
+    extra = set(args) - set(keys)
+    if extra:
+        raise BadArgs("unknown " + ",".join(sorted(extra)))
+    return args
+
+
+def check_play(a):
+    only(a, "videoId", "playlistId", "params", "index")
+    out = {}
+    if "videoId" in a:
+        out["videoId"] = a_video(a["videoId"])
+    if "playlistId" in a:
+        out["playlistId"] = a_list(a["playlistId"])
+    if "params" in a:
+        out["params"] = a_params(a["params"])
+    if "index" in a:
+        out["index"] = a_int(a["index"], "index", 0, 10000)
+    if "videoId" not in out and "playlistId" not in out:
+        raise BadArgs("videoId or playlistId")
+    return out
+
+
+def check_search(a):
+    only(a, "q", "filter", "continuation")
+    out = {"q": a_text(a.get("q"), "q", 200)}
+    if a.get("filter"):
+        out["filter"] = a_enum(a["filter"], "filter", ("songs", "videos", "albums", "artists", "playlists"))
+    if "continuation" in a:
+        out["continuation"] = a_token(a["continuation"])
+    return out
+
+
+def check_browse(a):
+    only(a, "id", "params", "continuation")
+    out = {"id": a_list(a.get("id"), "id")}
+    if a.get("params"):
+        out["params"] = a_params(a["params"])
+    if "continuation" in a:
+        out["continuation"] = a_token(a["continuation"])
+    return out
+
+
+def check_queue_add(a):
+    only(a, "videoIds", "next")
+    ids = a.get("videoIds")
+    if not isinstance(ids, list) or not 1 <= len(ids) <= 50:
+        raise BadArgs("videoIds")
+    return {"videoIds": [a_video(v) for v in ids], "next": a_bool(a.get("next", False), "next")}
+
+
+def check_index(a, *extra):
+    only(a, "index", "automix")
+    return {"index": a_int(a.get("index"), "index", 0, 10000), "automix": a_bool(a.get("automix", False), "automix")}
+
+
+def check_radio(a):
+    only(a, "videoId", "playlistId", "params")
+    out = {}
+    if "videoId" in a:
+        out["videoId"] = a_video(a["videoId"])
+    if "playlistId" in a:
+        out["playlistId"] = a_list(a["playlistId"])
+        if not out["playlistId"].startswith("RD"):
+            raise BadArgs("playlistId")
+    if "params" in a:
+        out["params"] = a_params(a["params"])
+    if not out.get("videoId") and not out.get("playlistId"):
+        raise BadArgs("videoId or playlistId")
+    return out
+
+
+def check_eq(a):
+    only(a, "bands", "preamp", "loudness", "preset")
+    bands = a.get("bands")
+    if not isinstance(bands, list) or len(bands) != 10:
+        raise BadArgs("bands")
+    out = {"bands": [a_num(v, "bands", -12, 12) for v in bands],
+           "preamp": a_num(a.get("preamp", 0), "preamp", -12, 0),
+           "loudness": a_bool(a.get("loudness", False), "loudness")}
+    if "preset" in a:
+        out["preset"] = a_enum(a["preset"], "preset", ("flat", "bass", "treble", "vocal", "loudness", "custom"))
+    return out
+
+
+def check_start(a):
+    """Playback > "When Solfa starts" / "Volume at start"."""
+    only(a, "paused", "volume")
+    volume = a.get("volume")
+    return {"paused": a_bool(a.get("paused", False), "paused"),
+            "volume": None if volume is None else a_int(volume, "volume", 0, 100)}
+
+
+def start_state_from_env():
+    """The same, as the shell hands it over when it starts the bridge."""
+    volume = os.environ.get("SOLFA_START_VOLUME") or ""
+    try:
+        level = int(volume)
+    except ValueError:
+        level = None
+    return {"paused": os.environ.get("SOLFA_START_PAUSED") == "1",
+            "volume": level if level is not None and 0 <= level <= 100 else None}
+
+
+def check_none(a):
+    only(a or {})
+    return {}
+
+
+# Page operations: name → (argument check, timeout in seconds).
+PAGE_OPS = {
+    "state": (check_none, 5),
+    "transport": (lambda a: {"action": a_enum(only(a, "action").get("action"), "action", ("play", "pause", "toggle", "next", "previous"))}, 5),
+    "seek": (lambda a: {"seconds": a_num(only(a, "seconds").get("seconds"), "seconds", 0, 86400)}, 5),
+    "volume": (lambda a: {"level": a_int(only(a, "level").get("level"), "level", 0, 100)}, 5),
+    "mute": (lambda a: {"muted": a_bool(only(a, "muted").get("muted"), "muted")}, 5),
+    "repeat": (lambda a: {"mode": a_enum(only(a, "mode").get("mode"), "mode", ("NONE", "ALL", "ONE"))}, 5),
+    "shuffle": (check_none, 5),
+    "ad.skip": (check_none, 5),
+    "play": (check_play, 15),
+    "radio": (check_radio, 15),
+    "search": (check_search, 20),
+    "suggest": (lambda a: {"q": a_text(only(a, "q").get("q"), "q", 200)}, 8),
+    "browse": (check_browse, 20),
+    "home": (check_none, 20),
+    "library": (lambda a: {"section": a_enum(only(a, "section").get("section"), "section", ("playlists", "songs", "albums", "artists", "history"))}, 20),
+    "queue": (check_none, 5),
+    "queue.add": (check_queue_add, 15),
+    "queue.move": (lambda a: {"from": a_int(only(a, "from", "to").get("from"), "from", 0, 10000), "to": a_int(a.get("to"), "to", 0, 10000)}, 5),
+    "queue.remove": (check_index, 5),
+    "queue.jump": (check_index, 8),
+    "like": (lambda a: {"videoId": a_video(only(a, "videoId", "status").get("videoId")), "status": a_enum(a.get("status"), "status", ("LIKE", "DISLIKE", "INDIFFERENT"))}, 10),
+    "lyrics": (lambda a: {"videoId": a_video(only(a, "videoId").get("videoId"))}, 20),
+    "playlist.create": (lambda a: {"title": a_text(only(a, "title", "videoIds").get("title"), "title", 150),
+                                   **({"videoIds": [a_video(v) for v in a["videoIds"]]} if isinstance(a.get("videoIds"), list) and 0 < len(a["videoIds"]) <= 50 else {})}, 15),
+    "playlist.add": (lambda a: {"playlistId": a_list(only(a, "playlistId", "videoId").get("playlistId")), "videoId": a_video(a.get("videoId"))}, 15),
+    "eq.set": (check_eq, 5),
+    "account.info": (check_none, 10),
+}
+
+# Requests that change what plays: a restore in flight gives way to them.
+USER_PLAYBACK_OPS = {"play", "radio", "transport", "seek", "queue.jump"}
+
+BRIDGE_OPS = {"hello", "engine.start", "engine.stop", "engine.restart", "window.show", "window.hide", "signin.begin", "art", "rules",
+              "engine.version", "cache.clear", "profile.erase", "signout", "start.set", "bridge.quit", "ui.attach"}
+
+LOGOUT_URL = "https://accounts.google.com/Logout?continue=https://music.youtube.com/"
+
+ART_HOSTS = ("lh3.googleusercontent.com", "yt3.googleusercontent.com", "i.ytimg.com", "yt3.ggpht.com", "lh3.ggpht.com")
+
+
+# --------------------------------------------------------------------------- hyprland
+
+class Hypr:
+    """The engine window: a runtime rule, a guard, and the sign-in moment.
+
+    Rules are registered with `hyprctl eval` (Lua), so the user's Hyprland
+    config is never edited. `hyprctl reload` wipes them; the guard hears
+    `configreloaded` and registers them again.
+    """
+
+    def __init__(self, bridge):
+        self.bridge = bridge
+        self.hyprctl = os.environ.get("SOLFA_HYPRCTL") or program("hyprctl")
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+        runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+        default_events = pathlib.Path(runtime) / "hypr" / sig / ".socket2.sock" if sig and runtime else None
+        self.events_path = pathlib.Path(os.environ["SOLFA_HYPR_EVENTS"]) if os.environ.get("SOLFA_HYPR_EVENTS") else default_events
+        self.shown = False          # the user asked to see the window
+        self.shown_at = 0.0
+        self.special_open = set()   # monitors showing special:solfa
+        self.last_other = ""        # last focused window that is not the engine
+        self.engine_address = ""
+
+    @property
+    def available(self):
+        return bool(self.hyprctl)
+
+    async def run_ctl(self, *args, timeout=5.0):
+        if not self.hyprctl:
+            return ""
+        try:
+            proc = await asyncio.create_subprocess_exec(self.hyprctl, *args, stdin=asyncio.subprocess.DEVNULL,
+                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+                                                        env=child_env())
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout)
+            return out.decode("utf-8", "replace")
+        except (OSError, asyncio.TimeoutError) as e:
+            log("hyprctl", args[:1], "failed:", repr(e))
+            return ""
+
+    @staticmethod
+    def rule_lua():
+        # Keep one handle per rule set in a Lua global so repeated
+        # registration (every bridge start, every reload) does not stack rules.
+        return ("local R = _G.__solfa_rules; if R then for _, r in pairs(R) do pcall(function() r:set_enabled(false) end) end end; "
+                "_G.__solfa_rules = { hl.window_rule({ match = { class = [[" + WINDOW_CLASS_RE + "]] }, "
+                "workspace = [[special:" + SPECIAL + " silent]], no_initial_focus = true, no_anim = true, "
+                "focus_on_activate = false, suppress_event = [[activate activatefocus]], "
+                "float = true, size = { 1100, 760 }, center = true, "
+                # Solid for the one time it is seen (Omarchy dims all windows a little).
+                "opacity = [[1.0 override 1.0 override]] }) }")
+
+    async def register_rules(self):
+        await self.run_ctl("eval", self.rule_lua())
+
+    async def dispatch(self, lua):
+        # `hyprctl dispatch <lua>` is the documented form on 0.56 (Omarchy's
+        # own scripts use it); anything but "ok" is worth a log line.
+        reply = (await self.run_ctl("dispatch", lua)).strip()
+        if reply and reply != "ok":
+            log("hyprctl dispatch:", reply[:160])
+
+    async def clients(self):
+        text = await self.run_ctl("-j", "clients")
+        try:
+            data = json.loads(text) if text else []
+            return data if isinstance(data, list) else []
+        except ValueError:
+            return []
+
+    async def find_engine(self):
+        pid = self.bridge.engine.browser_pid()
+        for c in await self.clients():
+            if re.fullmatch(WINDOW_CLASS_RE, str(c.get("class", ""))) and (not pid or c.get("pid") == pid):
+                self.engine_address = str(c.get("address", ""))
+                return c
+        return None
+
+    async def monitors_showing(self):
+        """Monitors that show special:solfa now, asked from Hyprland (events
+        can be missed, for example across a bridge restart)."""
+        text = await self.run_ctl("-j", "monitors")
+        try:
+            mons = json.loads(text) if text else []
+        except ValueError:
+            return sorted(self.special_open)
+        if not isinstance(mons, list):
+            return sorted(self.special_open)
+        showing = [str(m.get("name", "")) for m in mons if (m.get("specialWorkspace") or {}).get("name") == "special:" + SPECIAL]
+        self.special_open = set(showing)
+        return showing
+
+    async def show(self):
+        """Bring the engine on screen, on purpose (sign-in, or "Show window")."""
+        self.shown = True
+        self.shown_at = time.monotonic()
+        self.bridge.broadcast("engine", self.bridge.engine.describe())
+        if not await self.monitors_showing():
+            await self.dispatch("hl.dsp.workspace.toggle_special([[" + SPECIAL + "]])")
+        c = await self.find_engine()
+        if c:
+            await self.dispatch("hl.dsp.focus({ window = [[address:" + str(c.get("address")) + "]] })")
+
+    async def hide(self):
+        self.shown = False
+        self.bridge.broadcast("engine", self.bridge.engine.describe())
+        c = await self.find_engine()
+        if c and c.get("workspace", {}).get("name") != "special:" + SPECIAL:
+            await self.dispatch("hl.dsp.window.move({ window = [[address:" + str(c.get("address")) + "]], workspace = [[special:" + SPECIAL + "]], follow = false })")
+        # toggle_special works on the focused monitor: go to each one first.
+        for mon in await self.monitors_showing():
+            await self.dispatch("hl.dsp.focus({ monitor = [[" + mon + "]] })")
+            await self.dispatch("hl.dsp.workspace.toggle_special([[" + SPECIAL + "]])")
+        if self.last_other:
+            await self.dispatch("hl.dsp.focus({ window = [[address:" + self.last_other + "]] })")
+
+    def guard_decision(self, name, data):
+        """One Hyprland event in, whether to put the engine away (pure)."""
+        if name == "activespecial":
+            ws, _, mon = data.partition(",")
+            if ws == "special:" + SPECIAL:
+                self.special_open.add(mon)
+                return not self.shown
+            self.special_open.discard(mon)
+            if not self.special_open and self.shown and time.monotonic() - self.shown_at > 1.5:
+                # The user closed it (Super+... or clicking away): the show is over.
+                self.shown = False
+                self.bridge.broadcast("engine", self.bridge.engine.describe())
+            return False
+        if name == "activewindowv2":
+            addr = data.strip()
+            if not addr:
+                return False
+            if not addr.startswith("0x"):
+                addr = "0x" + addr
+            if self.engine_address and addr == self.engine_address:
+                return not self.shown
+            self.last_other = addr
+            return False
+        if name == "openwindow":
+            parts = data.split(",", 3)
+            if len(parts) >= 3 and re.fullmatch(WINDOW_CLASS_RE, parts[2]):
+                addr = parts[0] if parts[0].startswith("0x") else "0x" + parts[0]
+                self.engine_address = addr
+                return not self.shown and parts[1] != "special:" + SPECIAL
+            return False
+        return False
+
+    async def watch(self):
+        """Follow Hyprland's event socket; reconnect if it goes away."""
+        if not self.events_path:
+            return
+        while True:
+            try:
+                reader, writer = await asyncio.open_unix_connection(str(self.events_path), limit=1 << 16)
+            except OSError:
+                await asyncio.sleep(5)
+                continue
+            try:
+                while True:
+                    line = await reader.readline()
+                    if not line:
+                        break
+                    name, _, data = line.decode("utf-8", "replace").rstrip("\n").partition(">>")
+                    if name == "configreloaded":
+                        await self.register_rules()
+                        continue
+                    if self.guard_decision(name, data):
+                        log("guard: engine came forward on its own, putting it away")
+                        await self.hide()
+            except (ConnectionError, OSError, ValueError):
+                pass
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # keep guarding whatever one event did
+                log("guard bug:", repr(e))
+            finally:
+                writer.close()
+            await asyncio.sleep(2)
+
+
+# --------------------------------------------------------------------------- engine
+
+def agent_bundle():
+    parse = (ROOT / "engine" / "parse.js").read_text(encoding="utf-8")
+    agent = (ROOT / "engine" / "agent.js").read_text(encoding="utf-8")
+    version = hashlib.sha1((parse + agent).encode("utf-8")).hexdigest()[:12]
+    return version, parse + "\n;\n" + agent.replace("%%SOLFA_VERSION%%", version)
+
+
+def erasable_profile(target):
+    """Why `target` may not be deleted as the engine's profile, or "" if it may.
+
+    An allowlist, not a denylist: the known layout
+    ($XDG_DATA_HOME/io.github.sirallap.solfa/engine), or a folder that really
+    is this engine's Chromium profile (its Local State file and our own profile
+    directory, "Solfa", which no everyday browser profile has)."""
+    if not str(target) or not target.is_absolute():
+        return "not an absolute path"
+    if target.is_symlink():
+        return "a symlink"
+    real = target.resolve()
+    home = HOME.resolve()
+    if real == pathlib.Path("/") or real == home or real in home.parents:
+        return "the home folder or above it"
+    if real == DEFAULT_PROFILE_DIR.resolve() and real.parent.name == PLUGIN_ID:
+        return ""
+    if not ((real / "Local State").is_file() and (real / PROFILE_DIR_NAME).is_dir()):
+        return "not Solfa's engine profile"
+    # Solfa makes its "Solfa" profile in any folder it is pointed at: a
+    # browser's own data folder then has one too, beside its own profiles.
+    if (real / "Default").exists() or any(real.glob("Profile *")):
+        return "a browser's data folder with other profiles in it"
+    return ""
+
+
+def uses_profile(cmdline, profile):
+    """Does this /proc cmdline run with our --user-data-dir?
+
+    Chromium rewrites its argv into one space-joined string, so the flag is
+    looked for as a whole word, not only as one of the NUL-split args."""
+    want = re.escape(("--user-data-dir=" + str(profile)).encode())
+    return re.search(rb"(^|[\s\0])" + want + rb"([\s\0]|$)", cmdline) is not None
+
+
+def profile_in_use(profile):
+    """Is any process running with this --user-data-dir (a browser still starting)?"""
+    for d in pathlib.Path("/proc").iterdir():
+        if d.name.isdigit():
+            with contextlib.suppress(OSError):
+                if uses_profile((d / "cmdline").read_bytes(), profile):
+                    return True
+    return False
+
+
+# ---- the imported-session marker
+#
+# "Use my browser's sign-in" (copying a Google session in from the default
+# browser) shipped and was removed again before the marketplace release: one
+# fewer thing to explain in a security read, and the code stays in git
+# history. The marker itself, and the signout safety it drives (never log an
+# imported session out at Google, which would sign the browser out too), are
+# kept: an existing profile from before this build may still carry it.
+# Google's cookie-consent answer stays through a sign-out: without it the app
+# opens on Google's cookie page instead of signed out.
+KEEP_ON_SIGNOUT = {"SOCS", "CONSENT"}
+IMPORTED_MARK = "solfa-imported-session"
+
+
+def imported_session():
+    """Is the engine's Google session one that was copied in from a browser?"""
+    return (PROFILE_DIR / IMPORTED_MARK).exists()
+
+
+# Google copies a session to its country domains (google.es, google.co.uk)
+# while the app loads: forgetting it covers them too. Import stays .com only.
+GOOGLE_FAMILY = re.compile(r"(^|\.)(google|youtube)\.(com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$")
+
+
+def google_family(domain):
+    return bool(GOOGLE_FAMILY.search((domain or "").lstrip(".").lower()))
+
+
+def chromium_time(value):
+    """Chromium's cookie times (microseconds since 1601) as unix time."""
+    return value / 1_000_000 - 11644473600
+
+
+def signed_in_since(profile, since):
+    """Has Google set its sign-in cookie in this profile after `since` (unix time)?
+
+    Only the cookie's name, host and creation time are read, never its value.
+    The database is opened read-only and immutable: the browser holds it, and
+    a page torn by a write in progress is just "not yet"."""
+    for db in (profile / "Network" / "Cookies", profile / "Cookies"):
+        if not db.is_file():
+            continue
+        try:
+            con = sqlite3.connect("file:" + urllib.parse.quote(str(db)) + "?mode=ro&immutable=1", uri=True, timeout=1)
+            try:
+                # YouTube's own copy: Google sets its .google.com one first,
+                # then redirects through youtube.com to set this one.
+                row = con.execute("SELECT MAX(creation_utc) FROM cookies WHERE name IN (?, ?) AND host_key = '.youtube.com'",
+                                  SIGNIN_COOKIES).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            continue
+        if row and row[0] and chromium_time(row[0]) > since:
+            return True
+    return False
+
+
+# Fixed candidates only, checked with os.access, first match wins: no PATH
+# search at any point (a maintainer rejection: bare-name Chromium lookup).
+BROWSER_CANDIDATES = (
+    "/usr/bin/chromium",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/brave",
+    "/usr/bin/brave-browser",
+    "/usr/bin/vivaldi-stable",
+    "/usr/bin/microsoft-edge-stable",
+)
+
+
+def find_browser():
+    """(path, error) for the engine's Chromium: path is "" when none was
+    usable, and error then says why (a bad `browser` setting, or none found)."""
+    wanted = os.environ.get("SOLFA_BROWSER", "").strip()
+    if wanted:
+        if not os.path.isabs(wanted):
+            return "", "browser must be an absolute path"
+        return (wanted, "") if os.access(wanted, os.X_OK) else ("", "no Chromium-family browser found")
+    for path in BROWSER_CANDIDATES:
+        if os.access(path, os.X_OK):
+            return path, ""
+    return "", "no Chromium-family browser found"
+
+
+def high_fd(fd, low=10):
+    """fd moved to the lowest free number >= low (close-on-exec), the
+    original closed."""
+    moved = fcntl.fcntl(fd, fcntl.F_DUPFD_CLOEXEC, low)
+    os.close(fd)
+    return moved
+
+
+class Engine:
+    def __init__(self, bridge):
+        self.bridge = bridge
+        self.cdp = None
+        self.session = None
+        self.target_id = None
+        self.status = "stopped"
+        self.error = ""
+        self.account = {"signedIn": False, "host": "", "path": ""}
+        self.player = {}
+        self.queue_version = 0
+        self.agent_version, self.bundle = agent_bundle()
+        self.last_heard = 0.0
+        self.misses = 0
+        self.launched_at = 0.0
+        self.restarts = []
+        self.want_running = os.environ.get("SOLFA_NO_LAUNCH") != "1"
+        self.restore = None
+        self.page_url = ""
+        self.rebind_task = None
+        self.seen_signin_window = False
+        self.page_since = time.monotonic()  # when this page (document) was loaded
+        self.heap_mb = 0.0                  # its JS heap, as last read
+        self.renderer_mb = 0.0              # its process's memory, as last read
+        self.paused_since = time.monotonic()
+        self.armed = False                  # the agent pauses at the next song for a recycle
+        self.recycling = False
+        # This engine was launched as a start of Solfa (not a crash restart,
+        # a restart, a sign-in or an engine that was already running): the
+        # start state is applied once, at its first hello.
+        self.apply_start = False
+        # The bridge's own child: never adopted, never found by scanning
+        # /proc for a DevTools flag. pid/pidfd are only ever set right after
+        # this bridge's own posix_spawn; is_signin says which kind it is.
+        self.pid = 0
+        self.pidfd = -1
+        self.is_signin = False
+        # The bridge's own ends of the two pipes dup'd for the engine's fd 3
+        # (bridge -> browser) and fd 4 (browser -> bridge), set by launch()
+        # and consumed once by attach() into a Pipe/Cdp. None for a sign-in
+        # window (it gets no --remote-debugging-pipe, so no one reads them).
+        self._engine_fds = None
+
+    # ---- process
+
+    def browser_pid(self):
+        """The engine's browser pid, from the profile's SingletonLock, if alive."""
+        try:
+            target = os.readlink(PROFILE_DIR / "SingletonLock")
+        except OSError:
+            return 0
+        host, _, pid = target.rpartition("-")
+        if host != socket.gethostname() or not pid.isdigit():
+            return 0
+        pid = int(pid)
+        try:
+            cmd = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
+        except OSError:
+            return 0
+        return pid if uses_profile(cmd, PROFILE_DIR) else 0
+
+    def is_signin_window(self, pid):
+        """Is `pid` the sign-in window this bridge itself spawned and is
+        watching? Nothing on the command line marks it any more (no
+        DevTools flag at all, on either window): this is a lookup against
+        what the bridge tracked at launch, not a /proc scan."""
+        return bool(pid) and self.is_signin and pid == self.pid
+
+    def signin_argv(self, browser, url=SIGNIN_URL):
+        """A plain browser window on Google's sign-in page, on the engine's profile.
+
+        Nothing that marks a browser as automated: no DevTools port, none of
+        the engine's switches, no extra flags from SOLFA_ENGINE_FLAGS. The
+        bridge never talks to it; it watches the profile for the sign-in
+        cookie and the process for its end."""
+        return [browser,
+                "--user-data-dir=" + str(PROFILE_DIR),
+                "--profile-directory=" + PROFILE_DIR_NAME,
+                "--app=" + url,
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--window-size=520,720"]
+
+    def argv(self, browser):
+        argv = [browser,
+                "--user-data-dir=" + str(PROFILE_DIR),
+                "--profile-directory=" + PROFILE_DIR_NAME,
+                "--app=" + APP_URL,
+                # No TCP DevTools port at all, so nothing that can reach
+                # loopback can read the profile's cookies. The bridge is the
+                # only client: it holds both ends of the pipe (fd 3/4) from
+                # posix_spawn, since the engine is its own child. A shell
+                # restart no longer needs to "adopt" a still-running engine
+                # by a port: the bridge process itself (not the shell) is
+                # what stays up across a shell restart, as a systemd --user
+                # unit, so the pipe never has to survive on its own.
+                "--remote-debugging-pipe",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--autoplay-policy=no-user-gesture-required",
+                "--disable-background-timer-throttling",
+                "--disable-renderer-backgrounding",
+                "--disable-backgrounding-occluded-windows",
+                # Less memory: no extensions (the user's browser flags may
+                # load some), no spare renderer kept warm, and none of the
+                # address bar's preloaded pages an app window never shows
+                # (two renderers, about 80 MB).
+                "--disable-extensions",
+                "--disable-features=WebUIOmniboxPopup,WebUIOmniboxAimPopup,PreloadTopChromeWebUI,"
+                "SpareRendererForSitePerProcess",
+                # Nothing in the background a player never needs (updates,
+                # sync, pings, crash reports, field trials): about 25 MB.
+                "--disable-background-networking", "--disable-component-update", "--disable-sync",
+                "--disable-default-apps", "--disable-domain-reliability", "--disable-client-side-phishing-detection",
+                "--no-pings", "--metrics-recording-only", "--disable-breakpad", "--disable-field-trial-config",
+                # A ceiling on the page's JS heap, well above where the page
+                # is recycled (RECYCLE_HEAP_MB): near it V8 collects harder.
+                "--js-flags=--max-old-space-size=768",
+                "--window-size=1100,760"]
+        extra = os.environ.get("SOLFA_ENGINE_FLAGS", "").split()
+        # L2: SOLFA_ENGINE_FLAGS comes from the systemd user manager's
+        # environment (inherited, not from the shell's own settings): deny
+        # the flags that would reopen a reachable DevTools port or point the
+        # engine at a different profile.
+        denied = ("--remote-debugging-", "--user-data-dir", "--profile-directory")
+        return argv + [f for f in extra if f.startswith("--") and not f.startswith(denied)]
+
+    def _spawn(self, argv, want_pipe):
+        """posix_spawn argv as our own child. When want_pipe, Chromium's own
+        DevTools-pipe convention: a pipe read end dup'd onto fd 3 (bridge
+        writes commands, browser reads), a pipe write end dup'd onto fd 4
+        (browser writes events/replies, bridge reads). Returns
+        (pid, pidfd, our_to_browser_fd, our_from_browser_fd), the last two
+        None when want_pipe is False (the sign-in window: no CDP at all)."""
+        file_actions = []
+        pipe_fds = []
+        to_fd = from_fd = None
+        if want_pipe:
+            # Every pipe end is moved above fd 4 first: an end that already
+            # sits on 3 or 4 (free again after an engine restart, in a bridge
+            # that has nothing else open) would be closed by the actions
+            # below, or keep its close-on-exec flag (dup2 onto itself does
+            # not clear it), and the browser would quit at once.
+            cmd_r, cmd_w = (high_fd(fd) for fd in os.pipe())   # bridge writes cmd_w; browser reads cmd_r as fd 3
+            evt_r, evt_w = (high_fd(fd) for fd in os.pipe())   # browser writes evt_w as fd 4; bridge reads evt_r
+            pipe_fds = [cmd_r, cmd_w, evt_r, evt_w]
+            file_actions = [
+                (os.POSIX_SPAWN_DUP2, cmd_r, 3),
+                (os.POSIX_SPAWN_DUP2, evt_w, 4),
+                (os.POSIX_SPAWN_CLOSE, cmd_r),
+                (os.POSIX_SPAWN_CLOSE, evt_w),
+                (os.POSIX_SPAWN_CLOSE, cmd_w),
+                (os.POSIX_SPAWN_CLOSE, evt_r),
+            ]
+            to_fd, from_fd = cmd_w, evt_r
+        try:
+            pid = os.posix_spawn(argv[0], argv, child_env(), file_actions=file_actions)
+        except Exception:
+            for fd in pipe_fds:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            raise
+        if want_pipe:
+            os.close(cmd_r)
+            os.close(evt_w)
+        pidfd = os.pidfd_open(pid)
+        return pid, pidfd, to_fd, from_fd
+
+    def _watch_child(self, pid, pidfd):
+        """Reap this child off a pidfd becoming readable (it exited), never
+        by polling: signal.pidfd_send_signal is the only way anything of
+        ours signals it too, so a pid is never reused under us."""
+        loop = asyncio.get_running_loop()
+
+        def on_exit():
+            loop.remove_reader(pidfd)
+            with contextlib.suppress(ChildProcessError):
+                os.waitpid(pid, 0)
+            os.close(pidfd)
+            if self.pid == pid:
+                self.pid = 0
+                self.pidfd = -1
+                self.is_signin = False
+
+        loop.add_reader(pidfd, on_exit)
+
+    async def kill_stale(self):
+        """A live Chromium on our profile that this bridge did not itself
+        spawn (left by an older Solfa run, or a bridge that crashed): closed
+        by its checked pid (the same SingletonLock + /proc/cmdline check as
+        bin/solfa's engine_pid()), never adopted."""
+        pid = self.browser_pid()
+        if not pid or pid == self.pid:
+            return
+        log("closing a stale engine from an earlier run, pid", pid)
+        try:
+            pidfd = os.pidfd_open(pid)
+        except OSError:
+            return
+        try:
+            with contextlib.suppress(OSError, ProcessLookupError):
+                signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+            for _ in range(50):
+                if not self.browser_pid():
+                    break
+                await asyncio.sleep(0.1)
+        finally:
+            os.close(pidfd)
+
+    async def launch(self, signin=False, signin_url=SIGNIN_URL):
+        browser, browser_error = find_browser()
+        if not browser:
+            self.set_status("stopped", browser_error)
+            return False
+        await self.kill_stale()
+        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(PROFILE_DIR, 0o700)
+        await self.bridge.hypr.register_rules()
+        argv = self.signin_argv(browser, signin_url) if signin else self.argv(browser)
+        log("launching the sign-in window" if signin else "launching engine")
+        try:
+            pid, pidfd, to_fd, from_fd = self._spawn(argv, want_pipe=not signin)
+        except OSError as e:
+            self.set_status("stopped", "launch failed: " + str(e))
+            return False
+        self.pid = pid
+        self.pidfd = pidfd
+        self.is_signin = signin
+        self._engine_fds = None if signin else (to_fd, from_fd)
+        self._watch_child(pid, pidfd)
+        self.launched_at = time.monotonic()
+        self.set_status("signing-in" if signin else "starting")
+        return True
+
+    async def stop(self):
+        """Close the engine (or the sign-in window): politely over the pipe,
+        else by pidfd, and wait until it is gone."""
+        self.want_running = False
+        self.apply_start = False  # whatever launches next decides for itself
+        self.bridge.signing_in = False
+        pid, pidfd = self.pid, self.pidfd
+        if self.cdp:
+            with contextlib.suppress(CdpError):
+                await self.cdp.call("Browser.close", timeout=3)
+            for _ in range(30):
+                if self.pid != pid:
+                    break
+                await asyncio.sleep(0.1)
+        if pid and self.pid == pid and pidfd >= 0:
+            # SIGTERM ends Chromium, but cookies not yet on disk are lost
+            # (measured): a sign-in window is closed only once they are saved.
+            with contextlib.suppress(OSError, ProcessLookupError):
+                signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+            for _ in range(80):
+                if self.pid != pid:
+                    break
+                await asyncio.sleep(0.1)
+        self.detach()
+        self.set_status("stopped")
+
+    # ---- attach
+
+    async def attach(self):
+        if self.cdp is None:
+            if not self._engine_fds:
+                return False
+            to_fd, from_fd = self._engine_fds
+            self._engine_fds = None
+            try:
+                pipe = await Pipe.open(to_fd, from_fd)
+            except OSError:
+                return False
+            self.set_status("attaching")
+            cdp = Cdp(pipe, self.on_event)
+            self.cdp = cdp
+            asyncio.get_running_loop().create_task(self.watch_connection(cdp))
+        cdp = self.cdp
+        try:
+            await cdp.call("Target.setDiscoverTargets", {"discover": True})
+            page = None
+            for _ in range(60):
+                infos = (await cdp.call("Target.getTargets")).get("targetInfos", [])
+                pages = [t for t in infos if t.get("type") == "page"]
+                if pages:
+                    page = next((t for t in pages if APP_HOST in t.get("url", "")), pages[0])
+                    break
+                await asyncio.sleep(0.5)
+            if not page:
+                raise CdpError("no page")
+            await self.attach_page(page["targetId"])
+            if page.get("url", "") in ("", "about:blank"):
+                # A bridge that died in the middle of a recycle left the page
+                # on the blank one: nothing else would bring the app back.
+                log("page is blank (a recycle cut short): loading the app")
+                await cdp.call("Page.navigate", {"url": APP_URL}, self.session)
+                self.page_since = time.monotonic()
+            return True
+        except CdpError as e:
+            # Not yet ready (no page target yet): the pipe stays open, the
+            # supervisor tries attach() again shortly. A pipe cannot be
+            # reconnected like a socket, so a failed attempt never closes it.
+            log("attach not ready:", e)
+            return False
+
+    async def attach_page(self, target_id):
+        cdp = self.cdp
+        res = await cdp.call("Target.attachToTarget", {"targetId": target_id, "flatten": True})
+        self.session = res["sessionId"]
+        self.target_id = target_id
+        await cdp.call("Runtime.addBinding", {"name": "__solfaEmit"}, self.session)
+        await cdp.call("Page.enable", {}, self.session)
+        await cdp.call("Page.addScriptToEvaluateOnNewDocument", {"source": self.bundle}, self.session)
+        await cdp.call("Runtime.evaluate", {"expression": self.bundle}, self.session, timeout=10)
+        self.page_since = self.last_heard = time.monotonic()
+        self.armed = False
+        self.misses = 0
+        # The agent says hello once the app is up; until then we are attaching.
+        await self.refresh_state()
+
+    async def refresh_state(self):
+        try:
+            data = await self.page_call("state", {}, timeout=5)
+        except (CdpError, PageError) as e:
+            code = e.code if isinstance(e, PageError) else str(e)
+            if code in ("not-on-app", "no-agent") and not self.recycling:
+                self.account = {"signedIn": False, "host": await self.page_host(), "path": ""}
+                self.set_status("ready" if self.account["host"] else "attaching")
+            return
+        player, account = data.get("player"), data.get("account")
+        self.player = player if isinstance(player, dict) else {}
+        self.account = account if isinstance(account, dict) else self.account
+        self.queue_version = data.get("queueVersion", self.queue_version)
+        self.bridge.hellos += 1  # the agent itself answered (not a guess from the host)
+        self.bridge.signin_verdict(self.account)
+        self.set_status("ready")
+        self.bridge.remember(self.player)
+        self.bridge.broadcast("player", self.player)
+        self.bridge.broadcast("account", self.account)
+
+    def schedule_rebind(self):
+        if self.rebind_task and not self.rebind_task.done():
+            self.rebind_task.cancel()
+        self.rebind_task = asyncio.get_running_loop().create_task(self.rebind())
+
+    async def rebind(self, delay=0.4):
+        """After a navigation: add the binding again and read the state.
+
+        A navigation that changes renderer process (Google's cookie page to
+        YouTube Music, or a reload after the Google session changed) drops
+        the page's binding while the agent script comes back by itself; its
+        hello would go nowhere."""
+        await asyncio.sleep(delay)
+        if not self.cdp or not self.session:
+            return
+        try:
+            await self.cdp.call("Runtime.addBinding", {"name": "__solfaEmit"}, self.session)
+        except CdpError:
+            return
+        await self.refresh_state()
+        self.bridge.on_hello()
+
+    async def page_host(self):
+        try:
+            res = await self.cdp.call("Runtime.evaluate", {"expression": "location.hostname", "returnByValue": True}, self.session, timeout=3)
+            return str(res.get("result", {}).get("value", ""))
+        except CdpError:
+            return ""
+
+    async def watch_connection(self, cdp):
+        await cdp.run()
+        if cdp is not self.cdp:
+            return
+        log("engine connection closed")
+        if self.bridge.last_track is not None:
+            self.bridge.last_track["died_at"] = time.time()
+        pid, pidfd = self.pid, self.pidfd
+        self.detach()
+        self.set_status("crashed" if self.want_running else "stopped", "engine closed")
+        if pid and pidfd >= 0:
+            # M4: a lost pipe does not, by itself, mean the child is gone
+            # (a message over the cap, for one). Nothing else here signals
+            # it, so without this an unreachable Chromium could sit there
+            # forever with the relaunch waiting on an exit that never comes.
+            await self.kill_after_pipe_loss(pid, pidfd)
+        if self.want_running:
+            self.bridge.kick()
+
+    async def kill_after_pipe_loss(self, pid, pidfd):
+        """SIGTERM the child by pidfd, SIGKILL after a grace period if it is
+        still ours (not yet reaped by the pidfd exit watcher)."""
+        with contextlib.suppress(OSError, ProcessLookupError):
+            signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+        for _ in range(30):
+            if self.pid != pid:
+                return
+            await asyncio.sleep(0.1)
+        if self.pid == pid:
+            with contextlib.suppress(OSError, ProcessLookupError):
+                signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+
+    def detach(self):
+        if self.cdp:
+            self.cdp.close()
+        self.cdp = None
+        self.session = None
+        self.target_id = None
+        if self._engine_fds:
+            for fd in self._engine_fds:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            self._engine_fds = None
+
+    # ---- page
+
+    async def page_call(self, op, args, timeout=10):
+        if not self.cdp or not self.session:
+            raise PageError("engine-down")
+        expr = ("window.__solfa ? window.__solfa.call(" + json.dumps(op) + ", " + json.dumps(args) +
+                ") : Promise.reject(new Error('no-agent'))")
+        res = await self.cdp.call("Runtime.evaluate", {"expression": expr, "awaitPromise": True, "returnByValue": True},
+                                  self.session, timeout=timeout)
+        self.last_heard = time.monotonic()
+        self.misses = 0
+        if "exceptionDetails" in res:
+            ex = res["exceptionDetails"]
+            desc = str((ex.get("exception") or {}).get("description") or ex.get("text") or "error")
+            first = desc.split("\n", 1)[0]
+            code = first.split(": ", 1)[1] if ": " in first else first
+            code = code.strip()[:80]
+            if not re.fullmatch(r"[a-z0-9-]+", code):
+                raise PageError("page-error", code)
+            raise PageError(code)
+        return res.get("result", {}).get("value")
+
+    def on_event(self, msg):
+        method = msg.get("method", "")
+        params = msg.get("params") or {}
+        if method == "Runtime.bindingCalled" and params.get("name") == "__solfaEmit":
+            self.last_heard = time.monotonic()
+            self.misses = 0
+            try:
+                ev = json.loads(params.get("payload") or "{}")
+            except ValueError:
+                return
+            # Any script in the page can call the binding: take only the
+            # shapes the agent sends.
+            if not isinstance(ev, dict) or not isinstance(ev.get("data", {}), dict):
+                return
+            self.on_agent(ev.get("t"), ev.get("data") or {})
+        elif method == "Target.targetCrashed" or method == "Inspector.targetCrashed":
+            log("engine page crashed")
+            self.set_status("stuck", "page crashed")
+            self.bridge.kick()
+        elif method == "Target.detachedFromTarget" and params.get("sessionId") == self.session:
+            self.session = None
+            self.set_status("attaching")
+            self.bridge.kick()
+        elif method == "Page.frameNavigated" and msg.get("sessionId") == self.session:
+            # A new document in the main frame, even on the same URL: a
+            # slow first load after the attach, or a reload once the Google
+            # session changed, can come in a new renderer without the binding.
+            if not (params.get("frame") or {}).get("parentId"):
+                self.schedule_rebind()
+        elif method == "Target.targetInfoChanged":
+            info = params.get("targetInfo") or {}
+            if info.get("targetId") == self.target_id:
+                url = info.get("url", "")
+                host = urllib.parse.urlparse(url).hostname or ""
+                if host != APP_HOST and host != self.account.get("host") and not self.recycling:
+                    self.account = {"signedIn": False, "host": host, "path": ""}
+                    self.bridge.broadcast("account", self.account)
+                if url != self.page_url:
+                    self.page_url = url
+                    self.schedule_rebind()
+
+    def on_agent(self, kind, data):
+        if kind == "player":
+            if data.get("playing"):
+                self.paused_since = 0.0
+            elif not self.paused_since:
+                self.paused_since = time.monotonic()
+            self.player = data
+            self.bridge.broadcast("player", data)
+            self.bridge.remember(data)
+        elif kind == "queue":
+            self.queue_version = data.get("version", 0)
+            self.bridge.broadcast("queue", {"version": self.queue_version})
+        elif kind == "account":
+            if self.recycling and data.get("host") != APP_HOST:
+                return  # the blank page between the old app and the new one
+            self.account = data
+            self.bridge.broadcast("account", data)
+            self.bridge.signin_verdict(data)
+        elif kind == "hello":
+            acc = data.get("account")
+            self.account = acc if isinstance(acc, dict) else self.account
+            self.bridge.broadcast("account", self.account)
+            self.bridge.signin_verdict(self.account)
+            if self.status != "ready":
+                self.set_status("ready")
+            self.bridge.hellos += 1
+            self.bridge.app_hellos += 1
+            self.bridge.on_hello()
+        elif kind == "eq-lost":
+            # An older agent took the page's audio graph with it: only a
+            # fresh page brings the sound back (queue, song and place kept).
+            log("audio graph lost to an agent update: swapping the page")
+            self.bridge.start_recycle(playing=False)
+        elif kind == "recycle":
+            self.armed = False
+            self.bridge.start_recycle(playing=True)
+        elif kind == "error":
+            log("agent:", data.get("code"))
+
+    def set_status(self, status, error=""):
+        if status == self.status and error == self.error:
+            return
+        self.status = status
+        self.error = error
+        self.bridge.broadcast("engine", self.describe())
+
+    def describe(self):
+        return {"status": self.status, "error": self.error, "pid": self.browser_pid(), "agent": self.agent_version,
+                "signedIn": bool(self.account.get("signedIn")), "host": self.account.get("host", ""),
+                "shown": self.bridge.hypr.shown, "signingIn": self.bridge.signing_in, "wantRunning": self.want_running,
+                "signinCheck": self.bridge.signin_check, "signinError": self.bridge.signin_error,
+                "signinSaving": bool(self.bridge.signin_landed_at),
+                "importedSession": imported_session()}
+
+    async def read_heap(self):
+        """The page's JS heap in MB (0 when it cannot be read)."""
+        try:
+            res = await self.cdp.call("Runtime.getHeapUsage", {}, self.session, timeout=5)
+            self.heap_mb = float(res.get("usedSize") or 0) / (1 << 20)
+        except (CdpError, AttributeError, TypeError, ValueError):
+            self.heap_mb = 0.0
+        self.renderer_mb = renderer_mb()
+        return self.heap_mb
+
+    # ---- health
+
+    async def check(self):
+        """Is the page answering? Called when it has been quiet for a while."""
+        if not self.cdp or not self.session:
+            return
+        try:
+            res = await self.cdp.call("Runtime.evaluate", {"expression": "typeof __solfaEmit", "returnByValue": True},
+                                      self.session, timeout=5)
+            self.last_heard = time.monotonic()
+            self.misses = 0
+            if res.get("result", {}).get("value") == "undefined" and not self.recycling:
+                log("the page lost its binding: adding it again")
+                self.schedule_rebind()
+        except CdpError:
+            self.misses += 1
+            log("liveness check missed", self.misses)
+            if self.misses >= STUCK_AFTER:
+                self.set_status("stuck", "page stopped answering")
+
+
+# --------------------------------------------------------------------------- bridge
+
+class Bridge:
+    def __init__(self):
+        self.clients = set()
+        self.hypr = Hypr(self)
+        self.engine = Engine(self)
+        self.wake = asyncio.Event()
+        self.signing_in = False
+        self.signin_starting = False
+        self.signin_since = 0.0
+        self.signin_opened_at = 0.0  # monotonic: when this bridge started watching the sign-in window
+        # A sign-in window has closed: the engine's page, once back on the
+        # app, says whether the account is in (signin_verdict). A failed one
+        # stays in signin_error for the panel until the next try, which asks
+        # Google for the account (the passive flow would bounce again).
+        self.signin_check = False
+        self.signin_error = ""
+        self.signin_landed_at = 0.0  # when the window reached the app (then hidden, waiting for the cookie)
+        self.signin_ended_at = -SIGNIN_COOLDOWN  # monotonic; a new sign-in waits SIGNIN_COOLDOWN after it
+        # Above zero while a request stops the engine or opens the sign-in
+        # window: the supervisor stands aside (no adopting a closing window as
+        # a sign-in, no stopping the window that replaces the engine).
+        self.busy = 0
+        self.last_track = None
+        self.last_eq = None   # the last eq.set asked for: resent after a page load or a recycle
+        self.restore_task = None
+        self.recycle_task = None
+        # Bumped by every playback request from the user: a restore in
+        # flight gives way to it.
+        self.user_epoch = 0
+        # "When Solfa starts": what to apply, and whether the next engine
+        # this bridge launches is a start of Solfa. An engine found already
+        # running (a shell reload) clears it: its music goes on untouched.
+        self.start_state = start_state_from_env()
+        self.start_fresh = True
+        self.start_task = None
+        self.hellos = 0       # times the agent itself reported its state: signout waits for the next one
+        self.app_hellos = 0   # of those, the agent's own hello once the app is up (never too early to trust)
+        self.erasing = False
+        # Set once, by bridge.quit, the orphan lease or a signal: every exit
+        # path funnels through quit() (engine closed first, socket removed),
+        # and main() only tears the process down once this is set.
+        self.quit_event = asyncio.Event()
+        # Clients that said ui.attach and have not disconnected since: the
+        # orphan lease is idle only while this is empty. ui_last_seen is
+        # when it last became empty (a bridge nobody ever attaches to counts
+        # its idle time from its own start).
+        self.ui_writers = set()
+        self.ui_last_seen = time.monotonic()
+
+    # ---- clients
+
+    def broadcast(self, event, data):
+        line = (json.dumps({"event": event, "data": data}, separators=(",", ":")) + "\n").encode()
+        for c in list(self.clients):
+            self.write(c, line)
+
+    def write(self, writer, line):
+        try:
+            if writer.transport.get_write_buffer_size() > MAX_CLIENT_BACKLOG:
+                log("dropping a client that stopped reading")
+                self.clients.discard(writer)
+                writer.close()
+                return
+            writer.write(line)
+        except (ConnectionError, RuntimeError, AttributeError):
+            self.clients.discard(writer)
+
+    async def serve_client(self, reader, writer):
+        self.clients.add(writer)
+        try:
+            while True:
+                try:
+                    line = await reader.readuntil(b"\n")
+                except asyncio.LimitOverrunError:
+                    log("request too long, closing client")
+                    break
+                except asyncio.IncompleteReadError:
+                    break
+                asyncio.get_running_loop().create_task(self.handle(writer, line))
+        except (ConnectionError, OSError):
+            pass
+        finally:
+            self.clients.discard(writer)
+            if writer in self.ui_writers:
+                self.ui_writers.discard(writer)
+                if not self.ui_writers:
+                    self.ui_last_seen = time.monotonic()
+            with contextlib.suppress(Exception):
+                writer.close()
+
+    async def handle(self, writer, line):
+        rid = None
+        try:
+            req = json.loads(line)
+            if not isinstance(req, dict):
+                raise BadArgs("request")
+            rid = req.get("id")
+            if not isinstance(rid, int) or isinstance(rid, bool):
+                raise BadArgs("id")
+            op = req.get("op")
+            args = req.get("args") if req.get("args") is not None else {}
+            data = await self.dispatch(op, args)
+            if op == "ui.attach":
+                self.ui_writers.add(writer)
+            reply = {"id": rid, "ok": True, "data": data}
+        except BadArgs as e:
+            reply = {"id": rid, "ok": False, "error": "bad-args", "message": str(e)}
+        except PageError as e:
+            reply = {"id": rid, "ok": False, "error": e.code, "message": str(e)}
+        except CdpError as e:
+            reply = {"id": rid, "ok": False, "error": "engine-error", "message": str(e)}
+        except ValueError:
+            reply = {"id": rid, "ok": False, "error": "bad-json"}
+        except Exception as e:  # every request gets an answer, whatever broke
+            log("request failed:", repr(e))
+            reply = {"id": rid, "ok": False, "error": "internal-error", "message": type(e).__name__}
+        self.write(writer, (json.dumps(reply, separators=(",", ":")) + "\n").encode())
+
+    async def dispatch(self, op, args):
+        if not isinstance(op, str):
+            raise BadArgs("op")
+        if op in PAGE_OPS:
+            check, timeout = PAGE_OPS[op]
+            clean = check(args)
+            if op == "eq.set":
+                # Remembered regardless of engine readiness: on_hello() and
+                # recycle() resend it on the page's behalf (same as
+                # last_track), so a settings change made while the engine is
+                # restarting still lands once it is back.
+                self.last_eq = clean
+            if self.engine.status not in ("ready",):
+                raise PageError("engine-" + self.engine.status)
+            if op in USER_PLAYBACK_OPS:
+                self.user_epoch += 1
+            return await self.engine.page_call(op, clean, timeout=timeout)
+        if op not in BRIDGE_OPS:
+            raise BadArgs("unknown op")
+        if op == "hello":
+            only(args)
+            return {"version": VERSION, "launchKey": LAUNCH_KEY, "engine": self.engine.describe(), "account": self.engine.account,
+                    "player": self.engine.player, "queueVersion": self.engine.queue_version, "shown": self.hypr.shown}
+        if op == "ui.attach":
+            only(args)
+            # Tracked by handle() (it has the writer this reply goes out
+            # on); the orphan lease is idle only once every UI client that
+            # said this has disconnected.
+            return {"attached": True}
+        if op == "bridge.quit":
+            only(args)
+            asyncio.get_running_loop().create_task(self.quit())
+            return {"quitting": True}
+        if op == "engine.start":
+            only(args)
+            if not self.engine.cdp and not self.signing_in:
+                self.start_fresh = True  # Solfa was closed: this is a start
+            self.engine.want_running = True
+            self.engine.restarts = []  # the user asked: a fresh start, not the tail of a crash loop
+            self.kick()
+            return {"status": self.engine.status}
+        if op == "engine.stop":
+            only(args)
+            async with self.aside():
+                await self.engine.stop()
+            # Stopped on purpose: a later start does not replay the song, and
+            # nobody is shown a song that is no longer there.
+            self.engine.restore = None
+            self.engine.player = {}
+            self.broadcast("player", {})
+            return {"status": self.engine.status}
+        if op == "engine.restart":
+            only(args)
+            async with self.aside():
+                await self.restart_engine(resume=not self.signing_in)
+            return {"status": self.engine.status}
+        if op == "window.show":
+            only(args)
+            await self.hypr.show()
+            return {"shown": True}
+        if op == "window.hide":
+            only(args)
+            if self.signing_in:
+                if self.signin_landed_at:
+                    # Google's cookie is in the window's memory only: closing
+                    # it now throws the sign-in away. It is hidden already and
+                    # closes by itself once the cookie is saved.
+                    log("hide asked while the sign-in is being saved; the window closes once it is")
+                    return {"shown": False}
+                # Sign-in given up: close its window, the engine comes back.
+                log("sign-in cancelled")
+                async with self.aside():
+                    await self.end_signin(close=True, check=False)
+                return {"shown": False}
+            # An engine left on a Google page (a link, an older Solfa): back
+            # to the app, where things play. Google's cookie page stays: it
+            # must be answered.
+            host = self.engine.account.get("host")
+            if not self.engine.account.get("signedIn") and host and host not in (APP_HOST, "consent.youtube.com"):
+                await self.navigate(APP_URL)
+            await self.hypr.hide()
+            return {"shown": False}
+        if op == "signin.begin":
+            only(args, "chooser")
+            await self.begin_signin(chooser=a_bool(args.get("chooser", False), "chooser"))
+            return {"signingIn": self.signing_in}
+        if op == "rules":
+            only(args)
+            await self.hypr.register_rules()
+            return {"registered": True}
+        if op == "art":
+            only(args, "videoId", "url")
+            return {"path": await self.fetch_art(a_video(args.get("videoId")), args.get("url"))}
+        if op == "engine.version":
+            only(args)
+            return await self.engine_version()
+        if op == "cache.clear":
+            only(args)
+            return await self.clear_cache()
+        if op == "profile.erase":
+            # The UI's own two-step confirm, passed on: nothing on the
+            # socket erases the profile by accident.
+            only(args, "confirm")
+            if args.get("confirm") is not True:
+                raise BadArgs("confirm")
+            return await self.erase_profile()
+        if op == "start.set":
+            self.start_state = check_start(args)
+            return dict(self.start_state)
+        if op == "signout":
+            only(args)
+            return await self.signout()
+        raise BadArgs("unknown op")
+
+    # ---- advanced settings ops
+
+    async def engine_version(self):
+        """About: the engine's own version, straight from Chromium (CDP Browser.getVersion)."""
+        if not self.engine.cdp:
+            raise PageError("engine-down")
+        res = await self.engine.cdp.call("Browser.getVersion", timeout=5)
+        return {"product": res.get("product", ""), "userAgent": res.get("userAgent", "")}
+
+    async def clear_cache(self):
+        """Advanced: HTTP cache, the service worker's cache storage and the service
+        worker itself, for music.youtube.com only. Cookies (sign-in) are untouched."""
+        if not self.engine.cdp or not self.engine.session:
+            raise PageError("engine-down")
+        cdp = self.engine.cdp
+        # Network is a page-target domain: the browser target has none.
+        await cdp.call("Network.clearBrowserCache", {}, self.engine.session, timeout=10)
+        await cdp.call("Storage.clearDataForOrigin",
+                        {"origin": APP_URL.rstrip("/"), "storageTypes": "cache_storage,service_workers"}, timeout=10)
+        return {"cleared": True}
+
+    async def erase_profile(self):
+        """Advanced: stop the engine, delete its whole profile (signs out too),
+        and start it again on a clean one.
+
+        Only a folder erasable_profile() accepts is deleted, and only once no
+        browser holds it: a browser still exiting would write its cookies
+        back into a half-deleted profile."""
+        target = PROFILE_DIR
+        why = erasable_profile(target)
+        if why:
+            log("erase refused:", target, "is", why)
+            raise PageError("erase-refused", "refusing to erase " + str(target) + ": " + why)
+        if self.erasing:
+            raise PageError("engine-busy", "an erase is already running")
+        self.erasing = True
+        eng = self.engine
+        failed = None
+        try:
+            async with self.aside():
+                await eng.stop()
+                for _ in range(50):
+                    if not eng.browser_pid() and not profile_in_use(PROFILE_DIR):
+                        break
+                    await asyncio.sleep(0.1)
+                else:
+                    eng.want_running = True
+                    raise PageError("engine-busy", "YouTube Music did not close; nothing was erased")
+                eng.restore = None
+                self.last_track = None
+                if target.exists() and not refuse_if_real_path(target, "profile erase"):
+                    try:
+                        await asyncio.to_thread(shutil.rmtree, target)
+                    except OSError as e:
+                        failed = e
+                if not failed:
+                    eng.player = {}
+                    eng.account = {"signedIn": False, "host": ""}
+                    self.broadcast("player", {})
+                    self.broadcast("account", eng.account)
+                # Back on a clean profile (signed out), or on what was left.
+                eng.want_running = True
+                eng.restarts = []
+        finally:
+            self.erasing = False
+        if failed:
+            log("erase failed:", failed)
+            raise PageError("erase-failed", str(failed))
+        return {"erased": True}
+
+    # ---- sign-in
+
+    async def navigate(self, url):
+        eng = self.engine
+        if eng.cdp and eng.session:
+            with contextlib.suppress(CdpError):
+                await eng.cdp.call("Page.navigate", {"url": url}, eng.session, timeout=5)
+
+    @contextlib.asynccontextmanager
+    async def aside(self):
+        """The supervisor stands aside while this runs."""
+        self.busy += 1
+        try:
+            yield
+        finally:
+            self.busy -= 1
+            self.kick()
+
+    async def signout(self):
+        """Google's Logout on the engine's own profile, and back: returns once
+        the page is on the app again, signed out (Google's redirect chain
+        must finish before anything closes the engine, or its cookies may
+        survive). The old account's song is forgotten. A session copied from
+        the browser is never logged out at Google (that would sign the
+        browser out too): its cookies are deleted here instead."""
+        eng = self.engine
+        if not eng.cdp or not eng.session:
+            raise PageError("engine-down")
+        eng.restore = None
+        self.last_track = None
+        before = self.hellos
+        local = imported_session()
+        if local:
+            await self.forget_google()
+            await eng.cdp.call("Page.navigate", {"url": APP_URL}, eng.session, timeout=5)
+        else:
+            await eng.cdp.call("Page.navigate", {"url": LOGOUT_URL}, eng.session, timeout=5)
+        end = time.monotonic() + SIGNOUT_WAIT
+        while time.monotonic() < end:
+            acc = eng.account
+            if self.hellos > before and acc.get("host") == APP_HOST and not acc.get("signedIn"):
+                self.last_track = None
+                if local:
+                    await self.sweep_google_again()
+                return {"signedOut": True}
+            await asyncio.sleep(0.1)
+        raise PageError("timeout", "the logout did not land back on YouTube Music")
+
+    async def begin_signin(self, chooser=False):
+        """Close the engine and open Google's sign-in in a plain window on its profile.
+
+        One browser per profile: while any process of the engine is alive,
+        a second launch would only open a window inside it, DevTools port
+        and all."""
+        if self.signing_in or self.signin_starting:
+            return
+        if time.monotonic() - self.signin_ended_at < SIGNIN_COOLDOWN:
+            log("sign-in asked again right after one ended; not opening another window")
+            raise PageError("signin-busy", "a sign-in just ended")
+        self.signin_starting = True
+        self.signin_check = False
+        self.signin_landed_at = 0.0
+        # A window on top of an imported session would sign in to the
+        # browser's own Google session: it goes first, here only.
+        if imported_session() and self.engine.cdp and self.engine.session:
+            with contextlib.suppress(CdpError, PageError):
+                await self.forget_google()
+        # After a failed try, Google's session may be alive while YouTube's
+        # step failed: the passive flow would bounce back signed out again.
+        # The account chooser makes Google run the whole flow.
+        retry = self.signin_error == "signin-failed"
+        self.signin_error = ""
+        self.start_fresh = False  # the engine after a sign-in is not a start of Solfa
+        try:
+            async with self.aside():
+                eng = self.engine
+                # The song stops with the engine: it comes back after sign-in,
+                # where it was when it stopped.
+                restore = None
+                # Switching account: nothing of the old one comes back.
+                if chooser:
+                    eng.restore = None
+                    self.last_track = None
+                elif eng.player.get("playing") and not eng.player.get("ad"):
+                    self.remember(eng.player)
+                    restore = dict(self.last_track or {}) or None
+                await eng.stop()
+                if restore:
+                    restore["died_at"] = time.time()
+                eng.restore = restore or eng.restore
+                for _ in range(50):
+                    if not eng.browser_pid() and not profile_in_use(PROFILE_DIR):
+                        break
+                    await asyncio.sleep(0.1)
+                else:
+                    eng.want_running = True
+                    raise PageError("engine-busy", "YouTube Music did not close")
+                self.signing_in = True
+                self.signin_since = time.time()
+                self.signin_opened_at = time.monotonic()
+                if not await eng.launch(signin=True, signin_url=ACCOUNT_CHOOSER_URL if chooser or retry else SIGNIN_URL):
+                    self.signing_in = False
+                    raise PageError("engine-stopped", eng.error)
+        finally:
+            self.signin_starting = False
+
+    async def watch_signin(self):
+        """While the sign-in window is open: done once Google's cookie is in, or the window is closed."""
+        eng = self.engine
+        pid = eng.browser_pid()
+        if not pid:
+            # Starting (its lock not taken yet), or closed by the user.
+            if not eng.seen_signin_window and (time.monotonic() - eng.launched_at < 3 or profile_in_use(PROFILE_DIR)):
+                return
+            log("sign-in window closed")
+            await self.end_signin(close=False)
+            return
+        eng.seen_signin_window = True
+        if not eng.is_signin_window(pid):
+            # The profile is held by an engine (the window opened inside it):
+            # no sign-in here. Back to the engine.
+            log("the profile is held by an engine, not the sign-in window")
+            await self.end_signin(close=False, check=False)
+            return
+        if self.signin_landed_at and time.monotonic() - self.signin_landed_at > SIGNIN_SAVE_WAIT:
+            log("no sign-in cookie saved in time; closing the sign-in window")
+            await self.end_signin(close=True)
+            return
+        if not self.signin_landed_at and time.monotonic() - self.signin_opened_at > SIGNIN_MAX:
+            log("the sign-in window was open too long; closing it")
+            await self.end_signin(close=True)
+            return
+        if not self.signin_landed_at:
+            c = await self.signin_landed(pid)
+            if c:
+                log("the sign-in window reached the app; hiding it until Google's cookie is saved")
+                self.signin_landed_at = time.monotonic()
+                await self.hypr.dispatch("hl.dsp.window.move({ window = [[address:" + str(c.get("address")) + "]], workspace = [[special:"
+                                         + SPECIAL + "]], follow = false })")
+                self.broadcast("engine", eng.describe())
+        if signed_in_since(PROFILE_DIR / PROFILE_DIR_NAME, self.signin_since):
+            log("Google's sign-in cookie is saved; closing the sign-in window")
+            await self.end_signin(close=True)
+
+    async def signin_landed(self, pid):
+        """The sign-in window's (browser `pid`) Hyprland client once it has
+        reached the app, else None. Without Hyprland only the cookie answers."""
+        if not self.hypr.available:
+            return None
+        for c in await self.hypr.clients():
+            if c.get("pid") == pid and SIGNIN_DONE_TITLE.fullmatch(str(c.get("title", ""))):
+                return c
+        return None
+
+    async def end_signin(self, close, check=True):
+        eng = self.engine
+        if close:
+            await eng.stop()
+        self.signin_landed_at = 0.0
+        self.signin_ended_at = time.monotonic()
+        self.signin_check = check
+        self.signing_in = False
+        eng.seen_signin_window = False
+        eng.want_running = True
+        eng.restarts = []
+        eng.set_status("stopped")
+        self.kick()
+
+    async def forget_google(self):
+        """Delete the engine's Google and YouTube cookies here, and only here.
+
+        An imported session is the SAME Google session as the browser's:
+        Google's Logout would sign the browser out too, every account in
+        it. This never talks to Google. The page goes blank first so it
+        cannot write a cookie back while they go."""
+        eng = self.engine
+        if not eng.cdp or not eng.session:
+            raise PageError("engine-down")
+        await eng.cdp.call("Page.navigate", {"url": "about:blank"}, eng.session, timeout=5)
+        await self.delete_google_cookies()
+        with contextlib.suppress(FileNotFoundError):
+            (PROFILE_DIR / IMPORTED_MARK).unlink()
+
+    async def sweep_google_again(self):
+        """A request already in flight (the app's service worker) can set a
+        cookie back after the first pass: once the app is back, one more."""
+        await asyncio.sleep(1.0)
+        n = await self.delete_google_cookies()
+        if n:
+            log(f"deleted {n} more Google cookies the app set while signing out")
+
+    async def delete_google_cookies(self):
+        """One pass over the jar; returns how many Google cookies went."""
+        eng = self.engine
+        gone = 0
+        cookies = (await eng.cdp.call("Storage.getCookies", timeout=10)).get("cookies") or []
+        for c in cookies:
+            if not google_family(c.get("domain")) or c.get("name") in KEEP_ON_SIGNOUT:
+                continue
+            q = {"name": c["name"], "domain": c["domain"], "path": c.get("path") or "/"}
+            if c.get("partitionKey"):
+                q["partitionKey"] = c["partitionKey"]
+            await eng.cdp.call("Network.deleteCookies", q, eng.session, timeout=5)
+            gone += 1
+        cookies = None
+        return gone
+
+    def signin_verdict(self, account):
+        """The engine's page answered on the app: after a sign-in window, is
+        the account in? The app's own flag decides, never the window's URL or
+        title. Signed in at any time also clears an old failure."""
+        if not isinstance(account, dict) or account.get("host") != APP_HOST:
+            return
+        signed_in = bool(account.get("signedIn"))
+        if not self.signin_check and not (signed_in and self.signin_error):
+            return
+        if self.signin_check and not signed_in:
+            log("sign-in failed: YouTube Music is still signed out")
+        self.signin_check = False
+        self.signin_error = "" if signed_in else "signin-failed"
+        self.broadcast("engine", self.engine.describe())
+
+    # ---- covers for notifications
+
+    async def fetch_art(self, video_id, url):
+        if not isinstance(url, str):
+            raise BadArgs("url")
+        parts = urllib.parse.urlparse(url)
+        if parts.scheme != "https" or parts.hostname not in ART_HOSTS:
+            raise BadArgs("url")
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(CACHE_DIR, 0o700)
+        path = CACHE_DIR / (video_id + ".jpg")
+        if path.exists():
+            return str(path)
+
+        limit = 2 << 20
+
+        def get():
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as res:
+                data = res.read(limit + 1)
+            if len(data) > limit:
+                raise ValueError("cover too big")
+            tmp = path.with_suffix(".part")
+            tmp.write_bytes(data)
+            tmp.replace(path)
+
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, get)
+        except (OSError, ValueError) as e:
+            raise PageError("art-failed", str(e))
+        self.trim_art()
+        return str(path)
+
+    def trim_art(self, keep=200):
+        files = sorted(CACHE_DIR.glob("*.jpg"), key=lambda p: p.stat().st_mtime)
+        for f in files[:-keep]:
+            with contextlib.suppress(OSError):
+                f.unlink()
+
+    # ---- last track (restore after a crash, a restart or a sign-in)
+
+    def remember(self, player):
+        vid = player.get("videoId")
+        if not vid or player.get("ad") or not VIDEO_ID.fullmatch(str(vid)):
+            return
+        # The page stamps each push with its clock (ms); pushes come on
+        # changes only, so the position is extrapolated when it is used.
+        at = player.get("at")
+        at = float(at) / 1000 if isinstance(at, (int, float)) and abs(time.time() - float(at) / 1000) < 86400 else time.time()
+        volume = player.get("volume")
+        track = {"videoId": vid, "position": float(player.get("position") or 0), "playing": bool(player.get("playing")),
+                 "title": str(player.get("title", ""))[:200], "at": at,
+                 "volume": volume if isinstance(volume, int) and 0 <= volume <= 100 else None,
+                 "muted": bool(player.get("muted"))}
+        # Memory only: a restore follows a crash or a restart of this
+        # bridge's own engine; nothing is replayed at login.
+        self.last_track = track
+
+    def on_hello(self):
+        """The app is up (or came back): the last EQ settings go back on the
+        fresh page (same as a track restore, but every page load, not only
+        after a crash), and a pending track restore may start, one at a time."""
+        if self.engine.account.get("host") == APP_HOST and self.last_eq is not None:
+            asyncio.get_running_loop().create_task(self.resend_eq())
+        if self.engine.apply_start and self.engine.account.get("host") == APP_HOST:
+            self.engine.apply_start = False
+            st = dict(self.start_state)
+            if self.engine.restore:
+                # Into the restore itself: it brings the song back paused and
+                # at this volume, so no separate pause races it.
+                track = dict(self.engine.restore)
+                if st["paused"]:
+                    track["start_paused"] = True
+                if st["volume"] is not None:
+                    track["volume"] = st["volume"]
+                self.engine.restore = track
+            elif st["paused"] or st["volume"] is not None:
+                self.start_task = asyncio.get_running_loop().create_task(self.apply_start_state(st))
+        if not self.engine.restore or self.engine.account.get("host") != APP_HOST:
+            return
+        if self.restore_task and not self.restore_task.done():
+            return
+        self.restore_task = asyncio.get_running_loop().create_task(self.do_restore(self.engine.restore))
+
+    async def apply_start_state(self, st):
+        """A fresh start with no song to bring back: the start volume, and a
+        song the app starts by itself in its first moments is paused.
+        Anything the user plays meanwhile wins."""
+        epoch = self.user_epoch
+        if st["volume"] is not None:
+            try:
+                await self.call_when_ready("volume", {"level": st["volume"]}, time.monotonic() + 45)
+            except (CdpError, PageError) as e:
+                log("start volume:", e)
+        # The watch starts once the app is up (the volume step waited for it).
+        deadline = time.monotonic() + START_WATCH
+        try:
+            while st["paused"] and self.user_epoch == epoch and time.monotonic() < deadline:
+                p = self.engine.player
+                if p.get("playing") and not p.get("ad"):
+                    await self.call_when_ready("transport", {"action": "pause"}, deadline)
+                    return
+                await asyncio.sleep(0.25)
+        except (CdpError, PageError) as e:
+            log("start state:", e)
+
+    async def resend_eq(self):
+        with contextlib.suppress(CdpError, PageError):
+            await self.call_when_ready("eq.set", self.last_eq, time.monotonic() + 20, timeout=5)
+
+    # Page errors that only mean "the app is still loading".
+    NOT_YET = ("no-player", "no-app", "no-agent", "not-ready", "no-queue", "engine-down", "not-on-app")
+
+    async def call_when_ready(self, op, args, deadline, timeout=None):
+        while True:
+            try:
+                return await self.engine.page_call(op, args, timeout=timeout or (15 if op == "play" else 5))
+            except PageError as e:
+                if e.code not in self.NOT_YET or time.monotonic() > deadline:
+                    raise
+            except CdpError:
+                if time.monotonic() > deadline:
+                    raise
+            await asyncio.sleep(0.5)
+
+    @staticmethod
+    def resume_point(track, now=None):
+        """Where the song was: the last pushed position, plus the time it kept
+        playing, up to the moment the engine died (not the time it took to
+        come back: nothing of the song is skipped)."""
+        pos = float(track.get("position") or 0)
+        if track.get("playing") and track.get("at"):
+            end = float(track.get("died_at") or now or time.time())
+            pos += max(0.0, end - float(track["at"]))
+        return pos
+
+    async def do_restore(self, track):
+        """Bring the song back where it was, at its volume.
+
+        Waits out the app still loading (it may attach before YouTube Music
+        has a player), and gives way at once to anything the user plays,
+        skips or seeks meanwhile: it never seeks or pauses a song it did not
+        start."""
+        epoch = self.user_epoch
+        pos = self.resume_point(track)
+        deadline = time.monotonic() + 45
+        log("restoring", track.get("videoId"), "at", round(pos))
+        try:
+            if isinstance(track.get("volume"), int):
+                await self.call_when_ready("volume", {"level": track["volume"]}, deadline)
+            if self.user_epoch != epoch:
+                return
+            await self.call_when_ready("play", {"videoId": track["videoId"]}, deadline)
+            # Wait for the song itself (an advert may come first).
+            for _ in range(240):
+                await asyncio.sleep(0.25)
+                if self.user_epoch != epoch:
+                    log("restore: the user took over")
+                    return
+                p = self.engine.player
+                if p.get("videoId") == track["videoId"] and p.get("duration") and not p.get("ad"):
+                    break
+            p = self.engine.player
+            if self.user_epoch != epoch or p.get("videoId") != track["videoId"]:
+                return
+            duration = float(p.get("duration") or 0)
+            if pos > 5 and (not duration or pos < duration - 3):
+                await self.call_when_ready("seek", {"seconds": pos}, deadline)
+            if track.get("muted"):
+                await self.call_when_ready("mute", {"muted": True}, deadline)
+            if (not track.get("playing") or track.get("start_paused")) and self.user_epoch == epoch:
+                await self.call_when_ready("transport", {"action": "pause"}, deadline)
+        except (CdpError, PageError) as e:
+            log("restore failed:", e)
+        finally:
+            if self.engine.restore is track:
+                self.engine.restore = None
+
+    async def restart_engine(self, resume):
+        self.start_fresh = False
+        snapshot = dict(self.engine.player or {})
+        await self.engine.stop()
+        if resume and snapshot.get("videoId") and snapshot.get("playing"):
+            self.remember(snapshot)
+            self.engine.restore = dict(self.last_track or {})
+        self.engine.want_running = True
+        self.kick()
+
+    # ---- recycle (a fresh page before the old one grows too big)
+
+    def recycle_due(self):
+        eng = self.engine
+        age = time.monotonic() - eng.page_since
+        # A page just loaded carries its loading garbage: give it time.
+        return age >= RECYCLE_MIN_AGE and (eng.heap_mb >= RECYCLE_HEAP_MB or eng.renderer_mb >= RECYCLE_RSS_MB
+                                       or age >= RECYCLE_HOURS * 3600)
+
+    def start_recycle(self, playing):
+        if self.recycle_task and not self.recycle_task.done():
+            return
+        self.recycle_task = asyncio.get_running_loop().create_task(self.recycle(playing))
+
+    async def recycle_watch(self):
+        """Read the page's heap now and then; when it is due, recycle at the
+        next quiet moment. Playing: the agent is armed and stops at the next
+        song before it sounds. Paused for RECYCLE_IDLE: now."""
+        last_read = 0.0
+        while True:
+            await asyncio.sleep(min(30.0, RECYCLE_IDLE, RECYCLE_CHECK))
+            eng = self.engine
+            try:
+                if (not eng.session or eng.status != "ready" or eng.recycling or self.busy or self.signing_in
+                        or eng.account.get("host") != APP_HOST or (self.restore_task and not self.restore_task.done())):
+                    continue
+                if time.monotonic() - last_read >= RECYCLE_CHECK:
+                    last_read = time.monotonic()
+                    await eng.read_heap()
+                if not self.recycle_due():
+                    continue
+                p = eng.player
+                if p.get("ad"):
+                    continue
+                if not p.get("playing"):
+                    if eng.paused_since and time.monotonic() - eng.paused_since >= RECYCLE_IDLE:
+                        self.start_recycle(playing=False)
+                else:
+                    # Renewed every round: the arm runs out by itself if
+                    # this bridge goes away.
+                    if not eng.armed:
+                        log("page due for a fresh start (heap", round(eng.heap_mb), "MB, process", round(eng.renderer_mb), "MB): at the next song")
+                    await eng.page_call("session.arm", {"armed": True, "ttl": 3 * min(30.0, RECYCLE_IDLE, RECYCLE_CHECK)})
+                    eng.armed = True
+            except (CdpError, PageError) as e:
+                log("recycle watch:", e)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # must outlive any bug
+                log("recycle watch bug:", repr(e))
+
+    async def recycle(self, playing):
+        """Swap the page for a fresh one (a new renderer process) and give it
+        the same queue, song, position, volume and settings."""
+        eng = self.engine
+        if eng.recycling or not eng.session or self.busy or self.signing_in:
+            return
+        epoch = self.user_epoch
+        eng.recycling = True
+        try:
+            try:
+                saved = await eng.page_call("session.save", {}, timeout=10)
+            except (CdpError, PageError):
+                saved = None
+            if not isinstance(saved, dict) or self.user_epoch != epoch:
+                if playing and self.user_epoch == epoch:
+                    # The agent stopped the song for us: let it go on.
+                    with contextlib.suppress(CdpError, PageError):
+                        await eng.page_call("transport", {"action": "play"})
+                return
+            if playing:
+                # The agent stopped the new song at its first instant.
+                saved["playing"], saved["position"] = True, 0
+            before = eng.heap_mb
+            log("recycling the page (heap", round(before), "MB, up", round((time.monotonic() - eng.page_since) / 3600, 1), "h)")
+            # Off the app, then back: the app then comes back in a new
+            # renderer process, not the grown one. The site's service worker
+            # would keep the old process alive and be given the app again:
+            # stop it first (it starts again when the app needs it).
+            await eng.cdp.call("Page.navigate", {"url": "about:blank"}, eng.session)
+            await asyncio.sleep(0.3)
+            with contextlib.suppress(CdpError):
+                await eng.cdp.call("ServiceWorker.enable", {}, eng.session)
+                await eng.cdp.call("ServiceWorker.stopAllWorkers", {}, eng.session)
+                await eng.cdp.call("ServiceWorker.disable", {}, eng.session)
+            await asyncio.sleep(0.5)
+            await eng.cdp.call("Page.navigate", {"url": APP_URL}, eng.session)
+            eng.page_since = time.monotonic()
+            eng.armed = False
+            res = await self.call_when_ready("session.restore", saved, time.monotonic() + 45, timeout=30)
+            if self.last_eq is not None:
+                with contextlib.suppress(CdpError, PageError):
+                    await eng.page_call("eq.set", self.last_eq, timeout=5)
+            await eng.read_heap()
+            log("recycled:", (res or {}).get("restored"), "heap", round(before), "->", round(eng.heap_mb), "MB, process", round(eng.renderer_mb), "MB")
+        except (CdpError, PageError) as e:
+            log("recycle failed:", e)
+        finally:
+            eng.recycling = False
+            eng.paused_since = 0.0 if eng.player.get("playing") else time.monotonic()
+            with contextlib.suppress(CdpError, PageError):
+                await eng.refresh_state()
+
+    # ---- supervisor
+
+    def kick(self):
+        self.wake.set()
+
+    async def supervise(self):
+        """Keep the engine attached: find it, start it, restart it, unstick it."""
+        backoff = 1.0
+        while True:
+            eng = self.engine
+            try:
+                if self.busy:
+                    pass
+                elif self.signing_in:
+                    await self.watch_signin()
+                elif eng.status == "stuck":
+                    await self.unstick()
+                elif not eng.cdp:
+                    if await eng.attach():
+                        backoff = 1.0
+                    elif eng.want_running and not eng.pid:
+                        if self.too_many_restarts():
+                            eng.set_status("stopped", "YouTube Music keeps closing. Open the panel to try again.")
+                            eng.want_running = False
+                        else:
+                            # After a crash, the song that was playing comes back
+                            # where it was. A paused song is not replayed: that
+                            # would mean playing it (audibly) to pause it again.
+                            if eng.status == "crashed" and self.last_track and self.last_track.get("playing") and not eng.restore:
+                                eng.restore = dict(self.last_track)
+                            if self.start_fresh and eng.status != "crashed":
+                                eng.apply_start = True  # kept until its first hello, across a launch that never attached
+                            self.start_fresh = False
+                            if not await eng.launch():
+                                # No browser, or it would not start: say so and wait
+                                # for the user, instead of retrying the same failure.
+                                eng.want_running = False
+                            else:
+                                for _ in range(60):
+                                    await asyncio.sleep(0.5)
+                                    if not eng.want_running:
+                                        break
+                                    if await eng.attach():
+                                        break
+                                if not eng.want_running and not self.signing_in and not self.busy:
+                                    # Stopped while it was starting (switch.sh back
+                                    # right after login): close what was launched.
+                                    # (Not the sign-in window that took its place.)
+                                    await eng.stop()
+                            backoff = 1.0
+                    else:
+                        backoff = min(backoff * 2, 10.0)
+                elif not eng.session:
+                    # Attached to the browser, lost the page (navigation or crash): find it again.
+                    infos = (await eng.cdp.call("Target.getTargets")).get("targetInfos", [])
+                    pages = [t for t in infos if t.get("type") == "page"]
+                    if pages:
+                        await eng.attach_page(next((t for t in pages if APP_HOST in t.get("url", "")), pages[0])["targetId"])
+                elif eng.status == "attaching" and time.monotonic() - eng.last_heard > 5:
+                    await eng.refresh_state()
+                elif time.monotonic() - eng.last_heard > CHECK_EVERY:
+                    await eng.check()
+            except (CdpError, OSError) as e:
+                log("supervisor:", repr(e))
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # the supervisor must outlive any bug
+                log("supervisor bug:", repr(e))
+                backoff = min(backoff * 2, 10.0)
+            self.wake.clear()
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self.wake.wait(), timeout=SIGNIN_POLL if self.signing_in
+                                       else backoff if not self.engine.cdp else min(5.0, CHECK_EVERY))
+
+    def too_many_restarts(self):
+        now = time.monotonic()
+        self.engine.restarts = [t for t in self.engine.restarts if now - t < 300]
+        self.engine.restarts.append(now)
+        return len(self.engine.restarts) > 5
+
+    async def unstick(self):
+        eng = self.engine
+        log("engine stuck: reloading the page")
+        if eng.cdp and eng.session:
+            with contextlib.suppress(CdpError):
+                await eng.cdp.call("Page.reload", {"ignoreCache": False}, eng.session, timeout=5)
+            for _ in range(40):
+                await asyncio.sleep(0.5)
+                if eng.status == "ready" and time.monotonic() - eng.last_heard < 2:
+                    return
+            with contextlib.suppress(CdpError):
+                await eng.cdp.call("Runtime.evaluate", {"expression": "1"}, eng.session, timeout=5)
+                eng.misses = 0
+                await eng.refresh_state()
+                if eng.status == "ready":
+                    return
+        log("engine still stuck: restarting it")
+        await self.restart_engine(resume=True)
+
+    # ---- exit
+
+    async def quit(self, wipe=False):
+        """Every exit path funnels through here: the bridge.quit op, the
+        orphan lease, and a signal's handler (SIGTERM from `systemctl --user
+        stop`, included). The engine is closed first, always — and, for the
+        orphan lease's wipe (M1), before it too: Chromium still writing into
+        the profile while it is being rmtree'd loses files silently, and can
+        recreate `engine/` on its way out."""
+        async with self.aside():
+            await self.engine.stop()
+            if wipe:
+                wipe_solfa_data()
+        with contextlib.suppress(FileNotFoundError):
+            SOCKET_PATH.unlink()
+        self.quit_event.set()
+
+    async def orphan_watch(self):
+        """No UI (Service.qml) has said ui.attach for SOLFA_ORPHAN_SECONDS:
+        close everything, same as bridge.quit. If the plugin itself is gone
+        from disk at that moment (checked twice, 2 s apart, so a plugin
+        update's brief gap never trips this), Solfa's own data goes too."""
+        if ORPHAN_SECONDS <= 0:
+            return
+        poll = max(0.2, min(1.0, ORPHAN_SECONDS / 4))
+        while True:
+            await asyncio.sleep(poll)
+            if self.ui_writers:
+                continue
+            if time.monotonic() - self.ui_last_seen >= ORPHAN_SECONDS:
+                break
+        log("orphan lease: no UI connection in", ORPHAN_SECONDS, "s; closing")
+        manifest = ROOT / "manifest.json"
+        wipe = False
+        if not manifest.exists():
+            await asyncio.sleep(2.0)
+            wipe = not manifest.exists()
+        await self.quit(wipe=wipe)
+
+
+def wipe_solfa_data():
+    """The orphan lease's own cleanup, once the plugin itself is gone from
+    disk: erase what Solfa left in the user's home (the profile, the album
+    art cache, any state dir) and its runtime dir, plus the old id's cache
+    and runtime leftovers (M2). Guarded twice on purpose — this is a real rm
+    of user data, so it never trusts a plugin id alone: each computed path
+    is asserted to literally end in "/<that id>" before it is touched."""
+    # DEFAULT_PROFILE_DIR is computed once, at import, from XDG_DATA_HOME as
+    # it was then: never re-read live (a wipe must act on the same path this
+    # process has used the whole time, not whatever the environment says at
+    # the moment it runs).
+    data_dir = DEFAULT_PROFILE_DIR.parent
+    old_data_dir = data_dir.with_name(OLD_PLUGIN_ID)
+    if data_dir.exists() and old_data_dir.exists():
+        # The migration did nothing (or ran twice under different ids): the
+        # owner's sign-in may still be sitting in the old dir. Never guess
+        # which one to keep — just say so and leave it alone.
+        log("orphan lease:", data_dir, "and", old_data_dir, "both exist; the migration did not run. Wiping only", data_dir)
+    targets = [
+        (data_dir, PLUGIN_ID),
+        (RUNTIME_DIR, PLUGIN_ID),
+        (CACHE_DIR, PLUGIN_ID),
+        (STATE_DIR, PLUGIN_ID),
+        (CACHE_DIR.with_name(OLD_PLUGIN_ID), OLD_PLUGIN_ID),
+        (RUNTIME_DIR.with_name(OLD_PLUGIN_ID), OLD_PLUGIN_ID),
+    ]
+    for path, plugin_id in targets:
+        suffix = "/" + plugin_id
+        if not str(path).endswith(suffix):
+            log("orphan lease: refusing to remove", path, "(does not end in", suffix + ")")
+            continue
+        assert str(path).endswith(suffix), "refusing a wipe outside " + plugin_id
+        if refuse_if_real_path(path, "orphan wipe"):
+            continue
+        if not path.exists():
+            continue
+        error = None
+        with contextlib.suppress(OSError):
+            shutil.rmtree(path)
+        if path.exists():
+            error = "still there" if not path.is_symlink() else "a symlink, not followed"
+        # L6: say what actually happened, not always "removed" — a
+        # symlinked path (or any other rmtree failure) leaves it in place.
+        log("orphan lease:", ("left " + str(path) + " (" + error + ")") if error else ("removed " + str(path)))
+
+
+def pid_from_singleton_lock(profile_dir):
+    """A live Chromium's pid from profile_dir's SingletonLock, checked
+    against /proc (same check as bin/solfa engine_pid / Engine.browser_pid).
+    0 if there is no lock, the host does not match, or the pid is not using
+    that --user-data-dir any more."""
+    try:
+        target = os.readlink(profile_dir / "SingletonLock")
+    except OSError:
+        return 0
+    host, _, pid = target.rpartition("-")
+    if host != socket.gethostname() or not pid.isdigit():
+        return 0
+    pid = int(pid)
+    try:
+        cmd = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return 0
+    return pid if uses_profile(cmd, profile_dir) else 0
+
+
+def pid_from_proc_scan(profile_dir):
+    """Fallback for close_engine_at when profile_dir's SingletonLock cannot
+    be trusted (H3's second bug: the dir had already been wiped, so the lock
+    was gone too, yet a live Chromium still had that --user-data-dir open
+    with a TCP DevTools port). Scans /proc for a process owned by this same
+    user whose cmdline has an exact --user-data-dir=profile_dir argument and
+    no --type= — the main browser process, never one of its renderer/GPU/
+    utility children (closing a child does not close the browser)."""
+    uid = os.getuid()
+    try:
+        entries = [d.name for d in pathlib.Path("/proc").iterdir() if d.name.isdigit()]
+    except OSError:
+        return 0
+    for name in entries:
+        p = pathlib.Path("/proc") / name
+        try:
+            if p.stat().st_uid != uid:
+                continue
+            cmd = (p / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if not uses_profile(cmd, profile_dir):
+            continue
+        if re.search(rb"(^|[\s\0])--type=", cmd):
+            continue
+        return int(name)
+    return 0
+
+
+def find_engine_at(profile_dir):
+    """The live browser's pid at profile_dir, by SingletonLock first, falling
+    back to a /proc scan (see pid_from_proc_scan) when the lock is missing
+    or stale."""
+    return pid_from_singleton_lock(profile_dir) or pid_from_proc_scan(profile_dir)
+
+
+def close_engine_at(profile_dir):
+    """SIGTERM (by pidfd) any live Chromium using profile_dir, then wait for
+    it to exit. True once nothing is left using it (including when there
+    never was anything). Used before the id migration renames the data dir:
+    the old engine's SingletonLock points at a pid started with the OLD
+    --user-data-dir, so it must be gone before the rename, never after."""
+    pid = find_engine_at(profile_dir)
+    if not pid:
+        return True
+    log("migration: closing the old engine, pid", pid)
+    try:
+        pidfd = os.pidfd_open(pid)
+    except OSError:
+        return not find_engine_at(profile_dir)
+    try:
+        with contextlib.suppress(OSError, ProcessLookupError):
+            signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+        for _ in range(50):
+            if not find_engine_at(profile_dir):
+                return True
+            time.sleep(0.1)
+        return not find_engine_at(profile_dir)
+    finally:
+        os.close(pidfd)
+
+
+def migrate_old_data_dir():
+    """Solfa's plugin id changed (serallap.solfa -> io.github.sirallap.solfa):
+    if the new data dir does not exist yet and the old one does, rename it in
+    place (same filesystem, atomic os.rename) so the Chromium profile inside
+    (and its sign-in) survives. Only the real, default data dir — never when
+    SOLFA_PROFILE_DIR points somewhere else (every test, or a deliberate
+    override), so this never touches a path a test or another run chose.
+
+    The old engine (if the owner is upgrading with Solfa still playing) is
+    closed first (H3): its SingletonLock is inside the dir we are about to
+    rename, so renaming out from under it would leave a live Chromium the
+    new bridge can never adopt, and a new Chromium that just hands its
+    argv to that stale process and exits."""
+    if os.environ.get("SOLFA_PROFILE_DIR"):
+        return
+    new_dir = DEFAULT_PROFILE_DIR.parent
+    old_dir = new_dir.with_name(OLD_PLUGIN_ID)
+    if new_dir.exists() or not old_dir.exists():
+        return
+    if not close_engine_at(old_dir / "engine"):
+        log("migration: the old engine would not close; leaving the data dir where it is")
+        return
+    if refuse_if_real_path(old_dir, "migration rename") or refuse_if_real_path(new_dir, "migration rename"):
+        return
+    with contextlib.suppress(OSError):
+        os.rename(old_dir, new_dir)
+        log("migrated the data dir from", old_dir, "to", new_dir)
+
+
+def single_instance():
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(RUNTIME_DIR, 0o700)
+    lock = open(RUNTIME_DIR / "bridge.lock", "w")
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock
+        except BlockingIOError:
+            if time.monotonic() > deadline:
+                log("another bridge is running")
+                sys.exit(3)
+            time.sleep(0.1)
+
+
+async def main():
+    bridge = Bridge()
+    with contextlib.suppress(FileNotFoundError):
+        SOCKET_PATH.unlink()
+    old = os.umask(0o177)
+    try:
+        server = await asyncio.start_unix_server(bridge.serve_client, path=str(SOCKET_PATH), limit=MAX_LINE)
+    finally:
+        os.umask(old)
+    os.chmod(SOCKET_PATH, 0o600)
+    loop = asyncio.get_running_loop()
+
+    def on_signal():
+        # Every exit path closes the engine first (systemctl --user stop
+        # included): a signal funnels through the same quit() as bridge.quit.
+        loop.create_task(bridge.quit())
+
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        loop.add_signal_handler(sig, on_signal)
+    await bridge.hypr.register_rules()
+    tasks = [loop.create_task(bridge.supervise()), loop.create_task(bridge.hypr.watch()),
+             loop.create_task(bridge.recycle_watch()), loop.create_task(bridge.orphan_watch())]
+    log("ready on", SOCKET_PATH)
+    await bridge.quit_event.wait()
+    await asyncio.sleep(0.05)  # let bridge.quit's own reply reach its client
+    for t in tasks:
+        t.cancel()
+    server.close()
+    bridge.engine.detach()
+    with contextlib.suppress(FileNotFoundError):
+        SOCKET_PATH.unlink()
+
+
+if __name__ == "__main__":
+    _lock = single_instance()
+    migrate_old_data_dir()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
