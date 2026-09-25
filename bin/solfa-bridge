@@ -946,6 +946,14 @@ def find_browser():
     return "", "no Chromium-family browser found"
 
 
+def exit_words(status):
+    """A waitpid status in words, for a log line."""
+    code = os.waitstatus_to_exitcode(status)
+    if code < 0:
+        return "its browser was killed by " + signal.Signals(-code).name
+    return f"its browser exited with code {code}"
+
+
 def high_fd(fd, low=10):
     """fd moved to the lowest free number >= low (close-on-exec), the
     original closed."""
@@ -975,6 +983,9 @@ class Engine:
         self.page_url = ""
         self.rebind_task = None
         self.seen_signin_window = False
+        # How the last sign-in window's browser ended, for the log line that
+        # says it closed: "" while it runs (or when it was not our child).
+        self.signin_exit = ""
         self.page_since = time.monotonic()  # when this page (document) was loaded
         self.heap_mb = 0.0                  # its JS heap, as last read
         self.renderer_mb = 0.0              # its process's memory, as last read
@@ -1130,9 +1141,12 @@ class Engine:
 
         def on_exit():
             loop.remove_reader(pidfd)
+            status = None
             with contextlib.suppress(ChildProcessError):
-                os.waitpid(pid, 0)
+                status = os.waitpid(pid, 0)[1]
             os.close(pidfd)
+            if self.pid == pid and self.is_signin and status is not None:
+                self.signin_exit = exit_words(status)
             if self.pid == pid:
                 self.pid = 0
                 self.pidfd = -1
@@ -1182,6 +1196,7 @@ class Engine:
         self.pid = pid
         self.pidfd = pidfd
         self.is_signin = signin
+        self.signin_exit = ""
         self._engine_fds = None if signin else (to_fd, from_fd)
         self._watch_child(pid, pidfd)
         self.launched_at = time.monotonic()
@@ -1932,7 +1947,14 @@ class Bridge:
             # Starting (its lock not taken yet), or closed by the user.
             if not eng.seen_signin_window and (time.monotonic() - eng.launched_at < 3 or profile_in_use(PROFILE_DIR)):
                 return
-            log("sign-in window closed")
+            # Chromium drops its lock a moment before it exits: wait for the
+            # exit itself (briefly), so the line says how it ended.
+            for _ in range(20):
+                if not eng.pid:
+                    break
+                await asyncio.sleep(0.1)
+            how = f" ({eng.signin_exit})" if eng.signin_exit else ""
+            log(f"sign-in window closed after {time.monotonic() - eng.launched_at:.1f} s{how}")
             await self.end_signin(close=False)
             return
         eng.seen_signin_window = True

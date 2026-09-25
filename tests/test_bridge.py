@@ -777,6 +777,18 @@ class BridgeTest(unittest.TestCase):
         self.assertFalse(eng["signingIn"])
         self.assertEqual(eng["signinError"], "signin-failed", "a window closed before the account was in says so")
 
+    def test_a_sign_in_window_that_closes_by_itself_says_how_and_when(self):
+        # A window that is gone 2 s after it opened was not closed by a
+        # person signing in: the log must say how long it lived and how its
+        # browser ended, so the next time it happens the cause is visible.
+        c = self.start(FAKE_SIGNIN_CLOSE_AFTER="0.5")
+        self.wait_ready(c)
+        c.call("signin.begin")
+        self.signin_argv()
+        self.wait_engine(c, lambda e: e["status"] == "ready" and not e["signinCheck"])
+        log = (self.tmp / "bridge.err").read_text()
+        self.assertRegex(log, r"sign-in window closed after \d+\.\d s \(its browser exited with code 0\)")
+
     def test_cancel_closes_the_sign_in_window(self):
         c = self.start()
         self.wait_ready(c)
