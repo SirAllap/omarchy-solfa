@@ -1416,6 +1416,30 @@ class PureTest(unittest.TestCase):
         eng.is_signin = False
         self.assertFalse(eng.is_signin_window(4242), "tracked, but as the engine, not the sign-in window")
 
+    def test_first_run_of_this_install_is_always_false_under_SOLFA_TEST(self):
+        # The whole suite runs with SOLFA_TEST=1 (see testenv.py): a fresh
+        # install must never hold up a test's own engine launch.
+        self.assertFalse(self.b.first_run_of_this_install())
+
+    def test_first_run_of_this_install_and_mark_install(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="solfa-install-"))
+        old = dict(os.environ)
+        try:
+            os.environ["SOLFA_TEST"] = ""   # falsy: exercise the real logic, not the test shortcut
+            os.environ["SOLFA_STATE_DIR"] = str(tmp / "state")
+            mod = self.load()
+            self.assertTrue(mod.first_run_of_this_install(), "nothing marked yet")
+            mod.mark_install()
+            self.assertFalse(mod.first_run_of_this_install(), "marked by this install")
+            # A mark from a different install (a different inode: a reinstall,
+            # or another copy of the plugin) looks like a fresh install again.
+            mod.INSTALL_MARK.write_text("not-this-install\n", encoding="utf-8")
+            self.assertTrue(mod.first_run_of_this_install())
+        finally:
+            os.environ.clear()
+            os.environ.update(old)
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_pidfd_send_signal_on_a_process_we_spawned_ourselves(self):
         # The bridge signals every engine/sign-in child this way; this test
         # exercises the exact primitive on a short-lived process of its own

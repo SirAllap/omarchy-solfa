@@ -810,6 +810,35 @@ class Hypr:
 
 # --------------------------------------------------------------------------- engine
 
+INSTALL_MARK = STATE_DIR / "installed"
+
+
+def install_id():
+    """This copy of the plugin: a reinstall is a new folder (a new inode)."""
+    return str(os.stat(ROOT).st_ino)
+
+
+def first_run_of_this_install():
+    """True until the engine has run once from this copy of the plugin. The
+    mark lives in the state folder, which an uninstall leaves behind, and is
+    written only when the engine starts (mark_install): restarting the shell
+    before the user turns Solfa on keeps it off."""
+    if os.environ.get("SOLFA_TEST"):
+        return False
+    try:
+        return INSTALL_MARK.read_text(encoding="utf-8").strip() != install_id()
+    except OSError:
+        return True
+
+
+def mark_install():
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        INSTALL_MARK.write_text(install_id() + "\n", encoding="utf-8")
+    except OSError as e:
+        log("install mark:", e)
+
+
 def agent_bundle():
     parse = (ROOT / "engine" / "parse.js").read_text(encoding="utf-8")
     agent = (ROOT / "engine" / "agent.js").read_text(encoding="utf-8")
@@ -978,7 +1007,9 @@ class Engine:
         self.misses = 0
         self.launched_at = 0.0
         self.restarts = []
-        self.want_running = os.environ.get("SOLFA_NO_LAUNCH") != "1"
+        # A fresh install (or a reinstall) starts off: nothing plays and
+        # no sign-in is asked for until the user turns Solfa on.
+        self.want_running = os.environ.get("SOLFA_NO_LAUNCH") != "1" and not first_run_of_this_install()
         self.restore = None
         self.page_url = ""
         self.rebind_task = None
@@ -1201,6 +1232,8 @@ class Engine:
         self._watch_child(pid, pidfd)
         self.launched_at = time.monotonic()
         self.set_status("signing-in" if signin else "starting")
+        if not signin:
+            mark_install()
         return True
 
     async def stop(self):
