@@ -317,6 +317,11 @@ async def handle(ws, msg):
             if is_logout:
                 # Google's own redirect (continue=...): back to the app, signed out.
                 asyncio.get_running_loop().call_later(float(os.environ.get("FAKE_LOGOUT_DELAY") or 0.15), redirect_after_logout)
+        if is_logout and os.environ.get("FAKE_NAVIGATE_NO_REPLY") == "1":
+            # Like a CDP reply that never lands (the tab is mid-navigation):
+            # everything above still happens, only this call's own reply
+            # does not. The bridge must fall back to the page's own signal.
+            return
     elif method == "Page.reload":
         record("reload", {})
         if not (PROFILE / "fake-stuck-hard").exists():

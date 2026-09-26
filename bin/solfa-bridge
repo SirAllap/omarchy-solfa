@@ -1865,11 +1865,20 @@ class Bridge:
         self.last_track = None
         before = self.hellos
         local = imported_session()
+        # The song stops first: the old account's music must not go on
+        # while Google signs it out.
+        with contextlib.suppress(CdpError, PageError):
+            await eng.page_call("transport", {"action": "pause"}, timeout=3)
         if local:
             await self.forget_google()
-            await eng.cdp.call("Page.navigate", {"url": APP_URL}, eng.session, timeout=5)
-        else:
-            await eng.cdp.call("Page.navigate", {"url": LOGOUT_URL}, eng.session, timeout=5)
+        # Google's logout redirects can take longer than a CDP reply: a slow
+        # navigate is not a failed sign-out. The wait below decides.
+        try:
+            await eng.cdp.call("Page.navigate", {"url": APP_URL if local else LOGOUT_URL}, eng.session, timeout=15)
+        except CdpError as e:
+            if not str(e).startswith("timeout"):
+                raise
+            log("signout: navigate slow, waiting for the app")
         end = time.monotonic() + SIGNOUT_WAIT
         while time.monotonic() < end:
             acc = eng.account

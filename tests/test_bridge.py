@@ -1242,6 +1242,19 @@ class BridgeTest(unittest.TestCase):
         self.assertFalse(hello["account"]["signedIn"])
         self.assertEqual(hello["account"]["host"], "music.youtube.com")
 
+    def test_signout_resolves_from_the_pages_own_signal_when_the_navigate_reply_never_comes(self):
+        # A CDP reply to Page.navigate can be outrun by Google's own redirect
+        # chain (or simply never arrive): the bridge's 15 s wait for it times
+        # out, but that is not a failed sign-out as long as the page itself
+        # reports back on the app, signed out.
+        c = self.start(FAKE_SIGNED_IN="1", FAKE_NAVIGATE_NO_REPLY="1", FAKE_LOGOUT_DELAY="0.2")
+        self.wait_ready(c)
+        r = c.call("signout", timeout=25)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["data"], {"signedOut": True})
+        hello = c.call("hello")["data"]
+        self.assertFalse(hello["account"]["signedIn"])
+        self.assertEqual(hello["account"]["host"], "music.youtube.com")
 
     # ---- Playback > "When Solfa starts" / "Volume at start"
 
