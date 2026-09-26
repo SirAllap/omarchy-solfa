@@ -28,8 +28,8 @@ class FakeBridge:
     answering one line per client and closing every client when a window
     ends. Between windows the socket file does not exist."""
 
-    def __init__(self, path, windows):
-        self.path, self.windows, self.accepted = path, windows, []
+    def __init__(self, path, windows, linger=0.0):
+        self.path, self.windows, self.accepted, self.linger = path, windows, [], linger
         self.thread = threading.Thread(target=self.run, daemon=True)
 
     def run(self):
@@ -51,11 +51,15 @@ class FakeBridge:
                 clients.append(client)
             for client in clients:
                 client.close()
+            # A bridge that is shutting down closes its clients first and its
+            # listening socket a little later: a connect in between is
+            # queued by the kernel, then reset, never accepted.
+            time.sleep(self.linger)
             server.close()
             os.unlink(self.path)
 
 
-def run_scene(windows, scene_ms):
+def run_scene(windows, scene_ms, linger=0.0):
     workdir = tempfile.mkdtemp(prefix="solfa-sock-")
     # AF_UNIX paths are short (108 bytes): the socket lives in its own dir
     # under /tmp, never in the (long) scratch dir.
@@ -66,7 +70,7 @@ def run_scene(windows, scene_ms):
         os.symlink(os.path.join(ROOT, "lib"), os.path.join(cfg, "lib"))
         os.symlink(os.path.join(HERE, "qml", "SocketScene.qml"), os.path.join(cfg, "shell.qml"))
         path = os.path.join(sockdir, "bridge.sock")
-        bridge = FakeBridge(path, windows)
+        bridge = FakeBridge(path, windows, linger)
         env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=workdir,
                    SOLFA_SOCKET_PATH=path, SOLFA_SCENE_MS=str(scene_ms))
         env.pop("DISPLAY", None)
@@ -102,6 +106,11 @@ class Reconnect(unittest.TestCase):
         self.assertIn(1, accepted, "never reconnected after the bridge came back:\n" + log)
         self.assertEqual(events[:3], ["LINK up", 'LINE {"window":0}', "LINK down"], log)
         self.assertIn('LINE {"window":1}', events, log)
+        self.assertEqual(events[-2:], ["LINK up", 'LINE {"window":1}'], log)
+
+    def test_bridge_restart_that_closes_clients_before_its_socket(self):
+        accepted, events, log = run_scene([(0.0, 1.5), (3.5, 7.0)], 6500, linger=0.8)
+        self.assertIn(1, accepted, "never reconnected after the bridge came back:\n" + log)
         self.assertEqual(events[-2:], ["LINK up", 'LINE {"window":1}'], log)
 
 

@@ -81,7 +81,7 @@ Item {
   readonly property string signinError: bridgeUp ? (engine.signinError || "") : ""
   onSigninErrorChanged: if (signinError) root.report(signinError)
   readonly property bool gated: signingIn || (bridgeUp && engine.status === "ready" && !!account.host && account.host !== "music.youtube.com")
-  readonly property string engineLine: bridgeUp ? Model.engineLine(engine, account) : "Starting Solfa"
+  readonly property string engineLine: bridgeUp ? Model.engineLine(engine, account) : Model.engineLineWhileDown(root.manifestVersion)
   // Closed: the engine is not running and nothing will start it by itself
   // (the user closed it, or it kept crashing). Nothing plays; play, the
   // power button or a click on the bar starts it again.

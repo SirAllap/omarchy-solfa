@@ -164,6 +164,17 @@ test("footer hints: while typing in a field, only the field's own keys", () => {
 
 // ------------------------------------------------------------------ settings
 
+test("CODE_VERSION matches manifest.json's version", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"))
+  assert.equal(M.CODE_VERSION, manifest.version)
+})
+
+test("engineLineWhileDown asks for a shell restart only when the code on disk is newer", () => {
+  assert.equal(M.engineLineWhileDown(M.CODE_VERSION), "Starting Solfa")
+  assert.equal(M.engineLineWhileDown(""), "Starting Solfa")
+  assert.equal(M.engineLineWhileDown("9.9.9"), "Solfa was updated. Restart the shell to finish")
+})
+
 test("SETTINGS_DEFAULTS matches manifest.json's barWidget.defaults exactly", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"))
   deep(M.SETTINGS_DEFAULTS, manifest.barWidget.defaults)
