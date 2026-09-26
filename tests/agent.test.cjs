@@ -156,12 +156,23 @@ function makePage(opts = {}) {
     ...(opts.subscriber === undefined ? {} : { IS_SUBSCRIBER: opts.subscriber })
   }
   let now = 1_700_000_000_000
+  // The engine's window sits on a hidden workspace: the real compositor
+  // never calls back a native requestAnimationFrame. This stub matches
+  // that — it remembers callbacks (so a test can tell whether the native
+  // path was ever asked) but never runs them, the way the hidden window
+  // never does either.
+  let nativeRafId = 1
+  const nativeRafStore = {}
+  let nativeRafCalls = 0
   const ctx = {
     console,
     JSON, Math, Object, Array, String, Number, Promise, Error, RegExp, Uint8Array, TextEncoder, encodeURIComponent, decodeURIComponent, isFinite, parseInt,
     Date: class extends Date { static now() { return (now += 50) } },
     setTimeout: (fn) => setImmediate(fn),
     clearTimeout: () => {},
+    requestAnimationFrame: (cb) => { nativeRafCalls++; const id = nativeRafId++; nativeRafStore[id] = cb; return id },
+    cancelAnimationFrame: (id) => { delete nativeRafStore[id] },
+    performance,
     AbortController,
     crypto: webcrypto,
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail } },
@@ -191,7 +202,7 @@ function makePage(opts = {}) {
   const load = (version) => vm.runInContext(PARSE + "\n;\n" + AGENT.replace("%%SOLFA_VERSION%%", version || "test-1"), ctx)
   load()
   const settle = () => new Promise((r) => setTimeout(r, 5))
-  return { ctx, app, store, player, videoEl, requests, assigned, emitted, navigations, audioContexts, load, settle, call: (op, args) => ctx.__solfa.call(op, args) }
+  return { ctx, app, store, player, videoEl, requests, assigned, emitted, navigations, audioContexts, load, settle, call: (op, args) => ctx.__solfa.call(op, args), nativeRafCalls: () => nativeRafCalls }
 }
 
 test("starts, says hello and pushes the first state", async () => {
@@ -710,6 +721,31 @@ test("off the app (cookie page, sign-in page) it refuses and reports where it is
   await assert.rejects(p.call("state"), /not-on-app/)
   assert.equal(p.emitted[0].t, "account")
   assert.equal(p.emitted[0].data.host, "consent.youtube.com")
+})
+
+test("requestAnimationFrame runs via the setTimeout fallback, and cancelAnimationFrame stops a pending one", async () => {
+  const p = makePage()
+  await p.settle()
+  let a = false, b = false
+  const idA = p.ctx.window.requestAnimationFrame(() => { a = true })
+  const idB = p.ctx.window.requestAnimationFrame(() => { b = true })
+  p.ctx.window.cancelAnimationFrame(idB)
+  await new Promise((r) => setTimeout(r, 80))
+  assert.equal(a, true, "a callback the hidden compositor never runs still runs, via the timer fallback")
+  assert.equal(b, false, "cancelAnimationFrame stops a pending fallback callback")
+})
+
+test("injecting the agent twice does not double-wrap requestAnimationFrame", async () => {
+  const p = makePage()
+  await p.settle()
+  const wrapped = p.ctx.window.requestAnimationFrame
+  p.load("test-2")
+  await p.settle()
+  assert.equal(p.ctx.window.requestAnimationFrame, wrapped, "wrapped once, kept across a re-injection")
+  let calls = 0
+  p.ctx.window.requestAnimationFrame(() => { calls++ })
+  await new Promise((r) => setTimeout(r, 80))
+  assert.equal(calls, 1, "a callback runs exactly once, not twice from nested fallback scheduling")
 })
 
 test("injecting again: same version is a no-op, a new version replaces the old", async () => {

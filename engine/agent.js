@@ -22,6 +22,43 @@
   // is the app. A frame (an advert's, say) must not speak for it.
   try { if (window.top !== window) return } catch (e) { return }
 
+  // The engine's window sits on a hidden workspace, so the compositor asks
+  // it for no frames and requestAnimationFrame never fires, even though
+  // the page says it is visible. The player needs it to keep adding video
+  // to its buffer: without frames a song played with its video (as on a
+  // free account) stops where the first buffer ends, about 0:49, and play
+  // cannot start it again. A callback the compositor
+  // has not run within FRAME_MS is run from a timer instead. Once per
+  // document: the agent may be injected again into the same page.
+  if (location.hostname === HOST && !window.__solfaFrames) {
+    window.__solfaFrames = true
+    var FRAME_MS = 50
+    var nativeRaf = window.requestAnimationFrame.bind(window)
+    var nativeCaf = window.cancelAnimationFrame.bind(window)
+    var frames = {}
+    var nextFrame = 1
+    window.requestAnimationFrame = function (cb) {
+      var id = nextFrame++
+      var run = function (ts) {
+        if (!(id in frames)) return
+        var f = frames[id]
+        delete frames[id]
+        nativeCaf(f.raf)
+        clearTimeout(f.timer)
+        cb(typeof ts === "number" ? ts : performance.now())
+      }
+      frames[id] = { raf: nativeRaf(run), timer: setTimeout(run, FRAME_MS) }
+      return id
+    }
+    window.cancelAnimationFrame = function (id) {
+      var f = frames[id]
+      if (!f) return
+      delete frames[id]
+      nativeCaf(f.raf)
+      clearTimeout(f.timer)
+    }
+  }
+
   var previous = window.__solfa
   if (previous && previous.version === VERSION) return
   // An agent from before the EQ graph was shared (window.__solfaEq): its
