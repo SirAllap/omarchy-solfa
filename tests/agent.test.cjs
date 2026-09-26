@@ -40,6 +40,7 @@ function makeStore(queue) {
       case "SET_REPEAT": q.repeatMode = a.payload; break
       case "SET_PLAYBACK_CONTENT_MODE": if (a.payload === "MODE_THE_APP_REFUSES") throw new TypeError("undefined is not iterable"); q.playbackContentMode = a.payload; break
       case "SET_SHUFFLE_ENABLED": q.shuffleEnabled = a.payload; break
+      case "SET_AD_PLAYING": return Object.assign({}, s, { player: Object.assign({}, s.player, { adPlaying: a.payload }) })
       case "CLEAR": q.items = []; q.automixItems = []; q.nextQueueItemId = a.payload ? Math.max(...a.payload) + 1 : 0; break
       case "RESET_ITEMS": q.items = a.payload || []; break
       case "REPLACE_AUTOMIX_ITEMS": q.automixItems = a.payload.automixItems; break
@@ -746,6 +747,20 @@ test("injecting the agent twice does not double-wrap requestAnimationFrame", asy
   p.ctx.window.requestAnimationFrame(() => { calls++ })
   await new Promise((r) => setTimeout(r, 80))
   assert.equal(calls, 1, "a callback runs exactly once, not twice from nested fallback scheduling")
+})
+
+test("snapshot during an ad reports adPosition/adDuration, and zeroes the regular clock", async () => {
+  const p = makePage()
+  await p.settle()
+  p.store.dispatch({ type: "SET_AD_PLAYING", payload: true })
+  p.videoEl.currentTime = 7.5
+  p.videoEl.duration = 30
+  const s = (await p.call("state")).player
+  assert.equal(s.ad, true)
+  assert.equal(s.adPosition, 7.5)
+  assert.equal(s.adDuration, 30)
+  assert.equal(s.position, 0, "the song's own clock stays at 0 during an ad")
+  assert.equal(s.duration, 0)
 })
 
 test("injecting again: same version is a no-op, a new version replaces the old", async () => {

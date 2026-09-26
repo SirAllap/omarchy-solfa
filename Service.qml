@@ -106,12 +106,21 @@ Item {
   property int fastClockUsers: 0
   readonly property real position: Model.positionAt(player, now)
   readonly property real progress: duration > 0 ? Math.max(0, Math.min(1, position / duration)) : 0
+  // An advert's own clock, moved between pushes like the song's.
+  readonly property real adDuration: isAd ? (Number(player.adDuration) || 0) : 0
+  readonly property real adPosition: {
+    if (!isAd) return 0
+    var pos = Number(player.adPosition) || 0
+    if (player.playing && !player.buffering && player.at) pos += Math.max(0, (now - player.at) / 1000)
+    return adDuration > 0 ? Math.min(pos, adDuration) : pos
+  }
+  readonly property real adLeft: Math.max(0, adDuration - adPosition)
 
   Timer {
     interval: root.fastClockUsers > 0 ? 250 : 1000
     repeat: true
-    running: root.isPlaying && !root.isAd
-    onTriggered: { root.now = Date.now(); root.checkSleepEnd() }
+    running: root.isPlaying
+    onTriggered: { root.now = Date.now(); if (!root.isAd) root.checkSleepEnd() }
   }
 
   // The panel sets this so a track toast does not repeat what is on screen.

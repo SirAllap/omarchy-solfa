@@ -224,6 +224,9 @@
       buffering: state === 3,
       ended: state === 0,
       ad: ad,
+      // The advert's own clock: the song's stays at 0 until it starts.
+      adPosition: ad && v ? Math.max(0, Number(v.currentTime) || 0) : 0,
+      adDuration: ad && v && isFinite(v.duration) ? Math.max(0, Number(v.duration) || 0) : 0,
       volume: p && typeof p.getVolume === "function" ? Math.round(Number(p.getVolume()) || 0) : 100,
       muted: p && typeof p.isMuted === "function" ? !!p.isMuted() : false,
       repeat: String(q.repeatMode || "NONE"),
@@ -385,7 +388,7 @@
   // Everything but the clock: a change here is worth a push.
   function keyOf(s) {
     return [s.videoId, s.title, s.playing, s.buffering, s.ended, s.ad, s.volume, s.muted, s.repeat, s.shuffle, s.like,
-      s.index, s.canNext, Math.round(s.duration), s.thumb].join("\u0001")
+      s.index, s.canNext, Math.round(s.duration), s.thumb, Math.round(s.adDuration)].join("\u0001")
   }
 
   function schedule(isSeek) {

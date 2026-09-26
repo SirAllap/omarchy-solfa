@@ -23,7 +23,7 @@ MIN = 32          # every control
 TRANSPORT = 44    # shuffle, previous, play/pause, next, repeat
 
 
-def render(workdir, scale="1"):
+def render(workdir, scale="1", extra_env=None):
     cfg = os.path.join(workdir, "scene")
     os.mkdir(cfg)
     for name, target in (("Ui", os.path.join(SHELL_DIR, "Ui")), ("Commons", os.path.join(SHELL_DIR, "Commons")),
@@ -32,7 +32,7 @@ def render(workdir, scale="1"):
         os.symlink(target, os.path.join(cfg, name))
     out = os.environ.get("SOLFA_SCENE_OUT") or os.path.join(workdir, "scene.png")
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_SCALE_FACTOR=scale, SOLFA_SCENE_OUT=out,
-               XDG_RUNTIME_DIR=workdir)
+               XDG_RUNTIME_DIR=workdir, **(extra_env or {}))
     # Its own runtime dir keeps the scene out of the live shell's instance
     # list; GTK, loaded by Quickshell, still wants the desktop's display.
     runtime = os.environ.get("XDG_RUNTIME_DIR", "")
@@ -117,6 +117,52 @@ class HitTargets(unittest.TestCase):
     def test_pressed_shrinks_a_little_and_comes_back(self):
         self.assertAlmostEqual(self.clicks["pressedScale"], 0.94, places=2)
         self.assertEqual(self.clicks["releasedScale"], 1)
+
+
+@unittest.skipUnless(QS and os.path.isdir(os.path.join(SHELL_DIR, "Ui")) and os.environ.get("WAYLAND_DISPLAY"),
+                     "Quickshell, the Omarchy shell or a desktop session is missing")
+class AdSkipButton(unittest.TestCase):
+    """During an advert the old top "Skip advert" HitButton is gone; a filled
+    "Skip ad" pill sits by the advert's own clock instead (SOLFA_SCENE_AD=1)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.workdir = tempfile.mkdtemp(prefix="solfa-hit-ad-")
+        found = render(cls.workdir, extra_env={"SOLFA_SCENE_AD": "1"})
+        cls.geom, cls.clicks = found["GEOM"], found["CLICKS"]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.workdir, ignore_errors=True)
+
+    def setUp(self):
+        self.assertIsNotNone(self.geom, "the scene did not render")
+        self.assertIsNotNone(self.clicks, "the scene did not click")
+
+    def test_the_old_top_skip_advert_button_is_gone(self):
+        self.assertFalse(any(b["label"] == "Skip advert" for b in self.geom["buttons"]))
+
+    def test_skip_ad_pill_has_a_proper_hit_box_next_to_the_clock(self):
+        pills = [b for b in self.geom["buttons"] if b["label"] == "Skip ad"]
+        self.assertEqual(len(pills), 1, self.geom["buttons"])
+        pill = pills[0]
+        self.assertTrue(pill["shown"])
+        self.assertGreaterEqual(min(pill["w"], pill["h"]), MIN, pill)
+        # It sits inside the hero, above the tabs row below it — not off in
+        # the footer or the queue.
+        queue_tab = next(b for b in self.geom["buttons"] if b["label"] == "Queue")
+        self.assertLess(pill["y"], queue_tab["y"], "still part of the hero, above the tabs")
+
+    def test_clicking_the_skip_ad_pill_skips_it(self):
+        self.assertEqual(self.clicks["clicked"].get("Skip ad"), ["skipAd"] * 3)
+
+    def test_the_skip_ad_pill_does_not_overlap_anything_shown(self):
+        shown = [b for b in self.geom["buttons"] if b["shown"]]
+        for i, a in enumerate(shown):
+            for b in shown[i + 1:]:
+                apart = (a["x"] + a["w"] <= b["x"] or b["x"] + b["w"] <= a["x"]
+                         or a["y"] + a["h"] <= b["y"] or b["y"] + b["h"] <= a["y"])
+                self.assertTrue(apart, (a, b))
 
 
 class PanelUsesHitButtons(unittest.TestCase):

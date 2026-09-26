@@ -20,7 +20,9 @@ ShellRoot {
     id: fakeSvc
     property bool ready: true
     property bool hasTrack: true
-    property bool isAd: false
+    // SOLFA_SCENE_AD=1: the hero shows an advert instead of the song, for
+    // the hit-target test of the Skip ad pill next to its clock.
+    property bool isAd: Quickshell.env("SOLFA_SCENE_AD") === "1"
     property bool signedIn: true
     property bool isPlaying: true
     property string like: "LIKE"
@@ -31,13 +33,16 @@ ShellRoot {
     property string thumb: ""
     property real duration: 214
     property real position: 83
+    property real adDuration: 15
+    property real adPosition: 4
+    property real adLeft: adDuration - adPosition
     property string repeatMode: "ALL"
     property int volume: 60
     property bool muted: false
     property string videoId: "v1"
     property var calls: []
     function toggleLike() { calls.push("toggleLike") }
-    function skipAd() {}
+    function skipAd() { calls.push("skipAd") }
     function seek(v) {}
     function shuffle() { calls.push("shuffle") }
     function previous() { calls.push("previous") }
@@ -141,11 +146,31 @@ ShellRoot {
           var p = c.mapToItem(stage, 0, 0)
           out.buttons.push({ label: c.text || c.iconText, tip: c.tooltipText, x: p.x, y: p.y, w: c.width, h: c.height, shown: c.opacity > 0 })
         }
+        // The advert's own "Skip ad" pill: not a HitButton (a plain
+        // Rectangle + MouseArea), found instead by its own "ink" property
+        // (set only on it). Counted as a button too: every clickable
+        // control needs a hit box, this one included.
+        if (c.ink !== undefined && c.radius !== undefined) {
+          var pa = c.mapToItem(stage, 0, 0)
+          out.buttons.push({ label: "Skip ad", tip: "Skip ad", x: pa.x, y: pa.y, w: c.width, h: c.height, shown: c.opacity > 0 })
+        }
         if (c.elide === Text.ElideRight && c.font && c.font.pixelSize === Style.font.body && c.text.indexOf("Song") >= 0)
           out.titles.push({ text: c.text, w: c.width })
         win.boxes(c, out)
       }
       return out
+    }
+
+    // Like find(), but for a clickable control that is not a HitButton (no
+    // minSize/iconOnly to key off).
+    function findAny(item, test) {
+      for (var i = 0; i < item.children.length; i++) {
+        var c = item.children[i]
+        if (c.visible && test(c)) return c
+        var f = win.findAny(c, test)
+        if (f) return f
+      }
+      return null
     }
 
     // SOLFA_SCENE_STATES=1: a few buttons drawn as if the pointer were on
@@ -189,6 +214,8 @@ ShellRoot {
       ;["Queue", "Search", "Library", "Lyrics"].forEach(function (t) { targets.push([t, win.find(stage, function (c) { return c.text === t })]) })
       targets.push(["Remove (x)", win.find(list, function (c) { return c.tooltipText === "Remove (x)" && c.opacity > 0 })])
       targets.push(["?", allKeysButton])
+      // Only present when SOLFA_SCENE_AD=1 gave the hero an advert.
+      targets.push(["Skip ad", win.findAny(stage, function (c) { return c.ink !== undefined && c.radius !== undefined })])
       targets.forEach(function (t) {
         var b = t[1]
         var got = []

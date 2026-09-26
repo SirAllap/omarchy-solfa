@@ -52,7 +52,7 @@ Column {
       }
       Text {
         width: parent.width
-        text: root.hasTrack ? (root.svc.isAd ? "Advert — your song starts after it" : root.svc.artist)
+        text: root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.svc.artist)
           : root.svc && root.svc.ready ? "Press / to search, or pick something below."
           : root.svc && root.svc.closed ? "Nothing plays until you turn it on." : ""
         textFormat: Text.PlainText
@@ -74,23 +74,12 @@ Column {
       }
     }
 
-    // During an advert the like button has nothing to like: Skip takes its place.
+    // During an advert the like button has nothing to like: it hides, and
+    // Skip sits by the advert's clock below.
     Item {
       id: actions
-      width: Math.max(skipAdButton.visible ? skipAdButton.width : likeButton.width, root.reserveRight)
+      width: Math.max(likeButton.width, root.reserveRight)
       height: cover.height
-
-      HitButton {
-        id: skipAdButton
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.hasTrack && root.svc.isAd
-        text: "Skip advert"
-        fontFamily: root.family
-        foreground: root.fg
-        bordered: true
-        onClicked: if (root.svc) root.svc.skipAd()
-      }
 
       HitButton {
         id: likeButton
@@ -119,27 +108,99 @@ Column {
       width: parent.width
       bar: root.bar
       minimum: 0
-      maximum: root.svc && root.svc.duration > 0 ? root.svc.duration : 1
-      value: root.svc ? root.svc.position : 0
+      maximum: root.svc && root.svc.isAd ? Math.max(1, root.svc.adDuration) : (root.svc && root.svc.duration > 0 ? root.svc.duration : 1)
+      value: root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0
       step: 1
       enabled: root.svc && root.svc.duration > 0 && !root.svc.isAd
-      fillColor: Color.accent
+      fillColor: root.svc && root.svc.isAd ? Color.urgent : Color.accent
       onReleased: function (v) { if (root.svc) root.svc.seek(v) }
     }
 
     Item {
       width: parent.width
-      height: posText.implicitHeight
+      height: Math.max(posText.implicitHeight, adBadge.visible ? adBadge.height : 0, skipAd.visible ? skipAd.height : 0)
       Text {
         id: posText
-        text: Model.fmtTime(seek.dragging ? seek.liveValue : (root.svc ? root.svc.position : 0))
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.svc && root.svc.isAd ? Model.fmtTime(root.svc.adPosition)
+          : Model.fmtTime(seek.dragging ? seek.liveValue : (root.svc ? root.svc.position : 0))
         textFormat: Text.PlainText
         color: Util.alpha(root.fg, 0.6)
         font.family: root.family
         font.pixelSize: Style.font.caption
       }
+      // What is playing is an advert, not the song: said in the middle, in
+      // the warning colour, with the time it has left.
+      Rectangle {
+        id: adBadge
+        anchors.centerIn: parent
+        visible: !!(root.svc && root.svc.isAd)
+        width: adBadgeText.implicitWidth + Style.space(20)
+        height: adBadgeText.implicitHeight + Style.space(8)
+        radius: height / 2
+        color: Util.alpha(Color.urgent, 0.18)
+        border.color: Color.urgent
+        border.width: 1
+        Text {
+          id: adBadgeText
+          anchors.centerIn: parent
+          text: "THIS IS AN AD" + (root.svc && root.svc.adDuration > 0 ? " · " + Model.fmtTime(root.svc.adLeft) + " left" : "")
+          textFormat: Text.PlainText
+          color: Color.urgent
+          font.family: root.family
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
+      }
+      // Skip: filled in the accent colour with the usual skip arrow, the
+      // one thing to press during an advert. YouTube decides when an
+      // advert can be skipped; before then it says so.
+      Rectangle {
+        id: skipAd
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !!(root.svc && root.svc.isAd)
+        width: skipRow.implicitWidth + Style.space(24)
+        height: skipRow.implicitHeight + Style.space(12)
+        radius: height / 2
+        color: skipMouse.pressed ? Qt.darker(Color.accent, 1.25) : skipMouse.containsMouse ? Qt.lighter(Color.accent, 1.15) : Color.accent
+        scale: skipMouse.pressed ? 0.94 : 1
+        Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+        readonly property color ink: (0.299 * Color.accent.r + 0.587 * Color.accent.g + 0.114 * Color.accent.b) > 0.6 ? "#101010" : "#ffffff"
+        Row {
+          id: skipRow
+          anchors.centerIn: parent
+          spacing: Style.space(6)
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Skip ad"
+            textFormat: Text.PlainText
+            color: skipAd.ink
+            font.family: root.family
+            font.pixelSize: Style.font.body
+            font.bold: true
+          }
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: Icons.next
+            textFormat: Text.PlainText
+            color: skipAd.ink
+            font.family: root.family
+            font.pixelSize: Style.font.iconLarge
+          }
+        }
+        MouseArea {
+          id: skipMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.svc) root.svc.skipAd()
+        }
+      }
       Text {
         anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !(root.svc && root.svc.isAd)
         text: root.svc ? Model.fmtTime(root.svc.duration) : ""
         textFormat: Text.PlainText
         color: Util.alpha(root.fg, 0.6)
