@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 import "lib/Model.js" as Model
+import "lib"
 
 // Service.qml — one per shell. It runs the bridge (bin/solfa-bridge), keeps
 // the one copy of the state that every bar widget and the panel draw from,
@@ -265,14 +266,13 @@ Item {
   property int nextId: 1
   property var pending: ({})
 
-  Socket {
+  // A fresh Quickshell Socket on every try (see lib/BridgeSocket.qml): one
+  // that once found no socket file never connects again.
+  BridgeSocket {
     id: sock
     path: root.socketPath
-    connected: false
-    parser: SplitParser {
-      onRead: data => root.onLine(data)
-    }
-    onConnectionStateChanged: {
+    onRead: data => root.onLine(data)
+    onConnectedChanged: {
       if (sock.connected) {
         root.restartDelay = 1000
         root.bridgeUnitStarted = true  // something answered: no unit to start
@@ -294,13 +294,6 @@ Item {
         }
       }
     }
-  }
-
-  Timer {
-    interval: 700
-    repeat: true
-    running: !sock.connected
-    onTriggered: sock.connected = true
   }
 
   // Replies that never come: give up on them so views do not wait forever.

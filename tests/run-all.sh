@@ -72,6 +72,7 @@ run paths python3 tests/test_paths.py
 run qml bash tests/lint-qml.sh
 run render python3 tests/test_render.py
 run hit-targets python3 tests/test_hit_targets.py
+run bridge-socket python3 tests/test_bridge_socket.py
 run closed python3 tests/test_closed.py
 run settings python3 tests/test_settings.py
 run account-state python3 tests/test_account_state.py
