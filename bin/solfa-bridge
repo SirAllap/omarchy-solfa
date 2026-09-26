@@ -763,8 +763,21 @@ class Hypr:
             if not addr.startswith("0x"):
                 addr = "0x" + addr
             if self.engine_address and addr == self.engine_address:
-                return not self.shown
+                # Hyprland can hand the engine's old address to a new window
+                # (the sign-in window, opened right after the engine closes
+                # for it): don't treat that window as the engine coming
+                # forward on its own.
+                return not self.shown and not self.bridge.signing_in
             self.last_other = addr
+            return False
+        if name == "closewindow":
+            addr = data.strip()
+            if not addr:
+                return False
+            if not addr.startswith("0x"):
+                addr = "0x" + addr
+            if addr == self.engine_address:
+                self.engine_address = ""
             return False
         if name == "openwindow":
             parts = data.split(",", 3)

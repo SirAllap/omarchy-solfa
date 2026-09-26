@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -1842,7 +1843,8 @@ class PureTest(unittest.TestCase):
             shutil.rmtree(d)
 
     def test_guard_decisions(self):
-        h = self.b.Hypr(bridge=None)
+        fake_bridge = types.SimpleNamespace(signing_in=False, broadcast=lambda *a, **kw: None)
+        h = self.b.Hypr(bridge=fake_bridge)
         h.engine_address = "0xabc"
         self.assertTrue(h.guard_decision("activewindowv2", "abc"))
         self.assertFalse(h.guard_decision("activewindowv2", "def"))
@@ -1853,6 +1855,26 @@ class PureTest(unittest.TestCase):
         self.assertFalse(h.guard_decision("openwindow", "abc,special:solfa,chrome-music.youtube.com__-Solfa,YouTube Music"))
         self.assertFalse(h.guard_decision("openwindow", "abc,1,chrome-music.youtube.com__-Default,YouTube Music"))
         h.shown = True
+        self.assertFalse(h.guard_decision("activewindowv2", "abc"))
+
+    def test_guard_decision_reused_address_is_not_the_engine(self):
+        # Hyprland can hand the engine's just-closed address to the sign-in
+        # window it opens right after. That must not be treated as the
+        # engine coming forward on its own.
+        fake_bridge = types.SimpleNamespace(signing_in=False, broadcast=lambda *a, **kw: None)
+        h = self.b.Hypr(bridge=fake_bridge)
+        h.engine_address = "0xabc"
+        h.shown = False
+        fake_bridge.signing_in = True
+        self.assertFalse(h.guard_decision("activewindowv2", "abc"))
+        fake_bridge.signing_in = False
+        self.assertTrue(h.guard_decision("activewindowv2", "abc"))
+
+        # closewindow clears the engine address; a later activewindowv2
+        # with that same (reused) address is then not the engine either.
+        h.engine_address = "0xabc"
+        self.assertFalse(h.guard_decision("closewindow", "abc"))
+        self.assertEqual(h.engine_address, "")
         self.assertFalse(h.guard_decision("activewindowv2", "abc"))
 
     def test_pipe_round_trip(self):
