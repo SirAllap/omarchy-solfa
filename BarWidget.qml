@@ -60,12 +60,13 @@ BarWidget {
   readonly property bool closed: svc ? svc.closed : false
   readonly property bool playing: svc ? svc.isPlaying : false
   readonly property bool showControls: root.setting("barControls", true) && hasTrack && !vertical
-  readonly property bool showTitle: root.setting("showTitle", true) && (hasTrack || closed) && !vertical
+  readonly property bool signingIn: svc ? svc.signingIn : false
+  readonly property bool showTitle: root.setting("showTitle", true) && (hasTrack || closed || signingIn) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
   readonly property color fg: bar ? bar.barForeground : Color.foreground
   readonly property string family: bar ? bar.fontFamily : Style.font.family
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
-  readonly property string label: svc && hasTrack ? svc.title : closed ? "Solfa" : ""
+  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
 
   visible: hasTrack || root.setting("showWhenIdle", true)
   implicitWidth: visible ? body.implicitWidth + Style.space(10) : 0
@@ -92,6 +93,17 @@ BarWidget {
       fontFamily: root.family
       dim: root.hasTrack && !root.playing
       opacity: root.closed || (root.svc && (root.svc.ready || root.svc.hasTrack)) ? 1 : 0.55
+
+      // While a sign-in runs (the panel closes when the Google window is
+      // used), the bar's icon breathes: something is happening.
+      transformOrigin: Item.Center
+      SequentialAnimation on scale {
+        loops: Animation.Infinite
+        running: root.signingIn
+        onRunningChanged: if (!running) coverSlot.scale = 1
+        NumberAnimation { from: 0.85; to: 1.1; duration: 1400; easing.type: Easing.InOutSine }
+        NumberAnimation { from: 1.1; to: 0.85; duration: 1400; easing.type: Easing.InOutSine }
+      }
     }
 
     Text {

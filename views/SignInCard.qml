@@ -27,6 +27,36 @@ Column {
 
   spacing: Style.space(10)
 
+  // Something is happening while a sign-in runs: Solfa's note breathes.
+  Text {
+    id: pulse
+    anchors.horizontalCenter: parent.horizontalCenter
+    visible: card.signingIn
+    text: String.fromCodePoint(0xF0025)  // the disc of Solfa's mark (Icons.album)
+    textFormat: Text.PlainText
+    color: Color.accent
+    font.family: card.family
+    font.pixelSize: Style.font.iconLarge * 1.8
+    // Drawn once as a smooth texture, so scaling does not shimmer.
+    layer.enabled: true
+    layer.smooth: true
+    layer.mipmap: true
+    transformOrigin: Item.Center
+    // A slow breath: grows and brightens, then settles, never a hard beat.
+    SequentialAnimation {
+      loops: Animation.Infinite
+      running: card.signingIn && card.visible
+      ParallelAnimation {
+        NumberAnimation { target: pulse; property: "scale"; from: 0.92; to: 1.08; duration: 1400; easing.type: Easing.InOutSine }
+        NumberAnimation { target: pulse; property: "opacity"; from: 0.55; to: 1.0; duration: 1400; easing.type: Easing.InOutSine }
+      }
+      ParallelAnimation {
+        NumberAnimation { target: pulse; property: "scale"; from: 1.08; to: 0.92; duration: 1400; easing.type: Easing.InOutSine }
+        NumberAnimation { target: pulse; property: "opacity"; from: 1.0; to: 0.55; duration: 1400; easing.type: Easing.InOutSine }
+      }
+    }
+  }
+
   Text {
     width: parent.width
     text: card.saving ? "Saving your sign-in"
@@ -47,7 +77,7 @@ Column {
   Text {
     width: parent.width
     text: card.saving
-      ? "Almost done. Solfa closes the window by itself in under a minute, then YouTube Music plays again."
+      ? "You are in. Chrome writes the new sign-in cookies to disk every 30 seconds, and Solfa waits for that so the sign-in is not lost. This takes under a minute, only this once; no need to do anything."
       : card.signingIn
       ? "YouTube Music waits while it is open. Solfa closes the window soon after you are in, and plays again; closing it yourself also works."
       : !card.waiting && card.failed
@@ -85,7 +115,8 @@ Column {
     }
     Button {
       // Closes the sign-in window; YouTube Music comes back signed out.
-      visible: card.signingIn
+      // Not while the sign-in is being saved: cancelling then loses it.
+      visible: card.signingIn && !card.saving
       text: "Cancel"
       fontFamily: card.family
       foreground: card.fg

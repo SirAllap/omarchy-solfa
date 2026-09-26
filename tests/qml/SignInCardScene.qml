@@ -32,7 +32,9 @@ ShellRoot {
       anchors.fill: parent
       Views.SignInCard { id: card; width: parent.width - 40; x: 20; y: 20; svc: fakeSvc }
     }
-    function texts() { return { title: card.children[0].text, body: card.children[1].text } }
+    // children[0] is the pulse icon; children[1] is its layer's
+    // ShaderEffectSource (layer.enabled: true adds one), always present.
+    function texts() { return { title: card.children[2].text, body: card.children[3].text } }
     property var log: ({})
     property int stepIndex: 0
     property var steps: [
