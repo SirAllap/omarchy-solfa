@@ -265,6 +265,23 @@ async def handle(ws, msg):
         elif "ListAccounts" in expr:
             record("listaccounts", {})
             result = {"result": {"type": "number", "value": int(os.environ.get("FAKE_ACCOUNTS") or 2)}}
+        elif "set_eom" in expr:
+            # The consent-answer script: the fake cookie page has the form
+            # only while the page is actually on it; found, its submit is
+            # like following a normal link — the app comes back a little
+            # later, the same as a real navigation.
+            found = state["host"] == "consent.youtube.com"
+            result = {"result": {"type": "boolean", "value": found}}
+            if found:
+                m = re.search(r"value=(true|false)", expr)
+                accept = m and m.group(1) == "false"
+                record("consent", {"accept": bool(accept)})
+
+                def land_back():
+                    state["host"] = "music.youtube.com"
+                    account = {"signedIn": state["signedIn"], "host": state["host"], "path": "/"}
+                    emit_event("hello", {"version": "fake", "account": account})
+                asyncio.get_running_loop().call_later(float(os.environ.get("FAKE_CONSENT_DELAY") or 0.1), land_back)
         else:
             m = OP_RE.match(expr)
             if not m:

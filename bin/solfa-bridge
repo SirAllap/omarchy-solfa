@@ -619,7 +619,7 @@ PAGE_OPS = {
 # Requests that change what plays: a restore in flight gives way to them.
 USER_PLAYBACK_OPS = {"play", "radio", "transport", "seek", "queue.jump"}
 
-BRIDGE_OPS = {"hello", "engine.start", "engine.stop", "engine.restart", "window.show", "window.hide", "signin.begin", "art", "rules",
+BRIDGE_OPS = {"hello", "consent.answer", "engine.start", "engine.stop", "engine.restart", "window.show", "window.hide", "signin.begin", "art", "rules",
               "engine.version", "cache.clear", "profile.erase", "signout", "start.set", "bridge.quit", "ui.attach"}
 
 LOGOUT_URL = "https://accounts.google.com/Logout?continue=https://music.youtube.com/"
@@ -1738,6 +1738,9 @@ class Bridge:
             async with self.aside():
                 await self.restart_engine(resume=not self.signing_in)
             return {"status": self.engine.status}
+        if op == "consent.answer":
+            only(args, "accept")
+            return await self.answer_consent(a_bool(args.get("accept"), "accept"))
         if op == "window.show":
             only(args)
             await self.hypr.show()
@@ -1922,6 +1925,32 @@ class Bridge:
                 return {"signedOut": True}
             await asyncio.sleep(0.1)
         raise PageError("timeout", "the logout did not land back on YouTube Music")
+
+    async def answer_consent(self, accept):
+        """Google's cookie question (consent.youtube.com, asked in the EU to
+        a browser it does not know), answered from the panel with the user's
+        own choice: the page's own form is sent, the one whose hidden
+        set_eom field says reject ("true") or accept ("false"). That field,
+        not the button's text, so the page's language does not matter.
+        Returns once the page is back on the app."""
+        eng = self.engine
+        if not eng.cdp or not eng.session:
+            raise PageError("engine-down")
+        if eng.account.get("host") != "consent.youtube.com":
+            raise PageError("no-consent", "Google is not asking about cookies")
+        want = "false" if accept else "true"
+        expr = ("(function () { var i = document.querySelector('form input[name=set_eom][value=" + want + "]');"
+                " if (!i) return false; var f = i.form; var b = f.querySelector('button');"
+                " if (b) b.click(); else f.submit(); return true })()")
+        res = await eng.cdp.call("Runtime.evaluate", {"expression": expr, "returnByValue": True}, eng.session, timeout=5)
+        if not (res.get("result") or {}).get("value"):
+            raise PageError("no-consent", "Google's cookie form was not found")
+        end = time.monotonic() + 20
+        while time.monotonic() < end:
+            if eng.account.get("host") == APP_HOST:
+                return {"answered": "accept" if accept else "reject"}
+            await asyncio.sleep(0.2)
+        raise PageError("timeout", "the page did not come back to YouTube Music")
 
     async def begin_signin(self, chooser=False):
         """Close the engine and open Google's sign-in in a plain window on its profile.

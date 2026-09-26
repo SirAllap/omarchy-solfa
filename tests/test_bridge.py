@@ -1256,6 +1256,40 @@ class BridgeTest(unittest.TestCase):
         self.assertFalse(hello["account"]["signedIn"])
         self.assertEqual(hello["account"]["host"], "music.youtube.com")
 
+    def test_consent_answer_needs_the_consent_page(self):
+        c = self.start()
+        self.wait_ready(c)
+        r = c.call("consent.answer", {"accept": True})
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["error"], "no-consent")
+
+    def test_consent_answer_rejects_bad_args(self):
+        c = self.start()
+        self.wait_ready(c)
+        self.assertEqual(c.call("consent.answer", {})["error"], "bad-args", "accept is required")
+        self.assertEqual(c.call("consent.answer", {"accept": "yes"})["error"], "bad-args", "accept must be a bool")
+        self.assertEqual(c.call("consent.answer", {"accept": True, "extra": 1})["error"], "bad-args")
+
+    def test_consent_answer_accept_lands_back_on_the_app(self):
+        c = self.start(FAKE_START_HOST="consent.youtube.com")
+        self.wait_ready(c)
+        r = c.call("consent.answer", {"accept": True}, timeout=25)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["data"], {"answered": "accept"})
+        consent = [e for e in self.page_log() if e.get("op") == "consent"]
+        self.assertEqual(consent[-1]["args"], {"accept": True})
+        self.assertEqual(c.call("hello")["data"]["account"]["host"], "music.youtube.com")
+
+    def test_consent_answer_reject_lands_back_on_the_app(self):
+        c = self.start(FAKE_START_HOST="consent.youtube.com")
+        self.wait_ready(c)
+        r = c.call("consent.answer", {"accept": False}, timeout=25)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["data"], {"answered": "reject"})
+        consent = [e for e in self.page_log() if e.get("op") == "consent"]
+        self.assertEqual(consent[-1]["args"], {"accept": False})
+        self.assertEqual(c.call("hello")["data"]["account"]["host"], "music.youtube.com")
+
     # ---- Playback > "When Solfa starts" / "Volume at start"
 
     def ops_since(self, mark):

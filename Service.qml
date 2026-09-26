@@ -533,6 +533,12 @@ Item {
   // importedSession stays read-only, for a profile from before this build.
   readonly property bool importedSession: bridgeUp && !!engine.importedSession
   function showWindow() { root.request("window.show", {}) }
+  // Google's cookie question, answered with the user's choice from the panel.
+  function answerCookies(accept) {
+    root.request("consent.answer", { accept: accept }, function (r) {
+      if (!r.ok) root.lastError = r.error === "no-consent" ? "Google's cookie question was not found; open the window instead" : Model.errorText(r.error)
+    })
+  }
   function hideWindow() { root.request("window.hide", {}) }
 
   // ------------------------------------------------------------------ Settings: Sound (EQ / loudness)

@@ -56,7 +56,7 @@ Column {
       ? "Your playlists, liked songs and likes need your Google account. A Google window opens once; Solfa closes it when you are signed in."
       : card.broken ? "Check the connection, then try again."
       : card.shown ? "Answer Google's cookie question, then hide the window."
-      : card.cookies ? "Google asks about cookies first. Sign in, or open the window and answer it."
+      : card.cookies ? "In the EU, Google asks every new browser whether YouTube may use cookies for tracking and personalised ads. Solfa is a new browser to Google, so it asks once. Your answer is sent to Google and kept. Music plays either way."
       : "Sign in, or go back to YouTube Music without signing in."
     textFormat: Text.PlainText
     wrapMode: Text.WordWrap
@@ -66,12 +66,17 @@ Column {
     font.pixelSize: Style.font.body
   }
 
+  // Google's cookie question: the answer is the main thing here, its two
+  // choices side by side and alike (neither one is pushed). Signing in or
+  // answering in the window are other ways, set apart below.
+  readonly property bool asking: waiting && cookies && !shown
+
   Row {
     anchors.horizontalCenter: parent.horizontalCenter
     spacing: Style.space(8)
 
     Button {
-      visible: !card.shown && !card.broken && !card.signingIn
+      visible: !card.shown && !card.broken && !card.signingIn && !card.asking
       text: "Sign in"
       fontFamily: card.family
       foreground: card.fg
@@ -85,13 +90,6 @@ Column {
       fontFamily: card.family
       foreground: card.fg
       onClicked: if (card.svc) card.svc.hideWindow()
-    }
-    Button {
-      visible: card.waiting && card.cookies && !card.shown
-      text: "Open the window"
-      fontFamily: card.family
-      foreground: card.fg
-      onClicked: if (card.svc) card.svc.showWindow()
     }
     Button {
       visible: card.shown
@@ -115,6 +113,71 @@ Column {
       foreground: card.fg
       bordered: true
       onClicked: if (card.svc) card.svc.restartEngine()
+    }
+  }
+
+  // ---- the cookie question
+  Column {
+    anchors.horizontalCenter: parent.horizontalCenter
+    visible: card.asking
+    spacing: Style.space(10)
+
+    Text {
+      anchors.horizontalCenter: parent.horizontalCenter
+      text: "Answer Google's cookie question"
+      textFormat: Text.PlainText
+      color: card.fg
+      font.family: card.family
+      font.pixelSize: Style.font.body
+      font.bold: true
+    }
+    Row {
+      anchors.horizontalCenter: parent.horizontalCenter
+      spacing: Style.space(12)
+      Button {
+        text: "Reject all"
+        fontFamily: card.family
+        foreground: Color.accent
+        bordered: true
+        onClicked: if (card.svc) card.svc.answerCookies(false)
+      }
+      Button {
+        text: "Accept all"
+        fontFamily: card.family
+        foreground: Color.accent
+        bordered: true
+        onClicked: if (card.svc) card.svc.answerCookies(true)
+      }
+    }
+    Rectangle {
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: Style.space(220)
+      height: 1
+      color: Util.alpha(card.fg, 0.2)
+    }
+    Row {
+      anchors.horizontalCenter: parent.horizontalCenter
+      spacing: Style.space(4)
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "Or:"
+        textFormat: Text.PlainText
+        color: Util.alpha(card.fg, 0.55)
+        font.family: card.family
+        font.pixelSize: Style.font.caption
+      }
+      Button {
+        text: "Sign in with Google"
+        fontFamily: card.family
+        foreground: Util.alpha(card.fg, 0.75)
+        onClicked: if (card.svc) card.svc.signIn()
+      }
+      Button {
+        text: "Answer in the window"
+        fontFamily: card.family
+        foreground: Util.alpha(card.fg, 0.75)
+        onClicked: if (card.svc) card.svc.showWindow()
+      }
     }
   }
 }
