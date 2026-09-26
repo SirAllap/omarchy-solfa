@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.sirallap.solfa",
   "name": "Solfa",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "SirAllap",
   "license": "MIT",
   "description": "Solfa — YouTube Music in the bar and a keyboard panel. Search, play, queue, library, lyrics and likes; the web app runs hidden as the engine and never takes focus.",

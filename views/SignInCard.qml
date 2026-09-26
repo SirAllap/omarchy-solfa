@@ -27,7 +27,7 @@ Column {
 
   spacing: Style.space(10)
 
-  // Something is happening while a sign-in runs: Solfa's note breathes.
+  // Something is happening while a sign-in runs: Solfa's disc breathes.
   Text {
     id: pulse
     anchors.horizontalCenter: parent.horizontalCenter
