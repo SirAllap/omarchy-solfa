@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Adverts are skipped by themselves: Solfa presses the Skip button every second until the advert is gone.
+- With Brave as the engine's browser, its ad blocker gets its filter lists and blocks adverts.
+
 ## 1.0.2
 
 - Fixed: on a free (non-Premium) account every song stopped at 0:49 and Play did nothing.

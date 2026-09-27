@@ -8,7 +8,8 @@
 //
 // Changes are pushed, not polled: the bridge adds a DevTools binding
 // (window.__solfaEmit) and the agent calls it when the player, the queue or
-// the account changes. Nothing here runs on a timer once the page is up.
+// the account changes. Once the page is up the only timer is the ad
+// watcher, which presses an advert's Skip button as soon as it appears.
 
 ;(function () {
   "use strict"
@@ -115,9 +116,42 @@
     )
     for (var i = 0; i < buttons.length; i++) {
       var b = buttons[i]
-      if (b && b.offsetParent !== null) return b
+      if (b && shown(b)) return b
     }
     return null
+  }
+
+  // Laid out on the page. offsetParent alone is null for a position:fixed
+  // element even when it is on screen, so its boxes are asked as well.
+  function shown(el) {
+    if (el.offsetParent !== null) return true
+    return typeof el.getClientRects === "function" && el.getClientRects().length > 0
+  }
+
+  function pressSkip(b) {
+    if (typeof b.click === "function") b.click()
+    // A synthetic .click() is not always trusted by YouTube's ad player,
+    // so it can land on a button that is really there and do nothing.
+    // Ending the advert's own <video> is what a real Skip press does
+    // underneath, and it works whether or not the click did.
+    var v = video()
+    if (v && isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration
+    schedule(false)
+  }
+
+  // While an advert plays, press its Skip button once a second until it is
+  // gone: the button only appears some seconds in, and a press can miss.
+  var AD_SKIP_MS = 1000
+
+  function autoSkipAd() {
+    var ps = (appState() || {}).player || {}
+    if (!ps.adPlaying) return
+    var b = adSkipButton()
+    if (b) { pressSkip(b); return }
+    // The Skip button appearing changes neither the store nor the <video>,
+    // so nothing else pushes it: without this the panel keeps its pill on
+    // "Can't skip yet" for the whole advert.
+    schedule(false)
   }
 
   function cfg(key) {
@@ -835,20 +869,13 @@
       return { repeat: String(s.getState().queue.repeatMode || "") }
     },
 
-    // The advert's own Skip button, pressed when the user asks. Nothing
-    // watches for it: the button in the panel shows for every advert and
-    // says so when this one cannot be skipped yet.
+    // The advert's own Skip button, pressed when the user asks. The ad
+    // watcher (see start()) also presses it by itself every second; this
+    // stays for the panel's pill, which says when it cannot be skipped yet.
     "ad.skip": function () {
       var b = adSkipButton()
       if (!b) fail("not-skippable")
-      if (typeof b.click === "function") b.click()
-      // A synthetic .click() is not always trusted by YouTube's ad player,
-      // so it can land on a button that is really there and do nothing.
-      // Ending the advert's own <video> is what a real Skip press does
-      // underneath, and it works whether or not the click did.
-      var v = video()
-      if (v && isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration
-      schedule(false)
+      pressSkip(b)
       return { skipped: true }
     },
 
@@ -973,9 +1000,12 @@
   // ---------------------------------------------------------------- start
 
   var startTimer = null
+  var adSkipTimer = null
 
   function stop() {
     if (startTimer) clearTimeout(startTimer)
+    if (adSkipTimer) clearInterval(adSkipTimer)
+    adSkipTimer = null
     if (flushTimer) clearTimeout(flushTimer)
     if (unsubscribe) { try { unsubscribe() } catch (e) { /* store gone */ } }
     if (boundVideo) VIDEO_EVENTS.forEach(function (n) { boundVideo.removeEventListener(n, onVideoEvent) })
@@ -999,6 +1029,7 @@
     }
     unsubscribe = s.subscribe(function () { checkArmed(); schedule(false) })
     bindVideo()
+    if (!adSkipTimer) adSkipTimer = setInterval(autoSkipAd, AD_SKIP_MS)
     if (fromUnsharedAgent && !eqGraph) {
       fromUnsharedAgent = false
       var el = video()

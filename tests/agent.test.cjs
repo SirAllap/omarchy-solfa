@@ -167,12 +167,16 @@ function makePage(opts = {}) {
   let nativeRafId = 1
   const nativeRafStore = {}
   let nativeRafCalls = 0
+  // Intervals never run by themselves: a test ticks them (tickIntervals).
+  const intervals = []
   const ctx = {
     console,
     JSON, Math, Object, Array, String, Number, Promise, Error, RegExp, Uint8Array, TextEncoder, encodeURIComponent, decodeURIComponent, isFinite, parseInt,
     Date: class extends Date { static now() { return (now += 50) } },
     setTimeout: (fn) => setImmediate(fn),
     clearTimeout: () => {},
+    setInterval: (fn, ms) => intervals.push({ fn, ms }),
+    clearInterval: (id) => { intervals[id - 1] = null },
     requestAnimationFrame: (cb) => { nativeRafCalls++; const id = nativeRafId++; nativeRafStore[id] = cb; return id },
     cancelAnimationFrame: (id) => { delete nativeRafStore[id] },
     performance,
@@ -224,7 +228,8 @@ function makePage(opts = {}) {
   const load = (version) => vm.runInContext(PARSE + "\n;\n" + AGENT.replace("%%SOLFA_VERSION%%", version || "test-1"), ctx)
   load()
   const settle = () => new Promise((r) => setTimeout(r, 5))
-  return { ctx, app, store, player, videoEl, requests, assigned, emitted, navigations, audioContexts, load, settle, call: (op, args) => ctx.__solfa.call(op, args), nativeRafCalls: () => nativeRafCalls }
+  return { ctx, app, store, player, videoEl, requests, assigned, emitted, navigations, audioContexts, load, settle, call: (op, args) => ctx.__solfa.call(op, args), nativeRafCalls: () => nativeRafCalls,
+    intervals: () => intervals.filter(Boolean), tickIntervals: () => intervals.forEach((t) => t && t.fn()) }
 }
 
 test("starts, says hello and pushes the first state", async () => {
@@ -520,6 +525,59 @@ test("skip an advert: press its own visible Skip button, or say it cannot be ski
   assert.equal(r.skipped, true)
   assert.equal(shown.clicked, 1)
   assert.equal(later.videoEl.currentTime, 12)
+})
+
+test("an advert's Skip button is pressed by itself every second until it is gone", async () => {
+  const skip = { offsetParent: null, className: "ytp-ad-skip-button", clicked: 0, click() { this.clicked++ } }
+  const p = makePage({ skipButtons: [skip], videoDuration: 15 })
+  await p.settle()
+  assert.deepEqual(p.intervals().map((t) => t.ms), [1000])
+  // No advert: a button left in the page is not pressed.
+  skip.offsetParent = {}
+  p.tickIntervals()
+  assert.equal(skip.clicked, 0)
+  // An advert with no Skip button yet: nothing to press, and no error.
+  p.store.dispatch({ type: "SET_AD_PLAYING", payload: true })
+  skip.offsetParent = null
+  p.tickIntervals()
+  assert.equal(skip.clicked, 0)
+  // It appears: pressed on every tick while it stays.
+  skip.offsetParent = {}
+  p.tickIntervals()
+  p.tickIntervals()
+  assert.equal(skip.clicked, 2)
+  assert.equal(p.videoEl.currentTime, 15)
+  // The advert is over: pressing stops.
+  p.store.dispatch({ type: "SET_AD_PLAYING", payload: false })
+  p.tickIntervals()
+  assert.equal(skip.clicked, 2)
+})
+
+test("the panel hears when an advert's Skip button appears, with no other change to push it", async () => {
+  const skip = { offsetParent: null, className: "ytp-ad-skip-button", click() {} }
+  const p = makePage({ skipButtons: [skip] })
+  await p.settle()
+  p.store.dispatch({ type: "SET_AD_PLAYING", payload: true })
+  await p.settle()
+  const last = () => p.emitted.filter((e) => e.t === "player").pop().data
+  assert.equal(last().ad, true)
+  assert.equal(last().adSkippable, false)
+  // It shows up: a fixed-position pill has no offsetParent, only boxes.
+  const pressed = []
+  skip.getClientRects = () => [{}]
+  skip.click = () => pressed.push(1)
+  p.tickIntervals()
+  await p.settle()
+  assert.equal(pressed.length, 1)
+  assert.equal(last().adSkippable, true)
+})
+
+test("a newer agent stops the old one's ad watcher", async () => {
+  const p = makePage()
+  await p.settle()
+  p.load("test-2")
+  await p.settle()
+  assert.equal(p.intervals().length, 1)
 })
 
 test("a Skip pill under any current class name is found, English-independent", async () => {
