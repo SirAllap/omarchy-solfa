@@ -974,6 +974,14 @@ BROWSER_CANDIDATES = (
 )
 
 
+def blocks_ads(browser):
+    """Is this Brave, whose built-in ad blocker (Shields) skips YouTube's
+    adverts? Its filter lists arrive through the component updater, so a
+    Brave engine keeps that (and the background networking it rides on):
+    without them Shields is on with nothing to block."""
+    return "brave" in os.path.basename(browser).lower()
+
+
 def find_browser():
     """(path, error) for the engine's Chromium: path is "" when none was
     usable, and error then says why (a bad `browser` setting, or none found)."""
@@ -1119,15 +1127,18 @@ class Engine:
                 "--disable-extensions",
                 "--disable-features=WebUIOmniboxPopup,WebUIOmniboxAimPopup,PreloadTopChromeWebUI,"
                 "SpareRendererForSitePerProcess",
-                # Nothing in the background a player never needs (updates,
-                # sync, pings, crash reports, field trials): about 25 MB.
-                "--disable-background-networking", "--disable-component-update", "--disable-sync",
+                # Nothing in the background a player never needs (sync,
+                # pings, crash reports, field trials): about 25 MB. Updates
+                # are added below, for browsers that do not need them.
+                "--disable-sync",
                 "--disable-default-apps", "--disable-domain-reliability", "--disable-client-side-phishing-detection",
                 "--no-pings", "--metrics-recording-only", "--disable-breakpad", "--disable-field-trial-config",
                 # A ceiling on the page's JS heap, well above where the page
                 # is recycled (RECYCLE_HEAP_MB): near it V8 collects harder.
                 "--js-flags=--max-old-space-size=768",
                 "--window-size=1100,760"]
+        if not blocks_ads(browser):
+            argv += ["--disable-background-networking", "--disable-component-update"]
         extra = os.environ.get("SOLFA_ENGINE_FLAGS", "").split()
         # L2: SOLFA_ENGINE_FLAGS comes from the systemd user manager's
         # environment (inherited, not from the shell's own settings): deny

@@ -2012,6 +2012,13 @@ class ImportPureTest(unittest.TestCase):
         self.assertEqual(path, str(FAKE))
         self.assertEqual(error, "")
 
+    def test_brave_keeps_the_updates_its_ad_blocker_needs(self):
+        engine = self.b.Engine.__new__(self.b.Engine)
+        quiet = {"--disable-component-update", "--disable-background-networking"}
+        for browser in ("/usr/bin/brave", "/usr/bin/brave-browser"):
+            self.assertFalse(quiet & set(engine.argv(browser)), browser)
+        self.assertEqual(quiet & set(engine.argv("/usr/bin/chromium")), quiet)
+
     def test_child_env_path_is_always_fixed(self):
         with self._patched_env({"PATH": "/some/attacker/controlled/path:/usr/bin"}):
             env = self.b.child_env()

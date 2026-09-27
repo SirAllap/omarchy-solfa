@@ -70,6 +70,10 @@ skips, the wheel sets the volume, Shift+wheel seeks.
 
 During an advert (signed out, or without Premium) the panel offers
 **Skip advert**: it presses the advert's own Skip button once YouTube allows it.
+Solfa also presses that button by itself, once a second, until the advert is gone.
+With Brave as the engine's browser (Settings → Browser for the engine), its
+built-in ad blocker skips most adverts before they play; Solfa lets Brave
+fetch its filter lists for that. Switching browsers may ask you to sign in again.
 
 ## Close Solfa
 
