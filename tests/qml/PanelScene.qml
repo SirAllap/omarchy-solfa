@@ -26,6 +26,7 @@ ShellRoot {
     property bool hasTrack: true
     property bool isPlaying: true
     property bool isAd: false
+    property bool adSkippable: false
     property bool panelOpen: false
     property string lastError: ""
     property var engine: ({ status: "ready", error: "", signedIn: true, host: "music.youtube.com", wantRunning: true })

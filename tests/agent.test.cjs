@@ -107,6 +107,8 @@ function makePage(opts = {}) {
   const listeners = {}
   const videoEl = {
     paused: false,
+    duration: opts.videoDuration === undefined ? NaN : opts.videoDuration,
+    currentTime: 0,
     addEventListener(n, f) { (listeners[n] = listeners[n] || []).push(f) },
     removeEventListener(n, f) { listeners[n] = (listeners[n] || []).filter((x) => x !== f) },
     fire(n) { (listeners[n] || []).forEach((f) => f({ type: n })) },
@@ -182,7 +184,26 @@ function makePage(opts = {}) {
       readyState: "complete",
       cookie: opts.signedIn ? "PREF=x; SAPISID=fixture-sapisid; OTHER=1" : "PREF=x",
       querySelector(sel) { return sel === "ytmusic-app" ? app : sel === "video" ? videoEl : null },
-      querySelectorAll(sel) { return /skip/.test(sel) ? (opts.skipButtons || []) : [] },
+      // A small, real matcher (not a blanket "contains skip" stand-in): each
+      // comma-separated part is either ".exact-class" or "[class*='sub' i]",
+      // matched against every fixture button's own className. This is what
+      // makes the "current class name" test below mean something — a
+      // selector list that dropped its substring fallback would go back to
+      // matching nothing here, same as it would against a real, renamed
+      // button.
+      querySelectorAll(sel) {
+        const parts = sel.split(",").map((s) => s.trim())
+        return (opts.skipButtons || []).filter((b) => {
+          const cls = String(b.className || "")
+          return parts.some((part) => {
+            const exact = part.match(/^\.([\w-]+)$/)
+            if (exact) return cls.split(/\s+/).includes(exact[1])
+            const sub = part.match(/^\[class\*=['"]([^'"]+)['"]\s*i\]$/)
+            if (sub) return cls.toLowerCase().includes(sub[1].toLowerCase())
+            return false
+          })
+        })
+      },
       getElementById(id) { return id === "movie_player" ? player : null },
       addEventListener() {}
     },
@@ -482,17 +503,33 @@ test("play changes the song inside the app, with a page load only as a fallback"
 })
 
 test("skip an advert: press its own visible Skip button, or say it cannot be skipped yet", async () => {
-  const hidden = { offsetParent: null, clicked: 0, click() { this.clicked++ } }
-  const shown = { offsetParent: {}, clicked: 0, click() { this.clicked++ } }
+  const hidden = { offsetParent: null, className: "ytp-ad-skip-button", clicked: 0, click() { this.clicked++ } }
+  const shown = { offsetParent: {}, className: "ytp-ad-skip-button", clicked: 0, click() { this.clicked++ } }
+  // A wholly non-skippable advert has no Skip button at all (seen live:
+  // the first of a pair of adverts), not merely a hidden one.
   const early = makePage({ skipButtons: [hidden] })
   await early.settle()
   await assert.rejects(early.call("ad.skip", {}), /not-skippable/)
   assert.equal(hidden.clicked, 0)
-  const later = makePage({ skipButtons: [hidden, shown] })
+  // A click that YouTube's ad player ignores (untrusted, or its class has
+  // moved again) still has to end the advert: the video's own clock is
+  // walked to its end, which is what a working Skip press does underneath.
+  const later = makePage({ skipButtons: [hidden, shown], videoDuration: 12 })
   await later.settle()
   const r = await later.call("ad.skip", {})
   assert.equal(r.skipped, true)
   assert.equal(shown.clicked, 1)
+  assert.equal(later.videoEl.currentTime, 12)
+})
+
+test("a Skip pill under any current class name is found, English-independent", async () => {
+  // The pill YouTube ships today matches none of the three named classes
+  // this repo has chased before; it is caught by the substring fallback.
+  const pill = { offsetParent: {}, className: "some-new-ad-skip-button-pill", clicked: 0, click() { this.clicked++ } }
+  const p = makePage({ skipButtons: [pill], videoDuration: 8 })
+  await p.settle()
+  const r = await p.call("ad.skip", {})
+  assert.equal(r.skipped, true)
 })
 
 test("radio from a song builds the radio list", async () => {
@@ -761,6 +798,19 @@ test("snapshot during an ad reports adPosition/adDuration, and zeroes the regula
   assert.equal(s.adDuration, 30)
   assert.equal(s.position, 0, "the song's own clock stays at 0 during an ad")
   assert.equal(s.duration, 0)
+})
+
+test("snapshot's adSkippable follows whether a Skip button is actually there", async () => {
+  const shown = { offsetParent: {}, className: "ytp-ad-skip-button", click() {} }
+  const withButton = makePage({ skipButtons: [shown] })
+  await withButton.settle()
+  withButton.store.dispatch({ type: "SET_AD_PLAYING", payload: true })
+  assert.equal((await withButton.call("state")).player.adSkippable, true)
+
+  const withoutButton = makePage()
+  await withoutButton.settle()
+  withoutButton.store.dispatch({ type: "SET_AD_PLAYING", payload: true })
+  assert.equal((await withoutButton.call("state")).player.adSkippable, false)
 })
 
 test("injecting again: same version is a no-op, a new version replaces the old", async () => {

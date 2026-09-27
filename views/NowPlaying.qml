@@ -154,26 +154,30 @@ Column {
       }
       // Skip: filled in the accent colour with the usual skip arrow, the
       // one thing to press during an advert. YouTube decides when an
-      // advert can be skipped; before then it says so.
+      // advert can be skipped; before then this shows the wait instead of
+      // a button that presses into nothing.
       Rectangle {
         id: skipAd
+        readonly property bool skippable: !!(root.svc && root.svc.adSkippable)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: !!(root.svc && root.svc.isAd)
         width: skipRow.implicitWidth + Style.space(24)
         height: skipRow.implicitHeight + Style.space(12)
         radius: height / 2
-        color: skipMouse.pressed ? Qt.darker(Color.accent, 1.25) : skipMouse.containsMouse ? Qt.lighter(Color.accent, 1.15) : Color.accent
-        scale: skipMouse.pressed ? 0.94 : 1
+        color: !skippable ? Util.alpha(root.fg, 0.12)
+          : skipMouse.pressed ? Qt.darker(Color.accent, 1.25) : skipMouse.containsMouse ? Qt.lighter(Color.accent, 1.15) : Color.accent
+        scale: skippable && skipMouse.pressed ? 0.94 : 1
         Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
-        readonly property color ink: (0.299 * Color.accent.r + 0.587 * Color.accent.g + 0.114 * Color.accent.b) > 0.6 ? "#101010" : "#ffffff"
+        readonly property color ink: !skippable ? Util.alpha(root.fg, 0.6)
+          : (0.299 * Color.accent.r + 0.587 * Color.accent.g + 0.114 * Color.accent.b) > 0.6 ? "#101010" : "#ffffff"
         Row {
           id: skipRow
           anchors.centerIn: parent
           spacing: Style.space(6)
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: "Skip ad"
+            text: skipAd.skippable ? "Skip ad" : "Can't skip yet"
             textFormat: Text.PlainText
             color: skipAd.ink
             font.family: root.family
@@ -182,6 +186,7 @@ Column {
           }
           Text {
             anchors.verticalCenter: parent.verticalCenter
+            visible: skipAd.skippable
             text: Icons.next
             textFormat: Text.PlainText
             color: skipAd.ink
@@ -192,8 +197,9 @@ Column {
         MouseArea {
           id: skipMouse
           anchors.fill: parent
+          enabled: skipAd.skippable
           hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
+          cursorShape: skipAd.skippable ? Qt.PointingHandCursor : Qt.ArrowCursor
           onClicked: if (root.svc) root.svc.skipAd()
         }
       }

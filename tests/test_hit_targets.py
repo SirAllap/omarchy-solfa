@@ -165,6 +165,37 @@ class AdSkipButton(unittest.TestCase):
                 self.assertTrue(apart, (a, b))
 
 
+@unittest.skipUnless(QS and os.path.isdir(os.path.join(SHELL_DIR, "Ui")) and os.environ.get("WAYLAND_DISPLAY"),
+                     "Quickshell, the Omarchy shell or a desktop session is missing")
+class AdSkipButtonWithoutASkipButton(unittest.TestCase):
+    """An advert that has not grown a Skip button yet (SOLFA_SCENE_AD=1,
+    SOLFA_SCENE_AD_UNSKIPPABLE=1) shows a disabled "Can't skip yet" pill,
+    not a live one that presses into nothing."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.workdir = tempfile.mkdtemp(prefix="solfa-hit-ad-unskip-")
+        found = render(cls.workdir, extra_env={"SOLFA_SCENE_AD": "1", "SOLFA_SCENE_AD_UNSKIPPABLE": "1"})
+        cls.geom, cls.clicks = found["GEOM"], found["CLICKS"]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.workdir, ignore_errors=True)
+
+    def test_no_live_skip_ad_pill(self):
+        self.assertFalse(any(b["label"] == "Skip ad" for b in self.geom["buttons"]))
+
+    def test_the_pill_says_it_cannot_be_skipped_yet(self):
+        pills = [b for b in self.geom["buttons"] if b["label"] == "Can't skip yet"]
+        self.assertEqual(len(pills), 1, self.geom["buttons"])
+        self.assertTrue(pills[0]["shown"])
+
+    def test_clicking_it_does_nothing(self):
+        got = self.clicks["clicked"].get("Can't skip yet")
+        self.assertIsNotNone(got)
+        self.assertEqual(got, [""] * 3)
+
+
 class PanelUsesHitButtons(unittest.TestCase):
     """The tabs, Back and the footer's "?" are the same HitButton the scene measures."""
 

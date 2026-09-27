@@ -21,6 +21,7 @@ ShellRoot {
     property bool hasTrack: !closed
     property bool isPlaying: !closed
     property bool isAd: false
+    property bool adSkippable: false
     property bool signedIn: true
     property bool premium: false
     property string like: "LIKE"

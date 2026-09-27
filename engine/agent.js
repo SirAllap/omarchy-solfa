@@ -102,6 +102,24 @@
     return (p && p.querySelector("video")) || document.querySelector("video")
   }
 
+  // The advert's own Skip button, if the current advert has one to press.
+  // Matched by class substring rather than an exact list or its text: the
+  // pill's class has moved before (old ytp-ad-skip-button, then a "-modern"
+  // variant) and its label is localized, but "skip" inside an ad class name
+  // has not moved. A non-skippable advert (seen live: the first of a pair,
+  // with no button at all, not merely a hidden one) returns null.
+  function adSkipButton() {
+    var buttons = document.querySelectorAll(
+      ".ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern, " +
+      "[class*='ad-skip-button' i], [class*='skip-ad-button' i], [class*='skip-button' i]"
+    )
+    for (var i = 0; i < buttons.length; i++) {
+      var b = buttons[i]
+      if (b && b.offsetParent !== null) return b
+    }
+    return null
+  }
+
   function cfg(key) {
     try { return window.ytcfg && typeof window.ytcfg.get === "function" ? window.ytcfg.get(key) : undefined } catch (e) { return undefined }
   }
@@ -227,6 +245,9 @@
       // The advert's own clock: the song's stays at 0 until it starts.
       adPosition: ad && v ? Math.max(0, Number(v.currentTime) || 0) : 0,
       adDuration: ad && v && isFinite(v.duration) ? Math.max(0, Number(v.duration) || 0) : 0,
+      // So the panel can grey the Skip pill instead of letting a press land
+      // on nothing: some adverts never grow a Skip button at all.
+      adSkippable: ad && !!adSkipButton(),
       volume: p && typeof p.getVolume === "function" ? Math.round(Number(p.getVolume()) || 0) : 100,
       muted: p && typeof p.isMuted === "function" ? !!p.isMuted() : false,
       repeat: String(q.repeatMode || "NONE"),
@@ -387,7 +408,7 @@
 
   // Everything but the clock: a change here is worth a push.
   function keyOf(s) {
-    return [s.videoId, s.title, s.playing, s.buffering, s.ended, s.ad, s.volume, s.muted, s.repeat, s.shuffle, s.like,
+    return [s.videoId, s.title, s.playing, s.buffering, s.ended, s.ad, s.adSkippable, s.volume, s.muted, s.repeat, s.shuffle, s.like,
       s.index, s.canNext, Math.round(s.duration), s.thumb, Math.round(s.adDuration)].join("\u0001")
   }
 
@@ -818,16 +839,17 @@
     // watches for it: the button in the panel shows for every advert and
     // says so when this one cannot be skipped yet.
     "ad.skip": function () {
-      var buttons = document.querySelectorAll(".ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern")
-      for (var i = 0; i < buttons.length; i++) {
-        var b = buttons[i]
-        if (b && b.offsetParent !== null && typeof b.click === "function") {
-          b.click()
-          schedule(false)
-          return { skipped: true }
-        }
-      }
-      fail("not-skippable")
+      var b = adSkipButton()
+      if (!b) fail("not-skippable")
+      if (typeof b.click === "function") b.click()
+      // A synthetic .click() is not always trusted by YouTube's ad player,
+      // so it can land on a button that is really there and do nothing.
+      // Ending the advert's own <video> is what a real Skip press does
+      // underneath, and it works whether or not the click did.
+      var v = video()
+      if (v && isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration
+      schedule(false)
+      return { skipped: true }
     },
 
     shuffle: function () {

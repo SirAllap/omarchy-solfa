@@ -36,6 +36,10 @@ ShellRoot {
     property real adDuration: 15
     property real adPosition: 4
     property real adLeft: adDuration - adPosition
+    // SOLFA_SCENE_AD_UNSKIPPABLE=1 (with SOLFA_SCENE_AD=1): the advert has
+    // grown no Skip button yet, for the hit-target test of the disabled
+    // "Can't skip yet" state.
+    property bool adSkippable: Quickshell.env("SOLFA_SCENE_AD_UNSKIPPABLE") !== "1"
     property string repeatMode: "ALL"
     property int volume: 60
     property bool muted: false
@@ -149,10 +153,13 @@ ShellRoot {
         // The advert's own "Skip ad" pill: not a HitButton (a plain
         // Rectangle + MouseArea), found instead by its own "ink" property
         // (set only on it). Counted as a button too: every clickable
-        // control needs a hit box, this one included.
+        // control needs a hit box, this one included. Its label follows
+        // the pill's own text: live while the advert has a Skip button,
+        // "Can't skip yet" while it does not.
         if (c.ink !== undefined && c.radius !== undefined) {
           var pa = c.mapToItem(stage, 0, 0)
-          out.buttons.push({ label: "Skip ad", tip: "Skip ad", x: pa.x, y: pa.y, w: c.width, h: c.height, shown: c.opacity > 0 })
+          var skipLabel = c.skippable === false ? "Can't skip yet" : "Skip ad"
+          out.buttons.push({ label: skipLabel, tip: skipLabel, x: pa.x, y: pa.y, w: c.width, h: c.height, shown: c.opacity > 0 })
         }
         if (c.elide === Text.ElideRight && c.font && c.font.pixelSize === Style.font.body && c.text.indexOf("Song") >= 0)
           out.titles.push({ text: c.text, w: c.width })
@@ -215,7 +222,8 @@ ShellRoot {
       targets.push(["Remove (x)", win.find(list, function (c) { return c.tooltipText === "Remove (x)" && c.opacity > 0 })])
       targets.push(["?", allKeysButton])
       // Only present when SOLFA_SCENE_AD=1 gave the hero an advert.
-      targets.push(["Skip ad", win.findAny(stage, function (c) { return c.ink !== undefined && c.radius !== undefined })])
+      var skipBtn = win.findAny(stage, function (c) { return c.ink !== undefined && c.radius !== undefined })
+      targets.push([skipBtn && skipBtn.skippable === false ? "Can't skip yet" : "Skip ad", skipBtn])
       targets.forEach(function (t) {
         var b = t[1]
         var got = []

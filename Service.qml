@@ -115,6 +115,9 @@ Item {
     return adDuration > 0 ? Math.min(pos, adDuration) : pos
   }
   readonly property real adLeft: Math.max(0, adDuration - adPosition)
+  // Whether the current advert has grown a Skip button yet. Some adverts
+  // (seen live: a plain audio-style spot) never do, and stay this way.
+  readonly property bool adSkippable: isAd && !!player.adSkippable
 
   Timer {
     interval: root.fastClockUsers > 0 ? 250 : 1000
