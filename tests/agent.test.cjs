@@ -844,6 +844,21 @@ test("injecting the agent twice does not double-wrap requestAnimationFrame", asy
   assert.equal(calls, 1, "a callback runs exactly once, not twice from nested fallback scheduling")
 })
 
+test("a song's duration is the queue's full length while the player only knows what it has streamed", async () => {
+  const p = makePage()
+  await p.settle()
+  // The fixture's queue entry says 5:46; the player has streamed 0:49 of it.
+  p.player.dur = 49
+  assert.equal((await p.call("state")).player.duration, 346)
+  // The player knowing more (a longer cut than the queue says) wins.
+  p.player.dur = 400
+  assert.equal((await p.call("state")).player.duration, 400)
+  // Another song than the queue's current one: only the player's own.
+  p.player.dur = 49
+  p.player.current = "ZZZZZZZZZZZ"
+  assert.equal((await p.call("state")).player.duration, 49)
+})
+
 test("snapshot during an ad reports adPosition/adDuration, and zeroes the regular clock", async () => {
   const p = makePage()
   await p.settle()
