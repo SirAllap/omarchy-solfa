@@ -975,11 +975,14 @@ BROWSER_CANDIDATES = (
 
 
 def blocks_ads(browser):
-    """Is this Brave, whose built-in ad blocker (Shields) skips YouTube's
-    adverts? Its filter lists arrive through the component updater, so a
-    Brave engine keeps that (and the background networking it rides on):
-    without them Shields is on with nothing to block."""
-    return "brave" in os.path.basename(browser).lower()
+    """Does this engine keep Brave's built-in ad blocker (Shields) fed? Its
+    filter lists arrive through the component updater, so a Brave engine
+    keeps that (and the background networking it rides on): without them
+    Shields is on with nothing to block. Only when asked for (the
+    `braveAdBlock` setting): a Premium account has no adverts to block and
+    would pay the background traffic and memory for nothing."""
+    return (os.environ.get("SOLFA_BRAVE_ADBLOCK") == "1"
+            and "brave" in os.path.basename(browser).lower())
 
 
 def find_browser():
@@ -1129,7 +1132,7 @@ class Engine:
                 "SpareRendererForSitePerProcess",
                 # Nothing in the background a player never needs (sync,
                 # pings, crash reports, field trials): about 25 MB. Updates
-                # are added below, for browsers that do not need them.
+                # are added below, unless Brave's ad blocker needs them.
                 "--disable-sync",
                 "--disable-default-apps", "--disable-domain-reliability", "--disable-client-side-phishing-detection",
                 "--no-pings", "--metrics-recording-only", "--disable-breakpad", "--disable-field-trial-config",

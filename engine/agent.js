@@ -1015,7 +1015,8 @@
   }
 
   // On a new document the agent runs before the app exists: wait for it.
-  // This is the only loop, and it ends when the app is up (or after 90 s).
+  // This loop ends when the app is up (or after 90 s); then the ad watcher
+  // is the only timer left running.
   function start(tries) {
     if (location.hostname !== HOST) {
       emit("account", account())

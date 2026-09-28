@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Adverts are skipped by themselves: Solfa presses the Skip button every second until the advert is gone.
-- With Brave as the engine's browser, its ad blocker gets its filter lists and blocks adverts.
+- New setting (off by default): with Brave as the engine's browser, let its ad blocker fetch its filter lists so it blocks adverts.
 
 ## 1.0.2
 
