@@ -153,13 +153,14 @@ Item {
     printErrors: false
   }
 
-  // The bridge reads `autostart` and `browser` once, from its environment
+  // The bridge reads `autostart`, `browser` and `braveAdBlock` once, from its environment
   // (a launch key it echoes back in `hello`): so it starts when this
   // service has its settings (the bar widget pushes them just after the
   // shell creates the service), or after 2 s with no widget at all, and it
   // is asked to quit and restart when one of those two settings changes
   // (or the plugin itself was updated under it).
-  readonly property string bridgeEnvKey: String(root.setting("autostart", true)) + "|" + root.setting("browser", "")
+  readonly property string bridgeEnvKey: String(root.setting("autostart", true)) + "|" + root.setting("browser", "") +
+    "|" + String(root.setting("braveAdBlock", false))
   property string runningEnvKey: ""
   property string runningVersion: ""
   property bool bridgeUnitStarted: false
@@ -192,6 +193,7 @@ Item {
     }
     var browser = root.setting("browser", "")
     if (browser !== "") vars.SOLFA_BROWSER = browser
+    if (root.setting("braveAdBlock", false)) vars.SOLFA_BRAVE_ADBLOCK = "1"
     if (!root.setting("autostart", true)) vars.SOLFA_NO_LAUNCH = "1"
     var vol = root.startVolumeArg()
     if (vol !== null) vars.SOLFA_START_VOLUME = String(vol)
