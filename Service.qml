@@ -240,7 +240,7 @@ Item {
     root.bridgeUnitStarted = false
     root.restartDelay = 300
     if (sock.connected) {
-      root.request("bridge.quit", {}, function () { root.startBridge() })
+      root.request("bridge.quit", { keepSong: true }, function () { root.startBridge() })
     } else {
       root.startBridge()
     }

@@ -293,6 +293,33 @@ class BridgeTest(unittest.TestCase):
         # where the last push said, and not later by the restart time
         self.assertTrue(84.5 <= seeks[-1] <= 88, seeks)
 
+    def _quit_and_relaunch(self, keep_song):
+        c = self.start()
+        self.wait_ready(c)
+        c.call("play", {"videoId": "CCCCCCCCCCC"})
+        c.call("seek", {"seconds": 83})
+        c.wait_event(lambda m: m["event"] == "player" and m["data"]["position"] == 83)
+        time.sleep(1)
+        logged = len(self.page_log())
+        r = c.call("bridge.quit", {"keepSong": True} if keep_song else {})
+        self.assertTrue(r["ok"], r)
+        self.proc.wait(10)
+        c2 = self.start()
+        self.wait_ready(c2)
+        time.sleep(4)
+        return [(e["op"], e["args"]) for e in self.page_log()[logged:]]
+
+    def test_a_quit_for_a_setting_brings_the_song_back_in_the_next_bridge(self):
+        ops = self._quit_and_relaunch(keep_song=True)
+        self.assertIn(("play", {"videoId": "CCCCCCCCCCC"}), ops)
+        seeks = [a["seconds"] for op, a in ops if op == "seek"]
+        self.assertTrue(seeks and 83 <= seeks[-1] <= 90, ops[-8:])
+        self.assertFalse((self.rt / "solfa" / "handoff.json").exists())
+
+    def test_a_plain_quit_leaves_no_song_for_the_next_bridge(self):
+        ops = self._quit_and_relaunch(keep_song=False)
+        self.assertNotIn(("play", {"videoId": "CCCCCCCCCCC"}), ops)
+
     def _kill_and_wait_ready(self, c):
         old = self.engine_pid()
         c.events.clear()

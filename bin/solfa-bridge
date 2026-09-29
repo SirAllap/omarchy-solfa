@@ -218,6 +218,11 @@ def refuse_if_real_path(path, action):
             return True
     return False
 SOCKET_PATH = RUNTIME_DIR / "bridge.sock"
+# The song a bridge leaves for the next one when it quits to apply a setting
+# (the browser, an update): memory of the runtime dir only, and stale after
+# a minute, so nothing is replayed at login.
+HANDOFF_PATH = RUNTIME_DIR / "handoff.json"
+HANDOFF_MAX_AGE = 60
 
 STUCK_AFTER = 2           # failed liveness checks in a row
 CHECK_EVERY = float(os.environ.get("SOLFA_CHECK_EVERY") or 20.0)  # seconds of page silence before a liveness check
@@ -578,6 +583,34 @@ def start_state_from_env():
         level = None
     return {"paused": os.environ.get("SOLFA_START_PAUSED") == "1",
             "volume": level if level is not None and 0 <= level <= 100 else None}
+
+
+def save_handoff(track):
+    """Leave the playing song for the next bridge (see HANDOFF_PATH)."""
+    if not track or not track.get("playing"):
+        return
+    with contextlib.suppress(OSError):
+        tmp = HANDOFF_PATH.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(dict(track, died_at=time.time()), f)
+        os.replace(tmp, HANDOFF_PATH)
+
+
+def take_handoff():
+    """The song the previous bridge left, once, if it is recent and well formed."""
+    data = None
+    with contextlib.suppress(OSError, ValueError):
+        data = json.loads(HANDOFF_PATH.read_text())
+    with contextlib.suppress(OSError):
+        HANDOFF_PATH.unlink()
+    if not isinstance(data, dict) or not VIDEO_ID.fullmatch(str(data.get("videoId", ""))):
+        return None
+    try:
+        age = time.time() - float(data["died_at"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return data if 0 <= age <= HANDOFF_MAX_AGE else None
 
 
 def check_none(a):
@@ -1635,6 +1668,12 @@ class Bridge:
         # running (a shell reload) clears it: its music goes on untouched.
         self.start_state = start_state_from_env()
         self.start_fresh = True
+        # A bridge that quit to apply a setting left its song: this launch
+        # brings it back and is not a start of Solfa (no start state).
+        handoff = take_handoff()
+        if handoff:
+            self.engine.restore = handoff
+            self.start_fresh = False
         self.start_task = None
         self.hellos = 0       # times the agent itself reported its state: signout waits for the next one
         self.app_hellos = 0   # of those, the agent's own hello once the app is up (never too early to trust)
@@ -1750,7 +1789,10 @@ class Bridge:
             # said this has disconnected.
             return {"attached": True}
         if op == "bridge.quit":
-            only(args)
+            only(args, "keepSong")
+            if args.get("keepSong") is True:
+                # A quit to apply a setting: the next bridge brings the song back.
+                save_handoff(self.last_track)
             asyncio.get_running_loop().create_task(self.quit())
             return {"quitting": True}
         if op == "engine.start":
