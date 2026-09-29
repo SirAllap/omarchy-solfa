@@ -188,35 +188,51 @@ def _real_home():
 
 def _real_forbidden_dirs():
     """Every real, live location Solfa's data can be in, current or old id,
-    for this real user — independent of any env var a test controls."""
+    for this real user — independent of any env var a test controls. All
+    four kinds: data (the engine profile), cache (album art), state (the
+    install mark) and runtime (socket, handoff). The state dir was missing
+    here once, and the orphan wipe reached rmtree on the real one."""
     real_home = _real_home()
     uid = os.getuid()
     dirs = []
     for plugin_id in (PLUGIN_ID, OLD_PLUGIN_ID):
         dirs.append(real_home / ".local" / "share" / plugin_id)
         dirs.append(real_home / ".cache" / plugin_id)
+        dirs.append(real_home / ".local" / "state" / plugin_id)
         dirs.append(pathlib.Path(f"/run/user/{uid}") / plugin_id)
     dirs.append(real_home / ".config" / "omarchy")
     return dirs
 
 
+def _path_forms(path):
+    """The path as written (normalised) and as the filesystem resolves it:
+    a symlink or a `..` can make the two differ, and either one may be the
+    one that lands inside a real dir."""
+    return {pathlib.Path(os.path.normpath(str(path))), pathlib.Path(os.path.realpath(str(path)))}
+
+
 def refuse_if_real_path(path, action):
     """True (and logs, refusing) only when SOLFA_TEST is set and `path`
-    resolves inside one of the owner's real dirs. Called before every
-    filesystem-destructive line in wipe_solfa_data/erase_profile/
-    migrate_old_data_dir, so the refusal always happens before the op, not
-    after. Outside of a test run (no SOLFA_TEST) this is a no-op: normal
-    operation is expected to touch exactly those real dirs."""
+    is, is under, or is an ancestor of one of the owner's real dirs —
+    compared both as written and as resolved, on both sides, so a symlink,
+    a `..` or a symlinked home cannot slip past. Called before every line
+    in this file that deletes, renames or overwrites a file, so the refusal
+    always happens before the op, not after. Outside of a test run (no
+    SOLFA_TEST) this is a no-op: normal operation is expected to touch
+    exactly those real dirs."""
     if not TEST_MARKER:
         return False
-    candidate = pathlib.Path(os.path.normpath(str(path)))
-    for forbidden in _real_forbidden_dirs():
-        forbidden = pathlib.Path(os.path.normpath(str(forbidden)))
-        if candidate == forbidden or forbidden in candidate.parents or candidate in forbidden.parents:
-            log("REFUSED (SOLFA_TEST set):", action, "would touch the real", forbidden,
-                "via", candidate, "- not touching it")
-            return True
+    candidates = _path_forms(path)
+    for forbidden_dir in _real_forbidden_dirs():
+        for forbidden in _path_forms(forbidden_dir):
+            for candidate in candidates:
+                if candidate == forbidden or forbidden in candidate.parents or candidate in forbidden.parents:
+                    log("REFUSED (SOLFA_TEST set):", action, "would touch the real", forbidden,
+                        "via", path, "- not touching it")
+                    return True
     return False
+
+
 SOCKET_PATH = RUNTIME_DIR / "bridge.sock"
 # The song a bridge leaves for the next one when it quits to apply a setting
 # (the browser, an update): memory of the runtime dir only, and stale after
@@ -589,6 +605,8 @@ def save_handoff(track):
     """Leave the playing song for the next bridge (see HANDOFF_PATH)."""
     if not track or not track.get("playing"):
         return
+    if refuse_if_real_path(HANDOFF_PATH, "handoff write"):
+        return
     with contextlib.suppress(OSError):
         tmp = HANDOFF_PATH.with_suffix(".tmp")
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -602,8 +620,9 @@ def take_handoff():
     data = None
     with contextlib.suppress(OSError, ValueError):
         data = json.loads(HANDOFF_PATH.read_text())
-    with contextlib.suppress(OSError):
-        HANDOFF_PATH.unlink()
+    if not refuse_if_real_path(HANDOFF_PATH, "handoff removal"):
+        with contextlib.suppress(OSError):
+            HANDOFF_PATH.unlink()
     if not isinstance(data, dict) or not VIDEO_ID.fullmatch(str(data.get("videoId", ""))):
         return None
     try:
@@ -878,6 +897,8 @@ def first_run_of_this_install():
 
 
 def mark_install():
+    if refuse_if_real_path(INSTALL_MARK, "install mark"):
+        return
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         INSTALL_MARK.write_text(install_id() + "\n", encoding="utf-8")
@@ -2171,8 +2192,10 @@ class Bridge:
             raise PageError("engine-down")
         await eng.cdp.call("Page.navigate", {"url": "about:blank"}, eng.session, timeout=5)
         await self.delete_google_cookies()
-        with contextlib.suppress(FileNotFoundError):
-            (PROFILE_DIR / IMPORTED_MARK).unlink()
+        mark = PROFILE_DIR / IMPORTED_MARK
+        if not refuse_if_real_path(mark, "import mark removal"):
+            with contextlib.suppress(FileNotFoundError):
+                mark.unlink()
 
     async def sweep_google_again(self):
         """A request already in flight (the app's service worker) can set a
@@ -2236,6 +2259,8 @@ class Bridge:
             if len(data) > limit:
                 raise ValueError("cover too big")
             tmp = path.with_suffix(".part")
+            if refuse_if_real_path(path, "cover write"):
+                raise ValueError("refusing to write into a real cache dir under SOLFA_TEST")
             tmp.write_bytes(data)
             tmp.replace(path)
 
@@ -2249,6 +2274,8 @@ class Bridge:
     def trim_art(self, keep=200):
         files = sorted(CACHE_DIR.glob("*.jpg"), key=lambda p: p.stat().st_mtime)
         for f in files[:-keep]:
+            if refuse_if_real_path(f, "cover trim"):
+                continue
             with contextlib.suppress(OSError):
                 f.unlink()
 
@@ -2616,8 +2643,9 @@ class Bridge:
             await self.engine.stop()
             if wipe:
                 wipe_solfa_data()
-        with contextlib.suppress(FileNotFoundError):
-            SOCKET_PATH.unlink()
+        if not refuse_if_real_path(SOCKET_PATH, "socket removal"):
+            with contextlib.suppress(FileNotFoundError):
+                SOCKET_PATH.unlink()
         self.quit_event.set()
 
     async def orphan_watch(self):
@@ -2818,8 +2846,9 @@ def single_instance():
 
 async def main():
     bridge = Bridge()
-    with contextlib.suppress(FileNotFoundError):
-        SOCKET_PATH.unlink()
+    if not refuse_if_real_path(SOCKET_PATH, "socket removal"):
+        with contextlib.suppress(FileNotFoundError):
+            SOCKET_PATH.unlink()
     old = os.umask(0o177)
     try:
         server = await asyncio.start_unix_server(bridge.serve_client, path=str(SOCKET_PATH), limit=MAX_LINE)
@@ -2845,8 +2874,9 @@ async def main():
         t.cancel()
     server.close()
     bridge.engine.detach()
-    with contextlib.suppress(FileNotFoundError):
-        SOCKET_PATH.unlink()
+    if not refuse_if_real_path(SOCKET_PATH, "socket removal"):
+        with contextlib.suppress(FileNotFoundError):
+            SOCKET_PATH.unlink()
 
 
 if __name__ == "__main__":

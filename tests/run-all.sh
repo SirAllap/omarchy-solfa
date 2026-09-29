@@ -43,7 +43,7 @@ path_overlaps() {  # $1 candidate, $2 forbidden
   return 1
 }
 for id in io.github.sirallap.solfa serallap.solfa; do
-  for forbidden in "$REAL_HOME/.local/share/$id" "$REAL_HOME/.cache/$id" "/run/user/$(id -u)/$id" "$REAL_HOME/.config/omarchy"; do
+  for forbidden in "$REAL_HOME/.local/share/$id" "$REAL_HOME/.cache/$id" "$REAL_HOME/.local/state/$id" "/run/user/$(id -u)/$id" "$REAL_HOME/.config/omarchy"; do
     for candidate in "$HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" \
                       "$SOLFA_RUNTIME_DIR" "$SOLFA_PROFILE_DIR" "${SOLFA_CACHE_DIR:-}"; do
       [ -z "$candidate" ] && continue

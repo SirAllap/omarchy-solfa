@@ -65,6 +65,7 @@ def real_forbidden_dirs():
     for plugin_id in (PLUGIN_ID, OLD_PLUGIN_ID):
         dirs.append(home / ".local" / "share" / plugin_id)
         dirs.append(home / ".cache" / plugin_id)
+        dirs.append(home / ".local" / "state" / plugin_id)
         dirs.append(pathlib.Path(f"/run/user/{uid}") / plugin_id)
     dirs.append(home / ".config" / "omarchy")
     return dirs

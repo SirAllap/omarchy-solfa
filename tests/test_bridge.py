@@ -1678,14 +1678,39 @@ class PureTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    @staticmethod
+    @contextlib.contextmanager
+    def delete_tripwire():
+        """Every call that can delete, rename or overwrite a file raises
+        instead, for as long as the block runs: shutil.rmtree, the os.*
+        primitives under it and the pathlib methods the bridge uses. The
+        modules are shared with the bridge (module caching), so a guard
+        regression fails loudly here instead of deleting anything real, and
+        everything is restored after, so no other test sees a broken os."""
+        def tripwire(name):
+            def fire(*a, **k):
+                raise AssertionError(name + " called under the tripwire: " + repr(a))
+            return fire
+        targets = [(shutil, "rmtree"), (shutil, "move")]
+        targets += [(os, n) for n in ("unlink", "remove", "rmdir", "removedirs", "rename", "renames", "replace", "truncate")]
+        targets += [(pathlib.Path, n) for n in ("unlink", "rmdir", "rename", "replace", "write_text", "write_bytes")]
+        saved = [(obj, name, getattr(obj, name)) for obj, name in targets]
+        for obj, name, _ in saved:
+            setattr(obj, name, tripwire(name))
+        try:
+            yield
+        finally:
+            for obj, name, real in saved:
+                setattr(obj, name, real)
+
     def test_orphan_wipe_refuses_the_real_dirs_when_SOLFA_TEST_is_set(self):
         # The exact incident, reproduced on purpose: point every path the
         # wipe would use at the owner's REAL dirs, with the test marker set,
-        # and prove the wipe never gets as far as calling rmtree - not just
+        # and prove the wipe never gets as far as a delete call - not just
         # that the dirs survive, but that the delete call itself never
-        # happens. shutil.rmtree is replaced with a tripwire first, so even
-        # a regression in the guard fails loudly here instead of deleting
-        # anything real.
+        # happens. Every delete primitive is replaced with a tripwire first,
+        # so even a regression in the guard fails loudly here instead of
+        # deleting anything real.
         real_home = pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir)
         mod = self.load_with_env({
             "XDG_DATA_HOME": str(real_home / ".local" / "share"),
@@ -1694,25 +1719,54 @@ class PureTest(unittest.TestCase):
             "SOLFA_RUNTIME_DIR": str(pathlib.Path(f"/run/user/{os.getuid()}") / "io.github.sirallap.solfa"),
             "SOLFA_TEST": "1",
         })
-        real_data_dir = real_home / ".local" / "share" / "io.github.sirallap.solfa"
-        existed_before = real_data_dir.exists()
+        real_dirs = [real_home / ".local" / "share" / "io.github.sirallap.solfa",
+                     real_home / ".local" / "state" / "io.github.sirallap.solfa"]
+        existed_before = [d for d in real_dirs if d.exists()]
+        with self.delete_tripwire():
+            mod.wipe_solfa_data()  # must not raise: the guard refuses before any delete
+        for d in existed_before:  # this machine may or may not have Solfa installed
+            self.assertTrue(d.exists(), str(d) + " must still be exactly where it was")
 
-        # mod.shutil is the SAME shutil module object as this test's own
-        # (module caching): patch and restore it, so a regression here fails
-        # loudly instead of deleting anything real, without leaving other
-        # tests with a broken shutil.rmtree.
-        real_rmtree = shutil.rmtree
-
-        def tripwire(*a, **k):
-            raise AssertionError("rmtree called on a real path: " + repr(a))
-        shutil.rmtree = tripwire
+    def test_the_guard_refuses_each_real_dir_however_it_is_spelled(self):
+        # Data, cache, state and runtime, one at a time: the real dir itself,
+        # a file inside it, a `..` spelling, and a symlink from a throwaway
+        # dir that resolves into it. Then the wipe itself, reaching each real
+        # dir only through a symlinked XDG_*/SOLFA_* path, under the tripwire:
+        # the spelling a normalised-path check alone would have let through.
+        real_home = pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir)
+        run_user = pathlib.Path(f"/run/user/{os.getuid()}")
+        pid = "io.github.sirallap.solfa"
+        kinds = {  # env var -> the real parent the bridge appends the plugin id to
+            "XDG_DATA_HOME": real_home / ".local" / "share",
+            "XDG_CACHE_HOME": real_home / ".cache",
+            "XDG_STATE_HOME": real_home / ".local" / "state",
+            "SOLFA_RUNTIME_DIR": run_user,
+        }
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="solfa-guard-"))
         try:
-            mod.wipe_solfa_data()  # must not raise: the guard refuses before rmtree
+            for var, real_parent in kinds.items():
+                with self.subTest(var=var):
+                    real_dir = real_parent / pid
+                    link = tmp / (var.lower() + "-link")
+                    link.symlink_to(real_parent, target_is_directory=True)
+                    # Every other kind points at a throwaway path that does not
+                    # exist, so the only thing the wipe could reach is this one.
+                    env = {"XDG_DATA_HOME": str(tmp / "none-data"), "XDG_CACHE_HOME": str(tmp / "none-cache"),
+                           "XDG_STATE_HOME": str(tmp / "none-state"),
+                           "SOLFA_RUNTIME_DIR": str(tmp / "none-runtime" / pid), "SOLFA_TEST": "1"}
+                    env[var] = str(link / pid) if var == "SOLFA_RUNTIME_DIR" else str(link)
+                    mod = self.load_with_env(env)
+                    for spelling in (real_dir, real_dir / "some-file",
+                                     real_parent / "elsewhere" / ".." / pid, link / pid, link / pid / "x"):
+                        self.assertTrue(mod.refuse_if_real_path(spelling, "test"), str(spelling))
+                    self.assertFalse(mod.refuse_if_real_path(tmp / "none-state" / pid, "test"),
+                                     "a throwaway dir is not refused")
+                    existed = real_dir.exists()
+                    with self.delete_tripwire():
+                        mod.wipe_solfa_data()
+                    self.assertEqual(real_dir.exists(), existed, str(real_dir))
         finally:
-            shutil.rmtree = real_rmtree
-
-        if existed_before:  # this machine may or may not have Solfa installed
-            self.assertTrue(real_data_dir.exists(), "the real data dir must still be exactly where it was")
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_close_engine_at_falls_back_to_proc_scan_without_a_SingletonLock(self):
         # H3's second bug: the profile dir had already been wiped (so its
