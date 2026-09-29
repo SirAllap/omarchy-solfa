@@ -269,11 +269,15 @@
       album: matches ? cur.album : null,
       thumb: matches && cur.thumb ? cur.thumb : (videoId ? "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg" : ""),
       kind: matches ? cur.kind : "song",
-      // The queue's own length for this song, when the player's is shorter:
-      // the player only knows as much of the song as it has streamed (it
-      // said 0:49, then 1:1x, for a 3-minute song, until a seek near the
-      // end), while the queue entry has had the full length all along.
-      duration: p && !ad ? Math.max(Number(p.getDuration()) || 0, matches ? Number(cur.duration) || 0 : 0) : 0,
+      // The queue's own length for this song wins whenever it has one: the
+      // player only knows as much of the song as it has streamed (0:49, then
+      // 1:1x, for a 3-minute song), and after a seek near the end it can
+      // report the NEXT song's stream instead (7:37 for a 2:16 song, the
+      // length of the entry queued behind it) while the song still ends at
+      // 2:16. The player's own value is only for a song the queue lacks.
+      duration: p && !ad
+        ? (matches && Number(cur.duration) > 0 ? Number(cur.duration) : Math.max(0, Number(p.getDuration()) || 0))
+        : 0,
       position: p && !ad ? Math.max(0, Number(p.getCurrentTime()) || 0) : 0,
       at: Date.now(),
       playing: playing,
