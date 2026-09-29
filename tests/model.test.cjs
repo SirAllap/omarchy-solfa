@@ -344,6 +344,24 @@ test("history rows: one header per dated shelf, its songs under it, newest shelf
   deep(M.sectionRows(undefined), [])
 })
 
+test("Settings names the engine browser with a capital", () => {
+  assert.equal(M.browserLabel(""), "Auto")
+  assert.equal(M.browserLabel(undefined), "Auto")
+  assert.equal(M.browserLabel("/usr/bin/chromium"), "Chromium")
+  assert.equal(M.browserLabel("/usr/bin/brave"), "Brave")
+  assert.equal(M.browserLabel("/usr/bin/brave-browser"), "Brave")
+  assert.equal(M.browserLabel("/usr/bin/google-chrome-stable"), "Google Chrome")
+  assert.equal(M.browserLabel("/opt/acme/browser"), "Browser")
+})
+
+test("only a Brave engine shows the ad-blocker row", () => {
+  assert.equal(M.isBraveBrowser("/usr/bin/brave"), true)
+  assert.equal(M.isBraveBrowser("/usr/bin/brave-browser"), true)
+  assert.equal(M.isBraveBrowser("/usr/bin/chromium"), false)
+  assert.equal(M.isBraveBrowser(""), false)
+  assert.equal(M.isBraveBrowser(undefined), false)
+})
+
 test("the engine's browser choices are Auto and what is installed", () => {
   // Settings once cycled through Chrome, Brave and Vivaldi on a machine with
   // only Chromium: each step restarted the engine on a missing file and left

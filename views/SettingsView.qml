@@ -90,6 +90,16 @@ Item {
   }
   Component.onCompleted: root.rebuildHandlers()
 
+  // Playback has one more row (Brave's ad blocker) while the engine is
+  // Brave; the cursor stays where it was when that row comes or goes.
+  readonly property bool braveEngine: root.svc ? Model.isBraveBrowser(root.svc.setting("browser", "")) : false
+  onBraveEngineChanged: {
+    if (root.section !== "playback") return
+    var at = root.cursor
+    root.handlers = root.buildHandlers(root.section)
+    root.cursor = Math.min(at, Math.max(0, root.handlers.length - 1))
+  }
+
   // Account shows one action signed out and two signed in, so its rows
   // (and the keyboard's) follow the sign-in state, however it changes.
   readonly property bool signedIn: root.svc ? root.svc.signedIn === true : false
@@ -168,7 +178,9 @@ Item {
         { change: function (dir) { svc.saveSetting("startVolume", Model.cycleList(["last", "25", "50", "75", "100"], String(svc.setting("startVolume", "last")), dir)) } },
         { toggle: function () { svc.saveSetting("autostart", !svc.setting("autostart", true)) } },
         { change: function (dir) { svc.saveSetting("browser", Model.cycleList(Model.browserChoices(svc.browsers, svc.setting("browser", "")), svc.setting("browser", ""), dir)) } }
-      ]
+      ].concat(root.braveEngine ? [
+        { toggle: function () { svc.saveSetting("braveAdBlock", !svc.setting("braveAdBlock", false)) } }
+      ] : [])
       case "bar": return [
         { toggle: function () { svc.saveSetting("barControls", !svc.setting("barControls", true)) } },
         { toggle: function () { svc.saveSetting("showTitle", !svc.setting("showTitle", true)) } },
@@ -794,7 +806,14 @@ Item {
           label: "Browser for the engine"
           help: "An absolute path to a Chromium-family browser (never a bare command)"
           row: 4
-          StepValue { row: 4; value: (function () { var b = root.svc ? root.svc.setting("browser", "") : ""; return b !== "" ? b.split("/").pop() : "Auto" })() }
+          StepValue { row: 4; value: Model.browserLabel(root.svc ? root.svc.setting("browser", "") : "") }
+        }
+        RowShell {
+          visible: root.braveEngine
+          label: "Brave's ad blocker"
+          help: "Lets Brave fetch its filter lists, so it can block adverts. Off keeps the engine from any background updates"
+          row: 5
+          MiniToggle { active: root.svc ? !!root.svc.setting("braveAdBlock", false) : false }
         }
       }
 
