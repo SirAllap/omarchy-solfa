@@ -332,3 +332,14 @@ test("stale-key/version restart fires once per tag, then holds off on the same t
   assert.equal(M.shouldRestartForStale(false, true, tag1, tag2), true, "a genuinely new version: restart once")
   assert.equal(M.shouldRestartForStale(false, false, tag1, tag2), false, "nothing stale: never restart")
 })
+
+test("history rows: one header per dated shelf, its songs under it, newest shelf first", () => {
+  const song = (id) => ({ kind: "song", videoId: id, title: id })
+  const rows = M.sectionRows([
+    { title: "Today", items: [song("a"), song("b")] },
+    { title: "Yesterday", items: [song("c")] },
+    { title: "Empty", items: [] }
+  ])
+  deep(rows.map((r) => r.header || r.item.videoId), ["Today", "a", "b", "Yesterday", "c"])
+  deep(M.sectionRows(undefined), [])
+})

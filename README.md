@@ -1,7 +1,7 @@
 # Solfa
 
 YouTube Music for the Omarchy shell: a bar widget with a round cover and
-quick controls, and a keyboard panel for search, queue, library and lyrics.
+quick controls, and a keyboard panel for search, queue, library, lyrics and history.
 The YouTube Music web app runs hidden as the engine. It never shows itself
 and never takes focus. Sign-in happens once, in a plain Google window.
 
@@ -58,7 +58,7 @@ Media keys work through Chromium's own MPRIS player.
 
 In the panel: `space` play/pause, `n`/`p` next/previous, `,`/`.` seek 10 s,
 `-`/`=` volume, `m` mute, `f` like, `d` dislike, `r` repeat, `s` shuffle,
-`1`–`4` or `←`/`→` tabs, `/` search, `↵` play or open, `e` play next,
+`1`–`5` or `←`/`→` tabs, `/` search, `↵` play or open, `e` play next,
 `a` add to queue, `R` radio, `g` artist, `o` album, `x` remove and `J`/`K`
 move in the queue, `[`/`]` filter or section, `w` show the YouTube window,
 `esc` back or close, `?` all keys. The line at the bottom of the panel shows

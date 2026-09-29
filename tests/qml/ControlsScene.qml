@@ -87,7 +87,7 @@ ShellRoot {
           spacing: Style.space(4)
           Repeater {
             id: tabs
-            model: [{ key: "queue", label: "Queue" }, { key: "search", label: "Search" }, { key: "library", label: "Library" }, { key: "lyrics", label: "Lyrics" }]
+            model: [{ key: "queue", label: "Queue" }, { key: "search", label: "Search" }, { key: "library", label: "Library" }, { key: "lyrics", label: "Lyrics" }, { key: "history", label: "History" }]
             delegate: Views.HitButton {
               required property var modelData
               text: modelData.label
@@ -218,7 +218,7 @@ ShellRoot {
       var tips = ["Shuffle the queue (s)", "Previous (p)", "Pause (space)", "Next (n)", "Repeat all (r)",
                   "Mute (m)", "Remove the like (f)"]
       var targets = tips.map(function (t) { return [t, win.find(stage, function (c) { return c.tooltipText === t })] })
-      ;["Queue", "Search", "Library", "Lyrics"].forEach(function (t) { targets.push([t, win.find(stage, function (c) { return c.text === t })]) })
+      ;["Queue", "Search", "Library", "Lyrics", "History"].forEach(function (t) { targets.push([t, win.find(stage, function (c) { return c.text === t })]) })
       targets.push(["Remove (x)", win.find(list, function (c) { return c.tooltipText === "Remove (x)" && c.opacity > 0 })])
       targets.push(["?", allKeysButton])
       // Only present when SOLFA_SCENE_AD=1 gave the hero an advert.

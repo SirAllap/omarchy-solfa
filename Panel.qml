@@ -5,8 +5,8 @@ import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
 import "views" as Views
 
-// The panel: now playing at the top, then Queue, Search, Library and
-// Lyrics, and pages (album, artist, playlist) opened from any list.
+// The panel: now playing at the top, then Queue, Search, Library, Lyrics
+// and History, and pages (album, artist, playlist) opened from any list.
 // Everything works from the keyboard; the hint line says how.
 Panel {
   id: root
@@ -22,12 +22,13 @@ Panel {
 
   readonly property var tabs: [
     { key: "queue", label: "Queue" }, { key: "search", label: "Search" },
-    { key: "library", label: "Library" }, { key: "lyrics", label: "Lyrics" }
+    { key: "library", label: "Library" }, { key: "lyrics", label: "Lyrics" },
+    { key: "history", label: "History" }
   ]
   property string tab: "queue"
   property var pages: []
   readonly property var view: pages.length > 0 ? detailView
-    : tab === "queue" ? queueView : tab === "search" ? searchView : tab === "library" ? libraryView : lyricsView
+    : tab === "queue" ? queueView : tab === "search" ? searchView : tab === "library" ? libraryView : tab === "history" ? historyView : lyricsView
   property bool allKeys: false
   property string flash: ""
   // Settings replaces the panel body; the gear in BrandCorner and Esc are
@@ -208,6 +209,7 @@ Panel {
       case "2": root.showTab("search"); break
       case "3": root.showTab("library"); break
       case "4": root.showTab("lyrics"); break
+      case "5": root.showTab("history"); break
       case "n": svc.next(); break
       case "p": svc.previous(); break
       case ",": svc.seekBy(-10); break
@@ -386,6 +388,7 @@ Panel {
         Views.SearchView { id: searchView; anchors.fill: parent; visible: !root.settingsOpen && root.view === searchView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && root.view === libraryView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && root.view === lyricsView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
+        Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && root.view === historyView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.DetailView { id: detailView; anchors.fill: parent; visible: !root.settingsOpen && root.view === detailView; svc: root.svc; bar: root.bar; panel: root }
 
         Views.SettingsView {

@@ -101,7 +101,7 @@ class HitTargets(unittest.TestCase):
         want = {"Shuffle the queue (s)": "shuffle", "Previous (p)": "previous", "Pause (space)": "togglePlaying",
                 "Next (n)": "next", "Repeat all (r)": "cycleRepeat", "Mute (m)": "toggleMute",
                 "Remove the like (f)": "toggleLike", "Queue": "tab:queue", "Search": "tab:search",
-                "Library": "tab:library", "Lyrics": "tab:lyrics", "Remove (x)": "action:remove:1", "?": "allKeys"}
+                "Library": "tab:library", "Lyrics": "tab:lyrics", "History": "tab:history", "Remove (x)": "action:remove:1", "?": "allKeys"}
         for name, call in want.items():
             # The middle, and 3 px in from two opposite corners: one call each.
             self.assertEqual(self.clicks["clicked"].get(name), [call] * 3, name)

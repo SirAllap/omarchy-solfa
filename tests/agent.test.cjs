@@ -902,3 +902,16 @@ test("injecting again: same version is a no-op, a new version replaces the old",
   assert.equal(p.videoEl.count(), listeners)
   assert.equal(p.ctx.__solfa.version, "test-2")
 })
+
+test("library history: signed out is refused before any request, signed in browses FEmusic_history and parses dated shelves", async () => {
+  const out = makePage()
+  await out.settle()
+  await assert.rejects(out.call("library", { section: "history" }), /signin-required/)
+  assert.equal(out.requests.filter((r) => r.endpoint === "browse").length, 0, "no request while signed out")
+  const p = makePage({ signedIn: true, replies: { browse: () => F("history") } })
+  await p.settle()
+  const r = await p.call("library", { section: "history" })
+  const req = p.requests.find((x) => x.endpoint === "browse")
+  assert.equal(req.body.browseId, "FEmusic_history")
+  assert.equal(r.sections.map((s) => s.title).join("|"), "Today|Yesterday|This week")
+})

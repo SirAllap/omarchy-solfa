@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New History tab (key `5`): what the account played lately, newest first, under Today / Yesterday / ... Signed out it says to sign in; Premium is not needed.
 - Adverts are skipped by themselves: Solfa presses the Skip button every second until the advert is gone.
 - New setting (off by default): with Brave as the engine's browser, let its ad blocker fetch its filter lists so it blocks adverts.
 

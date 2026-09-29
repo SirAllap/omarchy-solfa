@@ -232,6 +232,12 @@ class BridgeTest(unittest.TestCase):
         r = c.call("like", {"videoId": "AAAAAAAAAAA", "status": "LIKE"})
         self.assertEqual(r["error"], "signin-required")
 
+    def test_library_history_is_a_valid_section_and_needs_sign_in(self):
+        c = self.start()
+        self.wait_ready(c)
+        self.assertEqual(c.call("library", {"section": "history"})["error"], "signin-required")
+        self.assertEqual(c.call("library", {"section": "nope"})["error"], "bad-args")
+
     def test_pushes_reach_every_client(self):
         a = self.start()
         self.wait_ready(a)

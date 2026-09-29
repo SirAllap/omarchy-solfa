@@ -190,3 +190,21 @@ test("a row with no linked artist: skip the flat label, durations and counts", (
   noArtist.flexColumns[1].musicResponsiveListItemFlexColumnRenderer.text.runs = [{ text: "Song" }, { text: " • " }, { text: "3:12" }]
   assert.deepEqual(P.listItem(noArtist, { flat: true }).artists, [])
 })
+
+test("history: dated shelves in order, each row a playable song", () => {
+  assert.equal(P.browseKind("FEmusic_history"), "sections")
+  const h = P.browse("FEmusic_history", F("history"))
+  assert.deepEqual(h.sections.map((s) => s.title), ["Today", "Yesterday", "This week"])
+  assert.deepEqual(h.sections.map((s) => s.items.length), [2, 3, 1])
+  for (const s of h.sections) for (const it of s.items) {
+    assert.ok(["song", "video"].includes(it.kind), "a history row is a playable song or video")
+    assert.match(it.videoId, ID)
+  }
+})
+
+test("history: a reply with no shelves (signed out, or nothing played) parses to an empty page, never throws", () => {
+  const h = P.browse("FEmusic_history", F("history-signed-out"))
+  assert.deepEqual(h.sections, [])
+  assert.deepEqual(P.browse("FEmusic_history", {}).sections, [])
+  assert.deepEqual(P.browse("FEmusic_history", null).sections, [])
+})
