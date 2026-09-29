@@ -357,11 +357,15 @@ class BridgeTest(unittest.TestCase):
                 break
             time.sleep(0.2)
         self.assertEqual(eng["status"], "stopped")
-        self.assertIn("no Chromium-family browser", eng["error"])
+        self.assertIn("no-such-browser is not installed", eng["error"])
         self.assertIs(eng.get("wantRunning"), False, "waits for the user instead of retrying the same failure")
         time.sleep(3)
-        eng = c.call("hello")["data"]["engine"]
-        self.assertIn("no Chromium-family browser", eng["error"], "not replaced by a crash-loop message")
+        hello = c.call("hello")["data"]
+        eng = hello["engine"]
+        self.assertIn("no-such-browser is not installed", eng["error"], "not replaced by a crash-loop message")
+        # What Settings may offer: installed browsers only, never the missing one.
+        self.assertIsInstance(hello.get("browsers"), list)
+        self.assertNotIn(str(self.tmp / "no-such-browser"), hello["browsers"])
 
     def test_relative_browser_setting_is_refused(self):
         c = self.start(SOLFA_BROWSER="chromium")
@@ -2007,10 +2011,30 @@ class ImportPureTest(unittest.TestCase):
         self.assertEqual(error, "browser must be an absolute path")
 
     def test_find_browser_refuses_a_nonexistent_absolute_path(self):
+        # A browser picked in Settings that is not installed: the error names
+        # it. "no Chromium-family browser found" read as if Auto had failed
+        # too, while the engine had simply been pointed at a missing file.
         with self._patched_env({"SOLFA_BROWSER": "/no/such/browser-anywhere"}):
             path, error = self.b.find_browser()
         self.assertEqual(path, "")
-        self.assertIn("no Chromium-family browser", error)
+        self.assertEqual(error, "browser-anywhere is not installed (/no/such/browser-anywhere)")
+
+    def test_installed_browsers_are_only_the_executable_candidates(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="solfa-browsers-"))
+        try:
+            there, missing, plain = tmp / "chromium", tmp / "brave", tmp / "vivaldi-stable"
+            there.write_text("#!/bin/sh\n")
+            there.chmod(0o755)
+            plain.write_text("")
+            plain.chmod(0o644)
+            old = self.b.BROWSER_CANDIDATES
+            self.b.BROWSER_CANDIDATES = (str(there), str(missing), str(plain))
+            try:
+                self.assertEqual(self.b.installed_browsers(), [str(there)])
+            finally:
+                self.b.BROWSER_CANDIDATES = old
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_find_browser_accepts_an_absolute_executable_path(self):
         with self._patched_env({"SOLFA_BROWSER": str(FAKE)}):

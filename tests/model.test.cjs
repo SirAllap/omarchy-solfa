@@ -343,3 +343,28 @@ test("history rows: one header per dated shelf, its songs under it, newest shelf
   deep(rows.map((r) => r.header || r.item.videoId), ["Today", "a", "b", "Yesterday", "c"])
   deep(M.sectionRows(undefined), [])
 })
+
+test("the engine's browser choices are Auto and what is installed", () => {
+  // Settings once cycled through Chrome, Brave and Vivaldi on a machine with
+  // only Chromium: each step restarted the engine on a missing file and left
+  // Solfa off.
+  deep(M.browserChoices(["/usr/bin/chromium"], ""), ["", "/usr/bin/chromium"])
+  deep(M.browserChoices(["/usr/bin/chromium", "/usr/bin/brave"], "/usr/bin/brave"), ["", "/usr/bin/chromium", "/usr/bin/brave"])
+  // A path set by hand (or one uninstalled since) stays reachable, so the
+  // cycle can leave it, and is not lost from the list it is shown in.
+  deep(M.browserChoices(["/usr/bin/chromium"], "/opt/acme/browser"), ["", "/usr/bin/chromium", "/opt/acme/browser"])
+  // Before the bridge has said (or an older bridge that never does): Auto only.
+  deep(M.browserChoices(undefined, ""), [""])
+  assert.equal(M.cycleList(M.browserChoices(["/usr/bin/chromium"], ""), "", 1), "/usr/bin/chromium")
+  assert.equal(M.cycleList(M.browserChoices(["/usr/bin/chromium"], ""), "/usr/bin/chromium", 1), "")
+})
+
+test("Settings cycles the engine's browser over what the bridge found installed", () => {
+  const view = fs.readFileSync(path.join(__dirname, "..", "views", "SettingsView.qml"), "utf8")
+  const line = view.split("\n").find(l => l.includes('saveSetting("browser"'))
+  assert.ok(line, "the browser row's change handler")
+  assert.match(line, /Model\.browserChoices\(svc\.browsers,/)
+  assert.doesNotMatch(line, /\/usr\/bin\//, "no fixed list of paths that may not exist here")
+  const service = fs.readFileSync(path.join(__dirname, "..", "Service.qml"), "utf8")
+  assert.match(service, /root\.browsers = data\.browsers/)
+})

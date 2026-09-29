@@ -377,6 +377,7 @@ Item {
     root.account = data.account || root.account
     root.queueVersion = data.queueVersion || 0
     root.solfaVersion = data.version || root.solfaVersion
+    root.browsers = data.browsers || root.browsers
     root.applyPlayer(data.player || {})
     root.runningEnvKey = data.launchKey !== undefined ? data.launchKey : root.runningEnvKey
     root.runningVersion = data.version || root.runningVersion
@@ -393,6 +394,8 @@ Item {
 
   // The bridge's own version, from `hello` (About).
   property string solfaVersion: ""
+  // The engine browsers this machine has, from `hello` (Settings offers these).
+  property var browsers: []
 
   property string lastVideo: ""
   property bool firstPlayer: true

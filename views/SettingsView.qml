@@ -167,7 +167,7 @@ Item {
         { toggle: function () { svc.saveSetting("startPaused", !svc.setting("startPaused", false)) } },
         { change: function (dir) { svc.saveSetting("startVolume", Model.cycleList(["last", "25", "50", "75", "100"], String(svc.setting("startVolume", "last")), dir)) } },
         { toggle: function () { svc.saveSetting("autostart", !svc.setting("autostart", true)) } },
-        { change: function (dir) { svc.saveSetting("browser", Model.cycleList(["", "/usr/bin/chromium", "/usr/bin/google-chrome-stable", "/usr/bin/brave", "/usr/bin/vivaldi-stable"], svc.setting("browser", ""), dir)) } }
+        { change: function (dir) { svc.saveSetting("browser", Model.cycleList(Model.browserChoices(svc.browsers, svc.setting("browser", "")), svc.setting("browser", ""), dir)) } }
       ]
       case "bar": return [
         { toggle: function () { svc.saveSetting("barControls", !svc.setting("barControls", true)) } },

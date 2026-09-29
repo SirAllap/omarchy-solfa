@@ -985,6 +985,13 @@ def blocks_ads(browser):
             and "brave" in os.path.basename(browser).lower())
 
 
+def installed_browsers():
+    """The candidates this machine can run, for Settings to cycle through:
+    offering a browser that is not installed restarted the engine on a
+    missing file, and Solfa stayed off."""
+    return [path for path in BROWSER_CANDIDATES if os.access(path, os.X_OK)]
+
+
 def find_browser():
     """(path, error) for the engine's Chromium: path is "" when none was
     usable, and error then says why (a bad `browser` setting, or none found)."""
@@ -992,7 +999,10 @@ def find_browser():
     if wanted:
         if not os.path.isabs(wanted):
             return "", "browser must be an absolute path"
-        return (wanted, "") if os.access(wanted, os.X_OK) else ("", "no Chromium-family browser found")
+        if os.access(wanted, os.X_OK):
+            return wanted, ""
+        # Named, so it does not read as if Auto had found nothing as well.
+        return "", f"{os.path.basename(wanted)} is not installed ({wanted})"
     for path in BROWSER_CANDIDATES:
         if os.access(path, os.X_OK):
             return path, ""
@@ -1731,7 +1741,8 @@ class Bridge:
         if op == "hello":
             only(args)
             return {"version": VERSION, "launchKey": LAUNCH_KEY, "engine": self.engine.describe(), "account": self.engine.account,
-                    "player": self.engine.player, "queueVersion": self.engine.queue_version, "shown": self.hypr.shown}
+                    "player": self.engine.player, "queueVersion": self.engine.queue_version, "shown": self.hypr.shown,
+                    "browsers": installed_browsers()}
         if op == "ui.attach":
             only(args)
             # Tracked by handle() (it has the writer this reply goes out
