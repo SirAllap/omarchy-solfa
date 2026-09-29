@@ -458,7 +458,7 @@ Panel {
         // Settings has its own, fixed hints: movement, not song controls.
         Row {
           anchors.verticalCenter: parent.verticalCenter
-          visible: root.settingsOpen
+          visible: root.settingsOpen && root.flash === ""
           spacing: Style.space(12)
           Repeater {
             model: [["↑↓", "move"], ["←→", "change"], ["Tab", "sections"], ["Esc", "back"]]

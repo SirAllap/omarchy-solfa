@@ -100,5 +100,16 @@ class PanelSettings(unittest.TestCase):
         self.assertEqual(self.state["afterEsc"], {"hero": True, "tabs": True, "settings": False})
 
 
+class PanelFooterSource(unittest.TestCase):
+    def test_settings_hints_give_way_to_a_message_in_the_footer(self):
+        # A message ("YouTube Music is not ready yet") shares the footer's
+        # strip with the key hints: showing both drew one over the other.
+        with open(os.path.join(ROOT, "Panel.qml")) as f:
+            src = f.read()
+        row = src[src.index("Settings has its own, fixed hints"):]
+        row = row[:row.index("Repeater")]
+        self.assertIn('visible: root.settingsOpen && root.flash === ""', row)
+
+
 if __name__ == "__main__":
     unittest.main()
