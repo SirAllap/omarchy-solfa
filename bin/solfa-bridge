@@ -1028,17 +1028,43 @@ BROWSER_CANDIDATES = (
 )
 
 
-def launch_key_adblock():
-    """The `braveAdBlock` field of SOLFA_LAUNCH_KEY, if the key has one.
+def launch_key_fields():
+    """The `autostart|browser|braveAdBlock` fields of SOLFA_LAUNCH_KEY.
 
-    The key is `autostart|browser|braveAdBlock`. A shell reload can leave the
-    bridge without the individual SOLFA_BRAVE_ADBLOCK var while it still
-    carries the key (the same race that can drop SOLFA_BROWSER), so read the
-    setting from the key too: otherwise the engine is launched with
-    --disable-component-update and Brave's Shields have no filter lists to
-    block with."""
-    fields = os.environ.get("SOLFA_LAUNCH_KEY", "").split("|")
+    The shell sets this key even when it fails to pass one of the individual
+    vars (a shell-reload race), so it is the reliable copy of the settings the
+    bridge started under. Empty when no key was given."""
+    return os.environ.get("SOLFA_LAUNCH_KEY", "").split("|")
+
+
+def launch_key_adblock():
+    """The `braveAdBlock` field of the key, if it has one.
+
+    A shell reload can leave the bridge without SOLFA_BRAVE_ADBLOCK while it
+    still carries the key: then the engine would go out with
+    --disable-component-update and Brave's Shields would have no filter
+    lists to block with."""
+    fields = launch_key_fields()
     return len(fields) >= 3 and fields[2] == "true"
+
+
+def launch_key_autostart():
+    """The `autostart` field of the key: True, False, or None when absent."""
+    fields = launch_key_fields()
+    if fields and fields[0] in ("true", "false"):
+        return fields[0] == "true"
+    return None
+
+
+def autostart_enabled():
+    """Whether Solfa may start the engine on its own.
+
+    SOLFA_NO_LAUNCH (set when the setting is off) wins when present; the
+    launch key covers the case where a shell reload dropped it."""
+    if os.environ.get("SOLFA_NO_LAUNCH") == "1":
+        return False
+    from_key = launch_key_autostart()
+    return True if from_key is None else from_key
 
 
 def blocks_ads(browser):
@@ -1146,7 +1172,7 @@ class Engine:
         self.restarts = []
         # A fresh install (or a reinstall) starts off: nothing plays and
         # no sign-in is asked for until the user turns Solfa on.
-        self.want_running = os.environ.get("SOLFA_NO_LAUNCH") != "1" and not first_run_of_this_install()
+        self.want_running = autostart_enabled() and not first_run_of_this_install()
         self.restore = None
         self.page_url = ""
         self.rebind_task = None
