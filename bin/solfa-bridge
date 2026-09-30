@@ -1046,6 +1046,35 @@ def installed_browsers():
     return [path for path in BROWSER_CANDIDATES if os.access(path, os.X_OK)]
 
 
+# The browser that owns the engine profile. Chromium-family browsers do not
+# share cookie-encryption keys (Brave's OS-keyring entry is not Chromium's),
+# so opening one browser's profile with another reads the sign-in as absent
+# and rewrites its cookies. The shell can spawn the bridge before its settings
+# arrive (a shell reload), leaving SOLFA_BROWSER unset; without this mark the
+# engine then falls back to the first installed browser and can destroy a
+# sign-in made in the configured one.
+BROWSER_MARK = PROFILE_DIR / ".solfa-browser"
+
+
+def recorded_browser():
+    """The browser this profile is recorded as built with, or "" if none is."""
+    try:
+        return BROWSER_MARK.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def record_browser(path):
+    """Remember the browser this profile is now built with."""
+    if refuse_if_real_path(BROWSER_MARK, "browser mark"):
+        return
+    try:
+        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        BROWSER_MARK.write_text(path + "\n", encoding="utf-8")
+    except OSError as e:
+        log("browser mark:", e)
+
+
 def find_browser():
     """(path, error) for the engine's Chromium: path is "" when none was
     usable, and error then says why (a bad `browser` setting, or none found)."""
@@ -1057,6 +1086,13 @@ def find_browser():
             return wanted, ""
         # Named, so it does not read as if Auto had found nothing as well.
         return "", f"{os.path.basename(wanted)} is not installed ({wanted})"
+    # No browser was passed (the shell can start the bridge before its settings
+    # arrive): reuse the browser this profile was created with rather than
+    # falling back to a different one, which would sign the user out and
+    # rewrite the profile's cookies.
+    recorded = recorded_browser()
+    if recorded and os.access(recorded, os.X_OK):
+        return recorded, ""
     for path in BROWSER_CANDIDATES:
         if os.access(path, os.X_OK):
             return path, ""
@@ -1304,6 +1340,7 @@ class Engine:
         if not browser:
             self.set_status("stopped", browser_error)
             return False
+        record_browser(browser)
         await self.kill_stale()
         PROFILE_DIR.mkdir(parents=True, exist_ok=True)
         os.chmod(PROFILE_DIR, 0o700)
