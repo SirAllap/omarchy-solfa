@@ -269,9 +269,21 @@ Item {
     }
   }
 
+  // Start only once the bar widget has handed over the real settings: a shell
+  // reload can otherwise spawn the bridge with the defaults and drop settings
+  // such as `browser`, `braveAdBlock` and `autostart` (the bridge recovers
+  // them from the launch key too, but not starting wrong is better).
   Timer {
     interval: 2000
-    running: true
+    running: root.settingsLoaded
+    onTriggered: root.startBridge()
+  }
+
+  // A service with no bar widget ever hands settings over: start with the
+  // defaults anyway, just later than the settings-loaded case above.
+  Timer {
+    interval: 8000
+    running: !root.settingsLoaded
     onTriggered: root.startBridge()
   }
 
