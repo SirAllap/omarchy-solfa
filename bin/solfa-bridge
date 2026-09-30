@@ -1028,6 +1028,19 @@ BROWSER_CANDIDATES = (
 )
 
 
+def launch_key_adblock():
+    """The `braveAdBlock` field of SOLFA_LAUNCH_KEY, if the key has one.
+
+    The key is `autostart|browser|braveAdBlock`. A shell reload can leave the
+    bridge without the individual SOLFA_BRAVE_ADBLOCK var while it still
+    carries the key (the same race that can drop SOLFA_BROWSER), so read the
+    setting from the key too: otherwise the engine is launched with
+    --disable-component-update and Brave's Shields have no filter lists to
+    block with."""
+    fields = os.environ.get("SOLFA_LAUNCH_KEY", "").split("|")
+    return len(fields) >= 3 and fields[2] == "true"
+
+
 def blocks_ads(browser):
     """Does this engine keep Brave's built-in ad blocker (Shields) fed? Its
     filter lists arrive through the component updater, so a Brave engine
@@ -1035,8 +1048,8 @@ def blocks_ads(browser):
     Shields is on with nothing to block. Only when asked for (the
     `braveAdBlock` setting): a Premium account has no adverts to block and
     would pay the background traffic and memory for nothing."""
-    return (os.environ.get("SOLFA_BRAVE_ADBLOCK") == "1"
-            and "brave" in os.path.basename(browser).lower())
+    asked = os.environ.get("SOLFA_BRAVE_ADBLOCK") == "1" or launch_key_adblock()
+    return asked and "brave" in os.path.basename(browser).lower()
 
 
 def installed_browsers():
