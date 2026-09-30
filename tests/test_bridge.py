@@ -2128,12 +2128,45 @@ class ImportPureTest(unittest.TestCase):
         quiet = {"--disable-component-update", "--disable-background-networking"}
         with self._patched_env({}):
             os.environ.pop("SOLFA_BRAVE_ADBLOCK", None)
+            os.environ.pop("SOLFA_LAUNCH_KEY", None)
             for browser in ("/usr/bin/brave", "/usr/bin/chromium"):
                 self.assertEqual(quiet & set(engine.argv(browser)), quiet, browser)
         with self._patched_env({"SOLFA_BRAVE_ADBLOCK": "1"}):
             for browser in ("/usr/bin/brave", "/usr/bin/brave-browser"):
                 self.assertFalse(quiet & set(engine.argv(browser)), browser)
             self.assertEqual(quiet & set(engine.argv("/usr/bin/chromium")), quiet)
+
+    def test_brave_adblock_is_read_from_the_launch_key_when_the_var_is_missing(self):
+        # A shell reload can drop SOLFA_BRAVE_ADBLOCK while the bridge still
+        # carries the launch key (the same race that can drop SOLFA_BROWSER):
+        # then the setting has to be read from the key, or the engine goes out
+        # with --disable-component-update and Shields have nothing to block.
+        engine = self.b.Engine.__new__(self.b.Engine)
+        quiet = {"--disable-component-update", "--disable-background-networking"}
+        with self._patched_env({"SOLFA_LAUNCH_KEY": "true|/usr/bin/brave|true"}):
+            os.environ.pop("SOLFA_BRAVE_ADBLOCK", None)
+            self.assertFalse(quiet & set(engine.argv("/usr/bin/brave")))
+        with self._patched_env({"SOLFA_LAUNCH_KEY": "true|/usr/bin/brave|false"}):
+            os.environ.pop("SOLFA_BRAVE_ADBLOCK", None)
+            self.assertEqual(quiet & set(engine.argv("/usr/bin/brave")), quiet)
+
+    def test_autostart_is_read_from_the_launch_key_when_the_var_is_missing(self):
+        # Same shell-reload race: SOLFA_NO_LAUNCH can be dropped, so read the
+        # `autostart` field of the launch key instead of starting the engine
+        # against the user's wish.
+        with self._patched_env({"SOLFA_LAUNCH_KEY": "false|/usr/bin/brave|true"}):
+            os.environ.pop("SOLFA_NO_LAUNCH", None)
+            self.assertFalse(self.b.autostart_enabled())
+        with self._patched_env({"SOLFA_LAUNCH_KEY": "true|/usr/bin/brave|true"}):
+            os.environ.pop("SOLFA_NO_LAUNCH", None)
+            self.assertTrue(self.b.autostart_enabled())
+        # The explicit var still wins when present.
+        with self._patched_env({"SOLFA_NO_LAUNCH": "1", "SOLFA_LAUNCH_KEY": "true|/usr/bin/brave|true"}):
+            self.assertFalse(self.b.autostart_enabled())
+        with self._patched_env({}):
+            os.environ.pop("SOLFA_NO_LAUNCH", None)
+            os.environ.pop("SOLFA_LAUNCH_KEY", None)
+            self.assertTrue(self.b.autostart_enabled())
 
     def test_child_env_path_is_always_fixed(self):
         with self._patched_env({"PATH": "/some/attacker/controlled/path:/usr/bin"}):
