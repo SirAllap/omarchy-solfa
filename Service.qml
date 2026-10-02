@@ -36,6 +36,9 @@ Item {
     root.pendingSettings = Object.assign({}, root.pendingSettings, changes)
     pendingSettingsTimer.restart()
     var next = Object.assign({}, root.settings, changes)
+    // A bar entry with nothing but its id hands over no settings, yet the
+    // user's own write is the settings: they are known from here on.
+    root.settingsLoaded = true
     root.settings = next
     if (root.shell && typeof root.shell.updateEntryInline === "function") root.shell.updateEntryInline(root.pluginId, next)
   }
@@ -55,8 +58,10 @@ Item {
     if (!Model.hasSettings(incoming)) return
     var r = Model.mergePendingSettings(incoming, root.pendingSettings)
     root.pendingSettings = r.pending
-    root.settings = r.settings
+    // Before the assignment: onSettingsChanged below acts on these settings.
     root.settingsLoaded = true
+    root.settings = r.settings
+    root.restartIfStale()
   }
   Timer { id: pendingSettingsTimer; interval: 5000; onTriggered: root.pendingSettings = ({}) }
 
@@ -174,8 +179,15 @@ Item {
   // so a bridge that keeps reporting a mismatch (a forgotten VERSION bump,
   // for instance) is asked to restart once, not in a loop.
   property string lastRestartTag: ""
+  // The launch key a quit under way is for (until its new unit is asked
+  // for), so the same change is never asked to quit twice.
+  property string restartingTo: ""
 
-  onSettingsChanged: { root.maybeRestartBridge(); root.sendEq(); root.sendStart() }
+  // Not before the shell has handed the settings over: `settings` also
+  // "changes" when this Service is created (its empty default is
+  // evaluated), and the bridge would be started, or asked to quit, under
+  // defaults nobody chose.
+  onSettingsChanged: { if (root.settingsLoaded) root.maybeRestartBridge(); root.sendEq(); root.sendStart() }
   onReadyChanged: if (root.ready) root.sendEq()
 
   // The variables for a bridge, all read from `snapshot` (the settings as
@@ -234,6 +246,9 @@ Item {
   function startBridge() {
     if (root.bridgeUnitStarted) return
     root.bridgeUnitStarted = true
+    root.restartingTo = ""
+    root.helloKey = ""
+    root.helloVersion = ""
     var vars = root.envForBridge(root.settings)
     root.runningEnvKey = vars.SOLFA_LAUNCH_KEY
     root.startBridgeUnit(vars)
@@ -246,6 +261,9 @@ Item {
   // fresh unit, rather than restarting a Quickshell child.
   function quitAndRestartBridge() {
     if (!root.bridgeUnitStarted && !sock.connected) { root.startBridge(); return }
+    var target = Model.launchKey(root.settings)
+    if (root.restartingTo === target) return
+    root.restartingTo = target
     root.bridgeUnitStarted = false
     root.restartDelay = 300
     if (sock.connected) {
@@ -256,7 +274,10 @@ Item {
   }
 
   function maybeRestartBridge() {
-    if (root.runningEnvKey !== "" && root.runningEnvKey !== root.bridgeEnvKey) {
+    // From the settings themselves: `bridgeEnvKey` is a binding on them and
+    // is not updated yet when onSettingsChanged runs (it still has the key
+    // of the settings before this change).
+    if (root.runningEnvKey !== "" && root.runningEnvKey !== Model.launchKey(root.settings)) {
       root.quitAndRestartBridge()
     } else {
       root.startBridge()
@@ -299,6 +320,7 @@ Item {
       if (sock.connected) {
         root.restartDelay = 1000
         root.bridgeUnitStarted = true  // something answered: no unit to start
+        root.restartingTo = ""
         root.request("hello", {}, function (r) { if (r.ok) root.applyHello(r.data) })
         root.request("ui.attach", {})
         root.sendEq()
@@ -390,11 +412,27 @@ Item {
     root.applyPlayer(data.player || {})
     root.runningEnvKey = data.launchKey !== undefined ? data.launchKey : root.runningEnvKey
     root.runningVersion = data.version || root.runningVersion
-    // A bridge started under old settings, or a plugin update under a
-    // bridge that has not picked it up yet: close it and start a fresh one.
-    var staleKey = root.settingsLoaded && data.launchKey !== undefined && data.launchKey !== root.bridgeEnvKey
-    var staleVersion = root.manifestVersion !== "" && data.version !== undefined && data.version !== root.manifestVersion
-    var tag = Model.restartTag(root.bridgeEnvKey, root.manifestVersion)
+    root.helloKey = data.launchKey !== undefined ? data.launchKey : ""
+    root.helloVersion = data.version || ""
+    root.restartIfStale()
+  }
+
+  // What the bridge in `hello` said it runs; "" once a unit of ours is
+  // asked for (the next `hello` tells).
+  property string helloKey: ""
+  property string helloVersion: ""
+
+  // A bridge started under old settings, or a plugin update under a bridge
+  // that has not picked it up yet: close it and start a fresh one. Only
+  // once the settings are known (a fresh unit started now would run the
+  // defaults); the settings arriving run it again for a `hello` that came
+  // first.
+  function restartIfStale() {
+    if (!root.settingsLoaded) return
+    var key = Model.launchKey(root.settings)
+    var staleKey = root.helloKey !== "" && root.helloKey !== key
+    var staleVersion = root.manifestVersion !== "" && root.helloVersion !== "" && root.helloVersion !== root.manifestVersion
+    var tag = Model.restartTag(key, root.manifestVersion)
     if (Model.shouldRestartForStale(staleKey, staleVersion, root.lastRestartTag, tag)) {
       root.lastRestartTag = tag
       root.quitAndRestartBridge()
@@ -428,7 +466,7 @@ Item {
   // (see SOLFA_START_* above): it knows whether an engine is a new start.
   function startVolumeArg() { return Model.startVolumeFor(root.setting("startVolume", "last")) }
   function sendStart() {
-    if (sock.connected) root.request("start.set", { paused: !!root.setting("startPaused", false), volume: root.startVolumeArg() })
+    if (sock.connected && root.settingsLoaded) root.request("start.set", { paused: !!root.setting("startPaused", false), volume: root.startVolumeArg() })
   }
 
   // ------------------------------------------------------------------ actions
@@ -574,7 +612,9 @@ Item {
   // Sent once the bridge is up (it may have just (re)started, forgetting
   // what it knew) and again whenever a setting changes; the bridge itself
   // resends the last one it was given after every page load and recycle.
-  function sendEq() { root.request("eq.set", root.eqPayload()) }
+  // Not before the settings are handed over: the defaults would switch the
+  // user's equalizer off in an engine that is playing.
+  function sendEq() { if (root.settingsLoaded) root.request("eq.set", root.eqPayload()) }
 
   // ------------------------------------------------------------------ Settings: Account
 

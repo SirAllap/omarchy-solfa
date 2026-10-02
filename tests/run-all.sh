@@ -78,6 +78,7 @@ run settings python3 tests/test_settings.py
 run account-state python3 tests/test_account_state.py
 run signin-card python3 tests/test_signin_card.py
 run panel-settings python3 tests/test_panel_settings.py
+run widget-move python3 tests/test_widget_move.py
 if command -v omarchy >/dev/null 2>&1; then run manifest omarchy plugin validate .; fi
 echo "solfa in /run/user leftovers: $(ls "/run/user/$(id -u)" 2>/dev/null | grep -c solfa || true)"
 if ((${#failed[@]})); then echo "FAILED: ${failed[*]}"; exit 1; fi
