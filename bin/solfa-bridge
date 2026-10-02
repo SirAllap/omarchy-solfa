@@ -1028,15 +1028,52 @@ BROWSER_CANDIDATES = (
 )
 
 
+def parse_launch_key(key):
+    """(autostart, browser, braveAdBlock) from a launch key, `autostart|
+    browser|braveAdBlock` (Service.qml builds it from one snapshot of the
+    settings). autostart is True, False, or None when the key does not say;
+    browser is "" for Auto. The key is read from both ends and the browser
+    is whatever lies between, so a path holding a "|" stays whole. Anything
+    that is not a key of three or more fields says nothing."""
+    fields = key.split("|")
+    if len(fields) < 3:
+        return None, "", False
+    autostart = {"true": True, "false": False}.get(fields[0])
+    return autostart, "|".join(fields[1:-1]).strip(), fields[-1] == "true"
+
+
+def launch_key_given():
+    """Did this start get a whole launch key (three fields or more)?"""
+    return len(os.environ.get("SOLFA_LAUNCH_KEY", "").split("|")) >= 3
+
+
+def launch_key():
+    """The key this bridge was started with. The shell passes the settings
+    twice, as the key and as variables; a start that lost the variables (a
+    shell reload) still has the key, so each setting falls back to it."""
+    return parse_launch_key(os.environ.get("SOLFA_LAUNCH_KEY", ""))
+
+
+def autostart_enabled():
+    """May Solfa start the engine on its own? SOLFA_NO_LAUNCH wins when it is
+    there; else the key; else yes."""
+    if os.environ.get("SOLFA_NO_LAUNCH") == "1":
+        return False
+    from_key = launch_key()[0]
+    return True if from_key is None else from_key
+
+
 def blocks_ads(browser):
     """Does this engine keep Brave's built-in ad blocker (Shields) fed? Its
     filter lists arrive through the component updater, so a Brave engine
     keeps that (and the background networking it rides on): without them
     Shields is on with nothing to block. Only when asked for (the
     `braveAdBlock` setting): a Premium account has no adverts to block and
-    would pay the background traffic and memory for nothing."""
-    return (os.environ.get("SOLFA_BRAVE_ADBLOCK") == "1"
-            and "brave" in os.path.basename(browser).lower())
+    would pay the background traffic and memory for nothing. The variable
+    wins when it is there; else the key."""
+    asked = os.environ.get("SOLFA_BRAVE_ADBLOCK")
+    asked = launch_key()[2] if asked is None else asked == "1"
+    return asked and "brave" in os.path.basename(browser).lower()
 
 
 def installed_browsers():
@@ -1046,21 +1083,90 @@ def installed_browsers():
     return [path for path in BROWSER_CANDIDATES if os.access(path, os.X_OK)]
 
 
-def find_browser():
-    """(path, error) for the engine's Chromium: path is "" when none was
-    usable, and error then says why (a bad `browser` setting, or none found)."""
+# The browser the engine's profile was built with. Chromium-family browsers
+# do not share cookie keys (Brave's live in another keyring entry than
+# Chromium's), so one that opens another's profile finds the sign-in
+# unreadable and rewrites it: the user is signed out. The shell can start the
+# bridge without the browser setting (it reloads and the settings come a
+# moment later), so the profile says which browser it belongs to.
+def browser_mark():
+    return PROFILE_DIR / ".solfa-browser"
+
+
+def usable_browser(path):
+    return bool(path) and os.path.isabs(path) and os.path.isfile(path) and os.access(path, os.X_OK)
+
+
+def recorded_browser():
+    """The browser this profile was built with, or "" when the mark is
+    missing or names something that is not a browser we could run."""
+    try:
+        path = browser_mark().read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    return path if usable_browser(path) else ""
+
+
+def record_browser(path):
+    """Remember the browser this profile is built with."""
+    mark = browser_mark()
+    if refuse_if_real_path(mark, "browser mark"):
+        return
+    try:
+        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        mark.write_text(path + "\n", encoding="utf-8")
+    except OSError as e:
+        log("browser mark:", e)
+
+
+def profile_exists():
+    """Has a browser opened this profile before? (Its Local State is there.)"""
+    return (PROFILE_DIR / "Local State").exists()
+
+
+def resolve_browser():
+    """(path, error, record) for the engine's Chromium: path is "" when none
+    could be used, and error then says why. `record` says the browser may be
+    written to the profile's mark: it was asked for, or the profile is new.
+
+    In order: the `browser` setting (SOLFA_BROWSER); the browser in the launch
+    key (the same setting, when the variable did not arrive); the profile's
+    mark; then the first installed one. A whole launch key with an empty
+    browser means the user chose Auto, so that last step is theirs even for
+    an existing profile. A start with no key at all (and no variable, no
+    mark) on an existing profile is left alone: a guess of another family
+    would rewrite its cookies. The shell never hands over a key made of
+    settings it has not received (Service.adoptSettings drops `{}`), so a
+    complete key is a real choice."""
     wanted = os.environ.get("SOLFA_BROWSER", "").strip()
     if wanted:
         if not os.path.isabs(wanted):
-            return "", "browser must be an absolute path"
+            return "", "browser must be an absolute path", False
         if os.access(wanted, os.X_OK):
-            return wanted, ""
+            return wanted, "", True
         # Named, so it does not read as if Auto had found nothing as well.
-        return "", f"{os.path.basename(wanted)} is not installed ({wanted})"
+        return "", f"{os.path.basename(wanted)} is not installed ({wanted})", False
+    from_key = launch_key()[1]
+    if usable_browser(from_key):
+        return from_key, "", True
+    recorded = recorded_browser()
+    if recorded:
+        return recorded, "", False
+    if from_key:
+        # A browser was chosen and it cannot run: named, never swapped for another.
+        return "", f"{os.path.basename(from_key)} is not installed ({from_key})", False
+    if profile_exists() and not launch_key_given():
+        return "", "waiting for the browser setting", False
     for path in BROWSER_CANDIDATES:
         if os.access(path, os.X_OK):
-            return path, ""
-    return "", "no Chromium-family browser found"
+            return path, "", True
+    return "", "no Chromium-family browser found", False
+
+
+def find_browser():
+    """(path, error) of resolve_browser."""
+    path, error, _ = resolve_browser()
+    return path, error
 
 
 def exit_words(status):
@@ -1097,7 +1203,7 @@ class Engine:
         self.restarts = []
         # A fresh install (or a reinstall) starts off: nothing plays and
         # no sign-in is asked for until the user turns Solfa on.
-        self.want_running = os.environ.get("SOLFA_NO_LAUNCH") != "1" and not first_run_of_this_install()
+        self.want_running = autostart_enabled() and not first_run_of_this_install()
         self.restore = None
         self.page_url = ""
         self.rebind_task = None
@@ -1300,7 +1406,7 @@ class Engine:
             os.close(pidfd)
 
     async def launch(self, signin=False, signin_url=SIGNIN_URL):
-        browser, browser_error = find_browser()
+        browser, browser_error, record = resolve_browser()
         if not browser:
             self.set_status("stopped", browser_error)
             return False
@@ -1315,6 +1421,9 @@ class Engine:
         except OSError as e:
             self.set_status("stopped", "launch failed: " + str(e))
             return False
+        # Only now: a browser that never started has not touched the profile.
+        if record:
+            record_browser(browser)
         self.pid = pid
         self.pidfd = pidfd
         self.is_signin = signin

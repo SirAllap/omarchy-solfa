@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fixed: after the shell reloaded (a bar layout change), the engine could start in Chromium instead of the browser chosen in Settings, and the sign-in was lost (Chromium cannot read another browser's cookies). The shell no longer starts the engine on settings it has not received yet.
+- Fixed: the engine now keeps to the browser its profile was built with. A start that is not told the browser takes it from the launch key, then from a `.solfa-browser` mark in the profile. Auto still picks the first installed browser. A start with no settings at all on an existing profile is not opened by a guess: Solfa says "waiting for the browser setting".
 
 ## 1.1.0
 

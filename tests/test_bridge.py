@@ -394,6 +394,39 @@ class BridgeTest(unittest.TestCase):
         self.assertIsInstance(hello.get("browsers"), list)
         self.assertNotIn(str(self.tmp / "no-such-browser"), hello["browsers"])
 
+    def wait_stopped_with_error(self, c):
+        end = time.time() + 5
+        eng = {}
+        while time.time() < end:
+            eng = c.call("hello")["data"]["engine"]
+            if eng["status"] == "stopped" and eng["error"]:
+                break
+            time.sleep(0.2)
+        return eng
+
+    def test_the_browser_is_recorded_once_the_engine_is_up(self):
+        c = self.start()
+        self.wait_ready(c)
+        self.assertEqual((self.profile / ".solfa-browser").read_text().strip(), str(FAKE))
+
+    def test_a_launch_that_fails_records_nothing(self):
+        broken = self.tmp / "broken-browser"
+        broken.write_text("#!/no/such/interpreter\n")
+        broken.chmod(0o755)
+        c = self.start(SOLFA_BROWSER=str(broken))
+        eng = self.wait_stopped_with_error(c)
+        self.assertIn("launch failed", eng["error"])
+        self.assertFalse((self.profile / ".solfa-browser").exists())
+
+    def test_an_existing_profile_with_no_key_and_no_browser_is_left_alone(self):
+        self.profile.mkdir(parents=True)
+        (self.profile / "Local State").write_text("{}")
+        c = self.start(SOLFA_BROWSER="", SOLFA_LAUNCH_KEY="")
+        eng = self.wait_stopped_with_error(c)
+        self.assertEqual(eng["error"], "waiting for the browser setting")
+        self.assertEqual(self.engine_pid(), 0, "no browser was started on the profile")
+        self.assertFalse((self.profile / ".solfa-browser").exists())
+
     def test_relative_browser_setting_is_refused(self):
         c = self.start(SOLFA_BROWSER="chromium")
         end = time.time() + 5
@@ -2151,6 +2184,200 @@ class ImportPureTest(unittest.TestCase):
         env = self.b.child_env({"TMPDIR": "/tmp/solfa-import-xyz"})
         self.assertEqual(env["TMPDIR"], "/tmp/solfa-import-xyz")
         self.assertEqual(env["PATH"], "/usr/bin:/bin")
+
+
+class BrowserChoiceTest(unittest.TestCase):
+    """Which browser the engine's profile is opened with. Chromium-family
+    browsers cannot read each other's cookies (the keys live in different
+    keyring entries) and rewrite what they cannot read, so opening a profile
+    with the wrong one signs the user out. Nothing here starts a process."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="solfa-choice-"))
+        cls.profile = cls.tmp / "engine"
+        cls.b = PureTest.load_with_env({"SOLFA_PROFILE_DIR": str(cls.profile)})
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def setUp(self):
+        shutil.rmtree(self.profile, ignore_errors=True)
+        self.chromium = self.exe("bin/chromium")
+        self.brave = self.exe("bin/brave")
+        self.old_candidates = self.b.BROWSER_CANDIDATES
+        self.b.BROWSER_CANDIDATES = (self.chromium, self.brave)
+
+    def tearDown(self):
+        self.b.BROWSER_CANDIDATES = self.old_candidates
+
+    def exe(self, name):
+        path = self.tmp / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("#!/bin/sh\n")
+        path.chmod(0o755)
+        return str(path)
+
+    def existing_profile(self):
+        self.profile.mkdir(parents=True, exist_ok=True)
+        (self.profile / "Local State").write_text("{}")
+
+    def env(self, **extra):
+        """The call-time environment: no browser variable, no key, unless given."""
+        base = {"SOLFA_BROWSER": "", "SOLFA_LAUNCH_KEY": ""}
+        base.update(extra)
+        return ImportPureTest._patched_env(base)
+
+    # ---- the marker
+
+    def test_marker_is_empty_when_missing(self):
+        self.assertEqual(self.b.recorded_browser(), "")
+
+    def test_marker_round_trips(self):
+        self.b.record_browser(self.brave)
+        self.assertEqual(self.b.recorded_browser(), self.brave)
+        self.assertEqual((self.profile / ".solfa-browser").read_text().strip(), self.brave)
+
+    def test_marker_naming_a_directory_is_not_a_browser(self):
+        self.profile.mkdir(parents=True)
+        (self.profile / ".solfa-browser").write_text(str(self.tmp) + "\n")
+        self.assertEqual(self.b.recorded_browser(), "")
+
+    def test_marker_with_a_relative_path_is_not_a_browser(self):
+        self.profile.mkdir(parents=True)
+        (self.profile / ".solfa-browser").write_text("chromium\n")
+        self.assertEqual(self.b.recorded_browser(), "")
+
+    def test_marker_naming_a_file_that_is_gone_or_not_executable_is_not_a_browser(self):
+        self.profile.mkdir(parents=True)
+        mark = self.profile / ".solfa-browser"
+        mark.write_text(str(self.tmp / "gone") + "\n")
+        self.assertEqual(self.b.recorded_browser(), "")
+        plain = self.tmp / "plain"
+        plain.write_text("")
+        plain.chmod(0o644)
+        mark.write_text(str(plain) + "\n")
+        self.assertEqual(self.b.recorded_browser(), "")
+
+    # ---- the order
+
+    def test_the_setting_beats_the_marker(self):
+        self.existing_profile()
+        self.b.record_browser(self.chromium)
+        with self.env(SOLFA_BROWSER=self.brave):
+            self.assertEqual(self.b.resolve_browser(), (self.brave, "", True))
+
+    def test_the_key_beats_the_marker(self):
+        # The shell sets the key even on a start that lost SOLFA_BROWSER.
+        self.existing_profile()
+        self.b.record_browser(self.chromium)
+        with self.env(SOLFA_LAUNCH_KEY="true|" + self.brave + "|false"):
+            self.assertEqual(self.b.resolve_browser(), (self.brave, "", True))
+
+    def test_a_key_browser_that_is_not_usable_falls_back_to_the_marker(self):
+        self.existing_profile()
+        self.b.record_browser(self.brave)
+        with self.env(SOLFA_LAUNCH_KEY="true|" + str(self.tmp / "gone") + "|false"):
+            path, error, _ = self.b.resolve_browser()
+        self.assertEqual((path, error), (self.brave, ""))
+
+    def test_the_marker_is_used_when_nothing_else_names_a_browser(self):
+        self.existing_profile()
+        self.b.record_browser(self.brave)
+        with self.env(SOLFA_LAUNCH_KEY="true||false"):
+            path, error, _ = self.b.resolve_browser()
+        self.assertEqual((path, error), (self.brave, ""))
+
+    def test_an_existing_profile_with_no_key_and_no_browser_is_not_guessed(self):
+        # A profile from 1.1.0: no marker, and this start was given neither
+        # the browser nor a launch key. Chromium is installed and first in the
+        # list: opening the profile with it would rewrite the cookies of
+        # whatever browser made it.
+        self.existing_profile()
+        for key in ("", "true", "true|x", "maybe"):
+            with self.env(SOLFA_LAUNCH_KEY=key):
+                path, error = self.b.find_browser()
+            self.assertEqual(path, "", key)
+            self.assertEqual(error, "waiting for the browser setting", key)
+
+    def test_auto_in_a_whole_key_is_a_choice_even_for_an_existing_profile(self):
+        # The upgrade case: Settings on Auto, profile from 1.1.0, no marker.
+        self.existing_profile()
+        for key in ("true||false", "true||true", "false||false"):
+            with self.env(SOLFA_LAUNCH_KEY=key):
+                self.assertEqual(self.b.resolve_browser(), (self.chromium, "", True), key)
+
+    def test_a_key_browser_with_the_variable_missing_is_used(self):
+        self.existing_profile()
+        with self.env(SOLFA_LAUNCH_KEY="true|" + self.brave + "|false"):
+            self.assertEqual(self.b.find_browser(), (self.brave, ""))
+
+    def test_a_chosen_browser_that_is_not_installed_is_named_not_swapped(self):
+        self.existing_profile()
+        gone = str(self.tmp / "gone")
+        with self.env(SOLFA_LAUNCH_KEY="true|" + gone + "|false"):
+            self.assertEqual(self.b.find_browser(), ("", "gone is not installed (" + gone + ")"))
+
+    def test_a_new_profile_takes_the_first_installed_browser(self):
+        with self.env(SOLFA_LAUNCH_KEY="true||false"):
+            self.assertEqual(self.b.resolve_browser(), (self.chromium, "", True))
+
+    def test_a_new_profile_with_no_browser_installed_says_so(self):
+        self.b.BROWSER_CANDIDATES = (str(self.tmp / "gone"),)
+        with self.env():
+            path, error = self.b.find_browser()
+        self.assertEqual((path, error), ("", "no Chromium-family browser found"))
+
+    def test_a_browser_taken_from_the_marker_is_not_written_again(self):
+        self.existing_profile()
+        self.b.record_browser(self.brave)
+        with self.env():
+            self.assertEqual(self.b.resolve_browser(), (self.brave, "", False))
+
+    def test_a_bad_setting_is_still_named(self):
+        self.existing_profile()
+        with self.env(SOLFA_BROWSER=str(self.tmp / "gone")):
+            path, error = self.b.find_browser()
+        self.assertEqual(path, "")
+        self.assertEqual(error, "gone is not installed (" + str(self.tmp / "gone") + ")")
+
+    # ---- the key
+
+    def test_the_key_is_read_from_both_ends_so_a_path_may_hold_a_bar(self):
+        odd = self.exe("my|apps/brave")
+        key = "false|" + odd + "|true"
+        self.assertEqual(self.b.parse_launch_key(key), (False, odd, True))
+        self.existing_profile()
+        with self.env(SOLFA_LAUNCH_KEY=key):
+            self.assertEqual(self.b.resolve_browser(), (odd, "", True))
+            self.assertTrue(self.b.blocks_ads(odd))
+            self.assertFalse(self.b.autostart_enabled())
+
+    def test_a_key_that_is_not_ours_says_nothing(self):
+        for key in ("", "true", "true|x"):
+            self.assertEqual(self.b.parse_launch_key(key), (None, "", False), key)
+        self.assertEqual(self.b.parse_launch_key("maybe||false"), (None, "", False))
+        self.assertEqual(self.b.parse_launch_key("|a|true"), (None, "a", True))
+
+    def test_autostart_follows_the_variable_first_then_the_key(self):
+        with self.env():
+            self.assertTrue(self.b.autostart_enabled())
+        with self.env(SOLFA_LAUNCH_KEY="false||false"):
+            self.assertFalse(self.b.autostart_enabled())
+        with self.env(SOLFA_LAUNCH_KEY="true||false"):
+            self.assertTrue(self.b.autostart_enabled())
+        with self.env(SOLFA_LAUNCH_KEY="true||false", SOLFA_NO_LAUNCH="1"):
+            self.assertFalse(self.b.autostart_enabled())
+
+    def test_the_ad_blocker_follows_the_variable_or_the_key_but_only_for_brave(self):
+        with self.env(SOLFA_LAUNCH_KEY="true||true"):
+            self.assertTrue(self.b.blocks_ads("/usr/bin/brave"))
+            self.assertFalse(self.b.blocks_ads("/usr/bin/chromium"))
+        with self.env(SOLFA_BRAVE_ADBLOCK="1"):
+            self.assertTrue(self.b.blocks_ads("/usr/bin/brave"))
+        with self.env(SOLFA_LAUNCH_KEY="true||false", SOLFA_BRAVE_ADBLOCK="0"):
+            self.assertFalse(self.b.blocks_ads("/usr/bin/brave"))
 
 
 class SpawnFdTest(unittest.TestCase):
