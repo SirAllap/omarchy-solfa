@@ -16,8 +16,11 @@ BarWidget {
 
   // The service reads its settings from this widget's shell.json entry,
   // and saves new ones back through the shell's plugin API (Settings).
+  // The shell assigns this widget's `bar` before its `settings`, so for a
+  // moment `settings` is still the empty default: that is not an entry, and
+  // the service must never see it (it would start the engine on defaults).
   function pushSettings() {
-    if (!root.svc) return
+    if (!root.svc || !root.bar || !Model.hasSettings(root.settings)) return
     if (typeof root.svc.adoptSettings === "function") root.svc.adoptSettings(root.settings)
     else root.svc.settings = root.settings
     root.svc.shell = root.bar ? root.bar.shell : null

@@ -227,6 +227,24 @@ test("settings writes: a stale echo from the shell never undoes a write it has n
   assert.equal(r.settings.id, "io.github.sirallap.solfa", "other keys of the entry are kept")
 })
 
+test("launch key: one string from one settings snapshot, as the bridge parses it", () => {
+  assert.equal(M.launchKey({}), "true||false", "defaults")
+  assert.equal(M.launchKey({ autostart: false, browser: "/usr/bin/brave", braveAdBlock: true }), "false|/usr/bin/brave|true")
+  assert.equal(M.launchKey({ browser: "/opt/my|browser/brave" }), "true|/opt/my|browser/brave|false", "a path with | goes in whole")
+  // A hand-edited shell.json can hold the string "false": the shell treats
+  // any non-empty string as on, so the key says on as well.
+  assert.equal(M.launchKey({ autostart: "false", braveAdBlock: "false" }), "true||true")
+  assert.equal(M.launchKey(null), "true||false")
+})
+
+test("settings pushed before the shell has handed over the entry are not real", () => {
+  assert.equal(M.hasSettings({}), false, "the widget's default, before the shell assigns its entry")
+  assert.equal(M.hasSettings(null), false)
+  assert.equal(M.hasSettings(undefined), false)
+  assert.equal(M.hasSettings({ id: "io.github.sirallap.solfa" }), true, "an entry with only its id is real")
+  assert.equal(M.hasSettings({ browser: "/usr/bin/brave" }), true)
+})
+
 test("settings reset: defaults over the current entry, other keys kept", () => {
   const next = M.settingsAfterReset({ id: "io.github.sirallap.solfa", eqEnabled: true, recycleHours: 30, somethingElse: 7 })
   assert.equal(next.eqEnabled, false)

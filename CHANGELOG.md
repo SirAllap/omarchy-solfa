@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: after the shell reloaded (a bar layout change), the engine could start in Chromium instead of the browser chosen in Settings, and the sign-in was lost (Chromium cannot read another browser's cookies). The shell no longer starts the engine on settings it has not received yet.
+
 ## 1.1.0
 
 - New History tab (key `5`): what the account played lately, newest first, under Today / Yesterday / ... Signed out it says to sign in; Premium is not needed.

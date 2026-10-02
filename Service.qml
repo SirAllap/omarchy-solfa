@@ -16,10 +16,11 @@ Item {
   // through it) and this widget's entry in shell.json.
   property var shell: null
   property var settings: ({})
-  function setting(name, fallback) {
-    var v = settings ? settings[name] : undefined
+  function settingOf(snapshot, name, fallback) {
+    var v = snapshot ? snapshot[name] : undefined
     return v === undefined || v === null ? fallback : v
   }
+  function setting(name, fallback) { return root.settingOf(root.settings, name, fallback) }
 
   // Settings store: one write path for every setting, real or bar-widget.
   // shell.json stays the only place settings live, so Omarchy's own plugin
@@ -49,6 +50,9 @@ Item {
   // the stale-key check off until there is something real to compare.
   property bool settingsLoaded: false
   function adoptSettings(incoming) {
+    // Not `{}`: a widget that has not been handed its entry yet is not a
+    // settings entry, and adopting it would start the engine under defaults.
+    if (!Model.hasSettings(incoming)) return
     var r = Model.mergePendingSettings(incoming, root.pendingSettings)
     root.pendingSettings = r.pending
     root.settings = r.settings
@@ -159,8 +163,9 @@ Item {
   // shell creates the service), or after 2 s with no widget at all, and it
   // is asked to quit and restart when one of those two settings changes
   // (or the plugin itself was updated under it).
-  readonly property string bridgeEnvKey: String(root.setting("autostart", true)) + "|" + root.setting("browser", "") +
-    "|" + String(root.setting("braveAdBlock", false))
+  // This binding is for comparing (stale checks); what a bridge is started
+  // under comes from one snapshot (envForBridge), key and variables both.
+  readonly property string bridgeEnvKey: Model.launchKey(root.settings)
   property string runningEnvKey: ""
   property string runningVersion: ""
   property bool bridgeUnitStarted: false
@@ -173,29 +178,33 @@ Item {
   onSettingsChanged: { root.maybeRestartBridge(); root.sendEq(); root.sendStart() }
   onReadyChanged: if (root.ready) root.sendEq()
 
-  function envForBridge() {
+  // The variables for a bridge, all read from `snapshot` (the settings as
+  // they are at this moment), so the launch key and the variables can never
+  // come from two different states of the settings.
+  function envForBridge(snapshot) {
+    var read = function (name, fallback) { return root.settingOf(snapshot, name, fallback) }
     var vars = {
-      SOLFA_LAUNCH_KEY: root.bridgeEnvKey,
+      SOLFA_LAUNCH_KEY: Model.launchKey(snapshot),
       // The shell's own idle lease: no UI connection (this Service) for
       // this long closes the bridge, the engine and the socket — off (0)
       // for anything that starts the bridge by hand (tests included).
       SOLFA_ORPHAN_SECONDS: "30",
       // Advanced > memory: read once when the bridge starts (the help text
       // says so); changing them does not itself restart the bridge.
-      SOLFA_RECYCLE_HEAP_MB: String(Model.recycleHeapMbFor(root.setting("recycleHeapMb", 400))),
-      SOLFA_RECYCLE_HOURS: String(Model.recycleHoursFor(root.setting("recycleHours", 12))),
+      SOLFA_RECYCLE_HEAP_MB: String(Model.recycleHeapMbFor(read("recycleHeapMb", 400))),
+      SOLFA_RECYCLE_HOURS: String(Model.recycleHoursFor(read("recycleHours", 12))),
       // Playback > "When Solfa starts" / "Volume at start": the bridge
       // applies them itself, once, to an engine it launches as a start of
       // Solfa (never to one already playing, a restart or a recycle). Given
       // here so it has them before the engine is up; start.set keeps them
       // current afterwards.
-      SOLFA_START_PAUSED: root.setting("startPaused", false) ? "1" : "0"
+      SOLFA_START_PAUSED: read("startPaused", false) ? "1" : "0"
     }
-    var browser = root.setting("browser", "")
+    var browser = read("browser", "")
     if (browser !== "") vars.SOLFA_BROWSER = browser
-    if (root.setting("braveAdBlock", false)) vars.SOLFA_BRAVE_ADBLOCK = "1"
-    if (!root.setting("autostart", true)) vars.SOLFA_NO_LAUNCH = "1"
-    var vol = root.startVolumeArg()
+    if (read("braveAdBlock", false)) vars.SOLFA_BRAVE_ADBLOCK = "1"
+    if (!read("autostart", true)) vars.SOLFA_NO_LAUNCH = "1"
+    var vol = Model.startVolumeFor(read("startVolume", "last"))
     if (vol !== null) vars.SOLFA_START_VOLUME = String(vol)
     // Everything else the engine's Chromium (and hyprctl) needs to reach
     // this session, passed through as it is now (never PATH, never "").
@@ -208,8 +217,7 @@ Item {
     return vars
   }
 
-  function startBridgeUnit() {
-    var vars = root.envForBridge()
+  function startBridgeUnit(vars) {
     // L1: systemd-run (261+) expands ${VAR} in command arguments by default;
     // a pluginDir containing "$" would otherwise be rewritten.
     var argv = ["/usr/bin/systemd-run", "--user", "--unit=io.github.sirallap.solfa-bridge", "--collect", "--quiet",
@@ -226,8 +234,9 @@ Item {
   function startBridge() {
     if (root.bridgeUnitStarted) return
     root.bridgeUnitStarted = true
-    root.runningEnvKey = root.bridgeEnvKey
-    root.startBridgeUnit()
+    var vars = root.envForBridge(root.settings)
+    root.runningEnvKey = vars.SOLFA_LAUNCH_KEY
+    root.startBridgeUnit(vars)
     bridgeRetryTimer.interval = Model.retryTimerInterval(root.restartDelay)
     bridgeRetryTimer.restart()
   }
