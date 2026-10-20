@@ -200,7 +200,9 @@ Item {
       // The shell's own idle lease: no UI connection (this Service) for
       // this long closes the bridge, the engine and the socket — off (0)
       // for anything that starts the bridge by hand (tests included).
-      SOLFA_ORPHAN_SECONDS: "30",
+      // Longer than a shell restart: one with many plugins takes over 30 s
+      // to load this Service again, and the lease closed the engine mid-song.
+      SOLFA_ORPHAN_SECONDS: "120",
       // Advanced > memory: read once when the bridge starts (the help text
       // says so); changing them does not itself restart the bridge.
       SOLFA_RECYCLE_HEAP_MB: String(Model.recycleHeapMbFor(read("recycleHeapMb", 400))),

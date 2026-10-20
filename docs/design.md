@@ -91,8 +91,8 @@ back in `hello`; if either no longer matches, the shell asks it to quit
 
 An idle lease closes everything if nobody is left to use it: the shell
 marks its connection as the UI (`ui.attach`) right after it connects, and
-the bridge closes itself (`SOLFA_ORPHAN_SECONDS`, off by default, 30 s in
-`Service.qml`) once no such connection has existed for that long — the
+the bridge closes itself (`SOLFA_ORPHAN_SECONDS`, off by default, 120 s in
+`Service.qml`, longer than a shell restart) once no such connection has existed for that long — the
 usual case being the plugin was disabled or removed. If, at that moment,
 the plugin's own `manifest.json` is gone from disk too, the bridge also
 erases Solfa's data dir (the signed-in profile included) and its runtime
