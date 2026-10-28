@@ -208,3 +208,25 @@ test("history: a reply with no shelves (signed out, or nothing played) parses to
   assert.deepEqual(P.browse("FEmusic_history", {}).sections, [])
   assert.deepEqual(P.browse("FEmusic_history", null).sections, [])
 })
+
+test("library playlists: the grid pages behind a continuation, and each page parses", () => {
+  const page1 = P.browse("FEmusic_liked_playlists", F("library-playlists"))
+  assert.equal(page1.kind, "page")
+  assert.equal(page1.sections.length, 1)
+  assert.equal(page1.sections[0].items.length, 2, "the continuation placeholder is not a row")
+  assert.equal(page1.sections[0].items[0].playlistId, "LM")
+  assert.equal(page1.sections[0].items[1].kind, "playlist")
+  assert.equal(page1.sections[0].items[1].playlistId, "PLesJdD8psnow")
+  // The token pages the grid's remainder; a grid's own continuations array
+  // wins over a token inside a continuationItemRenderer row.
+  assert.equal(P.gridToken(F("library-playlists")), "tok-page-2")
+  const page2 = P.gridPage(F("library-playlists-cont"), { thumbPx: 240 })
+  assert.equal(page2.items.length, 2)
+  assert.equal(page2.items[0].kind, "playlist")
+  assert.equal(page2.items[0].playlistId, "PLRbIJbyS1SB4")
+  assert.equal(page2.items[0].artists[0].name, "WolfSparc")
+  assert.equal(page2.continuation, "tok-page-3")
+  const last = P.gridPage(F("library-playlists-cont2"), { thumbPx: 240 })
+  assert.equal(last.items.length, 1)
+  assert.equal(last.continuation, "", "the last page carries no token")
+})

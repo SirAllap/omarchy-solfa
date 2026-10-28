@@ -653,7 +653,7 @@ PAGE_OPS = {
     "suggest": (lambda a: {"q": a_text(only(a, "q").get("q"), "q", 200)}, 8),
     "browse": (check_browse, 20),
     "home": (check_none, 20),
-    "library": (lambda a: {"section": a_enum(only(a, "section").get("section"), "section", ("playlists", "songs", "albums", "artists", "history"))}, 20),
+    "library": (lambda a: {"section": a_enum(only(a, "section").get("section"), "section", ("playlists", "songs", "albums", "artists", "history"))}, 45),
     "queue": (check_none, 5),
     "queue.add": (check_queue_add, 15),
     "queue.move": (lambda a: {"from": a_int(only(a, "from", "to").get("from"), "from", 0, 10000), "to": a_int(a.get("to"), "to", 0, 10000)}, 5),

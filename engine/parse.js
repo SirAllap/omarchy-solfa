@@ -370,6 +370,26 @@ var SolfaParse = (function () {
     return ""
   }
 
+  // The token that pages a grid's remainder. The library pages (playlists,
+  // albums, artists) ship only their first 25 rows; the rest come a page at
+  // a time behind this token.
+  function gridToken(data) {
+    var grids = collect(data, "gridRenderer")
+    for (var i = 0; i < grids.length; i++) {
+      var t = continuationOf(grids[i])
+      if (t) return t
+    }
+    return continuationOf(data)
+  }
+
+  // One page of that remainder: its rows, and the next page's token (""
+  // on the last page).
+  function gridPage(data, opts) {
+    var g = dig(data, ["continuationContents", "gridContinuation"]) ||
+      dig(data, ["continuationContents", "sectionListContinuation"]) || {}
+    return { items: items(g.contents || g.items || [], opts), continuation: continuationOf(g || data) }
+  }
+
   // The top result card: an artist, album, playlist or track, with its own
   // play buttons.
   function topCard(card) {
@@ -650,6 +670,8 @@ var SolfaParse = (function () {
     search: search,
     suggestions: suggestions,
     sections: sections,
+    gridToken: gridToken,
+    gridPage: gridPage,
     album: album,
     playlist: playlist,
     artist: artist,

@@ -929,7 +929,42 @@
       needSignIn()
       var id = LIBRARY[args.section]
       var data = await innertube("browse", { browseId: id }, { timeout: 15000 })
-      return P.browse(id, data)
+      var out = P.browse(id, data)
+      // The library pages list only their first 25 rows; the rest page
+      // behind the grid's continuation. Follow it to the end (a bad token
+      // yields no rows and stops the loop), de-duplicating as pages go.
+      if (Array.isArray(out.sections)) {
+        var seen = {}
+        var s, k, key0
+        for (s = 0; s < out.sections.length; s++) {
+          var first = out.sections[s].items || []
+          for (k = 0; k < first.length; k++) {
+            key0 = first[k] && (first[k].videoId || first[k].browseId || first[k].playlistId)
+            if (key0) seen[key0] = true
+          }
+        }
+        var token = P.gridToken(data)
+        var pages = 0
+        while (token && pages < 50) {
+          pages += 1
+          var more = await innertube("browse", { continuation: token }, { timeout: 15000 })
+          var page = P.gridPage(more, { thumbPx: 240 })
+          var fresh = []
+          for (var i = 0; i < page.items.length; i++) {
+            var it = page.items[i]
+            var key = it.videoId || it.browseId || it.playlistId
+            if (!key || seen[key]) continue
+            seen[key] = true
+            fresh.push(it)
+          }
+          if (!fresh.length) break
+          if (!out.sections.length) out.sections.push({ title: "", items: [] })
+          var shelf = out.sections[out.sections.length - 1]
+          shelf.items = (shelf.items || []).concat(fresh)
+          token = page.continuation
+        }
+      }
+      return out
     },
 
     queue: function () { return queueModel() },

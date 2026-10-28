@@ -43,7 +43,7 @@ Item {
       c[sec] = r.data
       view.cache = c
       if (sec === view.section) list.cursor = Model.firstRow(view.rows)
-    })
+    }, 60000)
   }
 
   function setSection(key) { view.section = key; list.cursor = Model.firstRow(view.rows); if (!cache[key]) load() }
