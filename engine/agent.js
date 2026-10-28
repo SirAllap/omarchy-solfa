@@ -809,6 +809,9 @@
     artists: "FEmusic_library_corpus_track_artists",
     history: "FEmusic_history"
   }
+  // How long the library op may spend on the pages after the first one:
+  // well inside the bridge's 45 s for the op, the first page included.
+  var LIBRARY_PAGING_MS = 30000
 
   var ops = {
     ping: function () { return { version: VERSION, host: location.hostname } },
@@ -945,9 +948,17 @@
         }
         var token = P.gridToken(data)
         var pages = 0
+        // The rest is a bonus on top of the first page: a page that fails,
+        // or a library too big to page within the bridge's own deadline
+        // for this op (45 s), keeps the rows already there instead of
+        // failing the whole section.
+        var deadline = Date.now() + LIBRARY_PAGING_MS
         while (token && pages < 50) {
+          var left = deadline - Date.now()
+          if (left < 1000) break
           pages += 1
-          var more = await innertube("browse", { continuation: token }, { timeout: 15000 })
+          var more
+          try { more = await innertube("browse", { continuation: token }, { timeout: Math.min(15000, left) }) } catch (e) { break }
           var page = P.gridPage(more, { thumbPx: 240 })
           var fresh = []
           for (var i = 0; i < page.items.length; i++) {

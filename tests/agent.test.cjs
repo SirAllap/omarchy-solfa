@@ -903,6 +903,20 @@ test("injecting again: same version is a no-op, a new version replaces the old",
   assert.equal(p.ctx.__solfa.version, "test-2")
 })
 
+test("library playlists: follows the grid's pages, and a page that fails keeps the rows already there", async () => {
+  const pages = { "tok-page-2": "library-playlists-cont", "tok-page-3": "library-playlists-cont2" }
+  const p = makePage({ signedIn: true, replies: { browse: (body) => F(body.continuation ? pages[body.continuation] : "library-playlists") } })
+  await p.settle()
+  const all = await p.call("library", { section: "playlists" })
+  assert.equal(all.sections[0].items.length, 5, "2 rows on the first page, 2 on the next, 1 on the last")
+  assert.equal(p.requests.filter((r) => r.endpoint === "browse").length, 3)
+
+  const broken = makePage({ signedIn: true, replies: { browse: (body) => { if (body.continuation) throw new Error("network"); return F("library-playlists") } } })
+  await broken.settle()
+  const first = await broken.call("library", { section: "playlists" })
+  assert.equal(first.sections[0].items.length, 2, "the first page's rows, not an error")
+})
+
 test("library history: signed out is refused before any request, signed in browses FEmusic_history and parses dated shelves", async () => {
   const out = makePage()
   await out.settle()
