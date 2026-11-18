@@ -53,6 +53,24 @@ test("filtered searches keep to their kind", () => {
   assert.ok(P.search(F("search-playlists"), { filter: "playlists" }).playlists.length >= 5)
 })
 
+test("add to playlist: Recent first, then the rest, none twice, with their sizes", () => {
+  // Captured from a signed-in reply (see tests/make-fixtures.py): four recent
+  // playlists, Liked Music (id LM) among the others. The reply does not say
+  // whether a playlist has the song, so the parser does not either.
+  const a = P.addToPlaylist(F("add-to-playlist"))
+  assert.equal(a.playlists.length, 5)
+  assert.deepEqual(a.playlists.map((x) => x.recent), [true, true, true, true, false])
+  assert.equal(a.playlists[4].id, "LM")
+  assert.deepEqual(a.playlists.map((x) => x.count), ["889 tracks", "13 tracks", "6 tracks", "7 tracks", "206 songs"])
+  assert.equal(new Set(a.playlists.map((x) => x.id)).size, 5)
+  assert.ok(a.playlists.every((x) => x.title && !("has" in x) && !("contains" in x)))
+  assert.deepEqual(P.addToPlaylist({}), { playlists: [] })
+  // A recent card the list does not repeat is kept; no id, no entry.
+  const card = (id) => ({ musicTwoRowItemRenderer: { title: { runs: [{ text: "T" + id }] }, subtitle: { runs: [{ text: "3 songs" }] }, navigationEndpoint: { playlistEditEndpoint: { playlistId: id } } } })
+  const odd = P.addToPlaylist({ topShelf: { c: [card("PL1"), card("PL1"), { musicTwoRowItemRenderer: {} }] }, x: [{ playlistAddToOptionRenderer: { playlistId: "PL2", title: { runs: [{ text: "A" }, { text: "B" }] } } }, { playlistAddToOptionRenderer: { title: { simpleText: "no id" } } }] })
+  assert.deepEqual(odd.playlists, [{ id: "PL1", title: "TPL1", count: "3 songs", recent: true }, { id: "PL2", title: "AB", count: "", recent: false }])
+})
+
 test("a playlist edit: added, a duplicate the check refused, or a failure", () => {
   assert.equal(P.playlistEditResult(F("playlist-edit-added")), "added")
   assert.equal(P.playlistEditResult(F("playlist-edit-duplicate")), "duplicate")

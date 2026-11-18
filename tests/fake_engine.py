@@ -188,8 +188,10 @@ def page_op(op, a):
     if op == "search":
         return {"top": None, "songs": [{"kind": "song", "videoId": "BBBBBBBBBBB", "title": "Result for " + a["q"]}],
                 "videos": [], "albums": [], "artists": [], "playlists": [], "other": [], "continuation": ""}, None
-    if op in ("like", "library", "account.info", "playlist.add", "playlist.create") and not state["signedIn"]:
+    if op in ("like", "library", "account.info", "playlist.options", "playlist.add", "playlist.create") and not state["signedIn"]:
         return None, "signin-required"
+    if op == "playlist.options":
+        return {"playlists": [{"id": "PLfixture1", "title": "Road trip", "count": "12 tracks", "recent": True}]}, None
     if op == "playlist.add":
         # PLfixture2 already has every song, like a playlist the check refuses.
         if a.get("playlistId") == "PLfixture2" and not a.get("force"):

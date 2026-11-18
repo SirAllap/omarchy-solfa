@@ -663,6 +663,7 @@ PAGE_OPS = {
     "lyrics": (lambda a: {"videoId": a_video(only(a, "videoId").get("videoId"))}, 20),
     "playlist.create": (lambda a: {"title": a_text(only(a, "title", "videoIds").get("title"), "title", 150),
                                    **({"videoIds": [a_video(v) for v in a["videoIds"]]} if isinstance(a.get("videoIds"), list) and 0 < len(a["videoIds"]) <= 50 else {})}, 15),
+    "playlist.options": (lambda a: {"videoId": a_video(only(a, "videoId").get("videoId"))}, 15),
     "playlist.add": (lambda a: {"playlistId": a_list(only(a, "playlistId", "videoId", "force").get("playlistId")), "videoId": a_video(a.get("videoId")),
                                 **({"force": a_bool(a["force"], "force")} if "force" in a else {})}, 15),
     "eq.set": (check_eq, 5),

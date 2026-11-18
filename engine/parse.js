@@ -658,6 +658,33 @@ var SolfaParse = (function () {
     }
   }
 
+  // `playlist/get_add_to_playlist` → the playlists a song can be saved to,
+  // as YouTube Music lists them: the recently used ones first (`recent`),
+  // then the rest, none twice. `count` is its "889 tracks" line. The reply
+  // does not say whether a playlist has the song already.
+  function addToPlaylist(data) {
+    var all = []
+    var rs = collect(data, "playlistAddToOptionRenderer")
+    for (var i = 0; i < rs.length; i++) {
+      var id = rs[i] && rs[i].playlistId ? String(rs[i].playlistId) : ""
+      if (id) all.push({ id: id, title: text(rs[i].title), count: text(rs[i].shortBylineText) })
+    }
+    var byId = {}
+    all.forEach(function (p) { byId[p.id] = p })
+    var recent = []
+    var cards = collect(collect(data, "topShelf")[0], "musicTwoRowItemRenderer")
+    for (var j = 0; j < cards.length; j++) {
+      var ep = dig(cards[j], ["navigationEndpoint", "playlistEditEndpoint"])
+      var rid = ep && ep.playlistId ? String(ep.playlistId) : ""
+      if (!rid || recent.some(function (p) { return p.id === rid })) continue
+      var known = byId[rid]
+      recent.push({ id: rid, title: known ? known.title : text(cards[j].title), count: known ? known.count : text(cards[j].subtitle), recent: true })
+    }
+    var rest = all.filter(function (p) { return !recent.some(function (r) { return r.id === p.id }) })
+    rest.forEach(function (p) { p.recent = false })
+    return { playlists: recent.concat(rest) }
+  }
+
   // `browse/edit_playlist` for one added song: "added", "duplicate" (the
   // check refused it: FAILED, no results, and a toast offering "Add
   // anyway") or "failed". Read from the shape, never from the words.
@@ -692,6 +719,7 @@ var SolfaParse = (function () {
     lyrics: lyrics,
     queueEntries: queueEntries,
     accountInfo: accountInfo,
+    addToPlaylist: addToPlaylist,
     playlistEditResult: playlistEditResult,
     SEARCH_FILTERS: SEARCH_FILTERS
   }

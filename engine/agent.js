@@ -1023,6 +1023,13 @@
       return { playlistId: String(res.playlistId) }
     },
 
+    // The "Save to playlist" dialog's list: the playlists this song can go
+    // in. The reply does not say which of them have it already.
+    "playlist.options": async function (args) {
+      needSignIn()
+      return P.addToPlaylist(await innertube("playlist/get_add_to_playlist", { videoIds: [args.videoId], excludeWatchLater: false }))
+    },
+
     // DEDUPE_OPTION_CHECK is what the dialog sends: a song already in the
     // playlist is refused (`duplicate`). `force` is its "Add anyway"
     // (DEDUPE_OPTION_SKIP, which skips the check and adds it twice).

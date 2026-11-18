@@ -216,6 +216,7 @@ class BridgeTest(unittest.TestCase):
                ("search", {"q": "ok", "extra": 1}), ("queue.add", {"videoIds": []}), ("repeat", {"mode": "SOMETIMES"}),
                ("like", {"videoId": "AAAAAAAAAAA", "status": "LOVE"}), ("browse", {"id": "../etc"}),
                ("radio", {"playlistId": "PLnotaradio"}), ("nonsense", {}), (7, {}),
+               ("playlist.options", {}), ("playlist.options", {"videoId": "x"}), ("playlist.options", {"videoId": "AAAAAAAAAAA", "extra": 1}),
                ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"})]
         for op, args in bad:
             r = c.call(op, args)
@@ -232,6 +233,11 @@ class BridgeTest(unittest.TestCase):
         self.wait_ready(c)
         r = c.call("like", {"videoId": "AAAAAAAAAAA", "status": "LIKE"})
         self.assertEqual(r["error"], "signin-required")
+
+    def test_playlist_options_needs_sign_in(self):
+        c = self.start()
+        self.wait_ready(c)
+        self.assertEqual(c.call("playlist.options", {"videoId": "AAAAAAAAAAA"})["error"], "signin-required")
 
     def test_playlist_add_passes_force_and_reports_a_duplicate(self):
         c = self.start(FAKE_SIGNED_IN="1")

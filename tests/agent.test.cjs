@@ -791,6 +791,21 @@ test("account.info needs sign-in and parses the account menu", async () => {
   assert.match(r.avatar, /=s64-c-mo$/)
 })
 
+test("playlist.options needs sign-in, asks like the Save dialog and parses the answer", async () => {
+  const out = makePage()
+  await out.settle()
+  await assert.rejects(out.call("playlist.options", { videoId: "AAAAAAAAAAA" }), /signin-required/)
+  const p = makePage({ signedIn: true, replies: { "playlist/get_add_to_playlist": () => F("add-to-playlist") } })
+  await p.settle()
+  const r = await p.call("playlist.options", { videoId: "AAAAAAAAAAA" })
+  const req = p.requests.find((x) => x.endpoint === "playlist/get_add_to_playlist")
+  assert.deepEqual(JSON.parse(JSON.stringify(req.body.videoIds)), ["AAAAAAAAAAA"])
+  assert.equal(req.body.excludeWatchLater, false)
+  assert.match(req.init.headers.Authorization, /^SAPISIDHASH /)
+  assert.equal(r.playlists.length, 5)
+  assert.equal(r.playlists[0].recent, true)
+})
+
 test("playlist.add checks for a duplicate and only adds it twice when forced", async () => {
   const dedupe = []
   const p = makePage({ signedIn: true, replies: {
