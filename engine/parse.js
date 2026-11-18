@@ -429,9 +429,13 @@ var SolfaParse = (function () {
 
   // Both layouts: the flat one (one item per section, type label first) and
   // the shelf one (a filtered search). Also a continuation page.
+  //
+  // Every item is in its group (songs, videos, ...) and, in the order the
+  // reply listed it, in `all`: the unfiltered view follows YouTube Music's
+  // own ranking, which mixes songs, videos, albums and the rest.
   function search(data, opts) {
     opts = opts || {}
-    var out = { top: null, songs: [], videos: [], albums: [], artists: [], playlists: [], other: [], continuation: "" }
+    var out = { top: null, all: [], songs: [], videos: [], albums: [], artists: [], playlists: [], other: [], continuation: "" }
     var cards = collect(data, "musicCardShelfRenderer")
     if (cards.length) out.top = topCard(cards[0])
     var rows = collect(data, "musicResponsiveListItemRenderer")
@@ -444,6 +448,7 @@ var SolfaParse = (function () {
       if (seen[key]) continue
       seen[key] = true
       out[groupOf(it.kind)].push(it)
+      out.all.push(it)
     }
     // The flat layout lists the top artist's songs under its card with no
     // artist of their own.
