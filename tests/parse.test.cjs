@@ -53,6 +53,14 @@ test("filtered searches keep to their kind", () => {
   assert.ok(P.search(F("search-playlists"), { filter: "playlists" }).playlists.length >= 5)
 })
 
+test("a playlist edit: added, a duplicate the check refused, or a failure", () => {
+  assert.equal(P.playlistEditResult(F("playlist-edit-added")), "added")
+  assert.equal(P.playlistEditResult(F("playlist-edit-duplicate")), "duplicate")
+  assert.equal(P.playlistEditResult({ status: "STATUS_FAILED" }), "failed")
+  assert.equal(P.playlistEditResult({ status: "STATUS_FAILED", playlistEditResults: [{}], actions: [{ addToToastAction: {} }] }), "failed")
+  assert.equal(P.playlistEditResult(null), "failed")
+})
+
 test("filter params decode to the filter they name", () => {
   const field = (p) => Buffer.from(decodeURIComponent(p), "base64")
   assert.equal(field(P.SEARCH_FILTERS.songs)[5], 0x08)

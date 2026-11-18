@@ -215,7 +215,8 @@ class BridgeTest(unittest.TestCase):
                ("play", {"videoId": "x"}), ("play", {}), ("search", {"q": ""}), ("search", {"q": "a\nb"}),
                ("search", {"q": "ok", "extra": 1}), ("queue.add", {"videoIds": []}), ("repeat", {"mode": "SOMETIMES"}),
                ("like", {"videoId": "AAAAAAAAAAA", "status": "LOVE"}), ("browse", {"id": "../etc"}),
-               ("radio", {"playlistId": "PLnotaradio"}), ("nonsense", {}), (7, {})]
+               ("radio", {"playlistId": "PLnotaradio"}), ("nonsense", {}), (7, {}),
+               ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"})]
         for op, args in bad:
             r = c.call(op, args)
             self.assertFalse(r["ok"], (op, args))
@@ -231,6 +232,14 @@ class BridgeTest(unittest.TestCase):
         self.wait_ready(c)
         r = c.call("like", {"videoId": "AAAAAAAAAAA", "status": "LIKE"})
         self.assertEqual(r["error"], "signin-required")
+
+    def test_playlist_add_passes_force_and_reports_a_duplicate(self):
+        c = self.start(FAKE_SIGNED_IN="1")
+        self.wait_ready(c)
+        dup = c.call("playlist.add", {"playlistId": "PLfixture2", "videoId": "AAAAAAAAAAA"})
+        self.assertEqual(dup["data"], {"added": False, "duplicate": True})
+        forced = c.call("playlist.add", {"playlistId": "PLfixture2", "videoId": "AAAAAAAAAAA", "force": True})
+        self.assertEqual(forced["data"], {"added": True})
 
     def test_library_history_is_a_valid_section_and_needs_sign_in(self):
         c = self.start()

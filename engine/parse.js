@@ -658,6 +658,17 @@ var SolfaParse = (function () {
     }
   }
 
+  // `browse/edit_playlist` for one added song: "added", "duplicate" (the
+  // check refused it: FAILED, no results, and a toast offering "Add
+  // anyway") or "failed". Read from the shape, never from the words.
+  function playlistEditResult(res) {
+    if (!res) return "failed"
+    if (res.status === "STATUS_SUCCEEDED") return "added"
+    var toast = collect(res.actions, "addToToastAction").length > 0
+    if (res.status === "STATUS_FAILED" && !res.playlistEditResults && toast) return "duplicate"
+    return "failed"
+  }
+
   return {
     text: text,
     seconds: seconds,
@@ -681,6 +692,7 @@ var SolfaParse = (function () {
     lyrics: lyrics,
     queueEntries: queueEntries,
     accountInfo: accountInfo,
+    playlistEditResult: playlistEditResult,
     SEARCH_FILTERS: SEARCH_FILTERS
   }
 })()

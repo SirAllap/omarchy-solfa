@@ -188,8 +188,13 @@ def page_op(op, a):
     if op == "search":
         return {"top": None, "songs": [{"kind": "song", "videoId": "BBBBBBBBBBB", "title": "Result for " + a["q"]}],
                 "videos": [], "albums": [], "artists": [], "playlists": [], "other": [], "continuation": ""}, None
-    if op in ("like", "library", "account.info") and not state["signedIn"]:
+    if op in ("like", "library", "account.info", "playlist.add", "playlist.create") and not state["signedIn"]:
         return None, "signin-required"
+    if op == "playlist.add":
+        # PLfixture2 already has every song, like a playlist the check refuses.
+        if a.get("playlistId") == "PLfixture2" and not a.get("force"):
+            return {"added": False, "duplicate": True}, None
+        return {"added": True}, None
     if op == "account.info":
         # An invented account (never a real one): Alex Example, alex@example.com.
         return {"name": "Alex Example", "email": "alex@example.com",

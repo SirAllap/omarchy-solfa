@@ -1023,14 +1023,18 @@
       return { playlistId: String(res.playlistId) }
     },
 
+    // DEDUPE_OPTION_CHECK is what the dialog sends: a song already in the
+    // playlist is refused (`duplicate`). `force` is its "Add anyway"
+    // (DEDUPE_OPTION_SKIP, which skips the check and adds it twice).
     "playlist.add": async function (args) {
       needSignIn()
       var res = await innertube("browse/edit_playlist", {
         playlistId: args.playlistId,
-        actions: [{ action: "ACTION_ADD_VIDEO", addedVideoId: args.videoId, dedupeOption: "DEDUPE_OPTION_SKIP" }]
+        actions: [{ action: "ACTION_ADD_VIDEO", addedVideoId: args.videoId, dedupeOption: args.force ? "DEDUPE_OPTION_SKIP" : "DEDUPE_OPTION_CHECK" }]
       })
-      if (!res || res.status !== "STATUS_SUCCEEDED") fail("failed")
-      return { added: true }
+      var outcome = P.playlistEditResult(res)
+      if (outcome === "failed") fail("failed")
+      return outcome === "added" ? { added: true } : { added: false, duplicate: true }
     },
 
     "eq.set": function (args) {

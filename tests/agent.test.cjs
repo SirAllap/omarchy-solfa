@@ -791,6 +791,27 @@ test("account.info needs sign-in and parses the account menu", async () => {
   assert.match(r.avatar, /=s64-c-mo$/)
 })
 
+test("playlist.add checks for a duplicate and only adds it twice when forced", async () => {
+  const dedupe = []
+  const p = makePage({ signedIn: true, replies: {
+    "browse/edit_playlist": (body) => { dedupe.push(body.actions[0].dedupeOption); return body.actions[0].dedupeOption === "DEDUPE_OPTION_CHECK" ? F("playlist-edit-duplicate") : F("playlist-edit-added") },
+    "playlist/create": (body) => ({ playlistId: "PLnew" + body.videoIds.length })
+  } })
+  await p.settle()
+  const dup = await p.call("playlist.add", { playlistId: "PLabc", videoId: "AAAAAAAAAAA" })
+  assert.deepEqual(JSON.parse(JSON.stringify(dup)), { added: false, duplicate: true })
+  const forced = await p.call("playlist.add", { playlistId: "PLabc", videoId: "AAAAAAAAAAA", force: true })
+  assert.deepEqual(JSON.parse(JSON.stringify(forced)), { added: true })
+  assert.deepEqual(dedupe, ["DEDUPE_OPTION_CHECK", "DEDUPE_OPTION_SKIP"])
+  const add = p.requests.find((x) => x.endpoint === "browse/edit_playlist")
+  assert.equal(add.body.playlistId, "PLabc")
+  assert.equal(add.body.actions[0].addedVideoId, "AAAAAAAAAAA")
+  assert.equal((await p.call("playlist.create", { title: "T", videoIds: ["AAAAAAAAAAA"] })).playlistId, "PLnew1")
+  const bad = makePage({ signedIn: true, replies: { "browse/edit_playlist": () => ({ status: "STATUS_FAILED" }) } })
+  await bad.settle()
+  await assert.rejects(bad.call("playlist.add", { playlistId: "PLabc", videoId: "AAAAAAAAAAA" }), /failed/)
+})
+
 test("the account event says Premium only for a signed-in subscriber", async () => {
   const account = async (opts) => {
     const p = makePage(opts)
