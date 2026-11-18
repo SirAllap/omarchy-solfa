@@ -44,8 +44,9 @@ Item {
 
   function actionsFor(row) {
     if (!row || !row.item) return []
-    if (row.automix) return [{ name: "jump", icon: Icons.play, tip: "Play now" }, { name: "remove", icon: Icons.close, tip: "Remove (x)" }]
-    var out = []
+    var save = { name: "save", icon: Icons.savePlaylist, tip: "Save to a playlist (S)" }
+    if (row.automix) return [{ name: "jump", icon: Icons.play, tip: "Play now" }, save, { name: "remove", icon: Icons.close, tip: "Remove (x)" }]
+    var out = [save]
     if (row.queueIndex > 0) out.push({ name: "up", icon: Icons.up, tip: "Move up (K)" })
     if (view.queue && row.queueIndex < view.queue.items.length - 1) out.push({ name: "down", icon: Icons.down, tip: "Move down (J)" })
     if (!row.current) out.push({ name: "remove", icon: Icons.close, tip: "Remove (x)" })
@@ -71,6 +72,7 @@ Item {
 
   function runAction(name, row) {
     if (name === "jump") jump(row)
+    else if (name === "save") panel.saveRow(row)
     else if (name === "remove") remove(row)
     else if (name === "up") shift(row, -1)
     else if (name === "down") shift(row, 1)
