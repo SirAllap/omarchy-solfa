@@ -157,7 +157,7 @@ ListView {
         }
         Text {
           width: parent.width
-          text: (cell.item && cell.item.explicit ? "E  " : "") + Model.rowSubtitle(cell.item)
+          text: (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
           textFormat: Text.PlainText
           elide: Text.ElideRight
           visible: text !== ""
