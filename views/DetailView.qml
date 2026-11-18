@@ -70,10 +70,11 @@ Item {
 
   function playAll(shuffle) {
     if (!view.info) return
+    var s, a
     if (view.info.kind === "artist") {
-      var s = shuffle ? view.info.shuffle : view.info.radio
+      s = shuffle ? view.info.shuffle : view.info.radio
       if (!s) return
-      var a = { playlistId: s.playlistId }
+      a = { playlistId: s.playlistId }
       if (s.videoId) a.videoId = s.videoId
       if (s.params) a.params = s.params
       svc.request("play", a)

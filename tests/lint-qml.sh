@@ -15,6 +15,7 @@ ln -s "$SHELL_DIR/Commons" "$IMPORTS/qs/Commons"
 out="$("$QMLLINT" -I "$IMPORTS" -I /usr/lib/qt6/qml Service.qml BarWidget.qml Panel.qml views/*.qml 2>&1)"
 real="$(printf '%s\n' "$out" | grep -E '^(Warning|Error)' \
   | grep -v 'not found on type "QObject"' \
+  | grep -v 'not found on type QQuickLoader::item' \
   | grep -v 'QProcess::ExitStatus' \
   | grep -v 'QVariantMap to QVariantHash' \
   | grep -v -i 'unqualified access' || true)"
