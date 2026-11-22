@@ -12,27 +12,27 @@ Column {
 
   property var svc: null
   property QtObject bar: null
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: bar ? bar.foreground : Calm.fg
   readonly property string family: Calm.font
 
-  spacing: Style.space(10)
+  spacing: 12
 
   // A round power tile, quiet: an accent ring on a faint fill.
   Rectangle {
     anchors.horizontalCenter: parent.horizontalCenter
-    width: Style.space(64)
+    width: 70
     height: width
     radius: width / 2
     color: Calm.wash
     border.width: 1
-    border.color: Calm.a(Color.accent, 0.5)
+    border.color: Calm.a(Calm.accent, 0.5)
     Text {
       anchors.centerIn: parent
       text: Icons.power
       textFormat: Text.PlainText
-      color: Color.accent
+      color: Calm.accent
       font.family: card.family
-      font.pixelSize: Style.font.iconLarge
+      font.pixelSize: 28
     }
   }
 
@@ -43,7 +43,7 @@ Column {
     horizontalAlignment: Text.AlignHCenter
     color: card.fg
     font.family: card.family
-    font.pixelSize: Style.font.title
+    font.pixelSize: 18
     font.bold: true
   }
 
@@ -55,7 +55,7 @@ Column {
     horizontalAlignment: Text.AlignHCenter
     color: Util.alpha(card.fg, 0.6)
     font.family: card.family
-    font.pixelSize: Style.font.body
+    font.pixelSize: 13
   }
 
   HitButton {
@@ -64,8 +64,8 @@ Column {
     text: "Turn on"
     iconText: Icons.power
     fontFamily: card.family
-    foreground: Color.background
-    background: Color.accent
+    foreground: Calm.bg
+    background: Calm.accent
     radius: height / 2
     onClicked: if (card.svc) card.svc.startEngine()
   }
