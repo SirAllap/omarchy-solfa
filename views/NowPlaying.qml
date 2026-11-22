@@ -103,6 +103,14 @@ Column {
         visible: root.hasTrack && !root.svc.isAd
         iconText: root.svc && root.svc.like === "LIKE" ? Icons.heart : Icons.heartOutline
         foreground: root.svc && root.svc.like === "LIKE" ? Color.accent : root.fg
+        // a round chip behind the heart, tinted once it is liked
+        Rectangle {
+          z: -1
+          anchors.centerIn: parent
+          width: Math.min(parent.width, parent.height); height: width
+          radius: width / 2
+          color: root.svc && root.svc.like === "LIKE" ? Util.alpha(Color.accent, 0.22) : Util.alpha(root.fg, 0.07)
+        }
         iconSize: Style.font.iconLarge
         fontFamily: root.family
         tooltipText: root.svc && !root.svc.signedIn ? "Sign in to like songs" : (root.svc && root.svc.like === "LIKE" ? "Remove the like (f)" : "Like (f)")
@@ -278,10 +286,19 @@ Column {
         minSize: controls.playSlot
         iconText: root.svc && root.svc.isPlaying ? Icons.pause : Icons.play
         iconSize: Math.round(controls.glyph * 1.3)
-        foreground: root.fg
+        // The one filled control: a calm accent disc with a dark glyph.
+        foreground: playInk
+        readonly property color playInk: (0.299 * Color.accent.r + 0.587 * Color.accent.g + 0.114 * Color.accent.b) > 0.6 ? "#101010" : "#ffffff"
         fontFamily: root.family
-        bordered: true
         tooltipText: (root.svc && root.svc.isPlaying ? "Pause" : "Play") + " (space)"
+        Rectangle {
+          z: -1
+          anchors.centerIn: parent
+          width: Math.min(parent.width, parent.height); height: width
+          radius: width / 2
+          color: Color.accent
+          opacity: parent.hovered ? 0.92 : 1
+        }
         onClicked: if (root.svc) root.svc.togglePlaying()
       }
       HitButton {

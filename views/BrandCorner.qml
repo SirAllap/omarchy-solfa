@@ -48,8 +48,10 @@ Row {
     visible: root.showPremium
     width: premiumText.implicitWidth + Style.space(12)
     height: premiumText.implicitHeight + Style.space(4)
-    radius: Style.space(6)
+    radius: height / 2
     color: Util.alpha(Color.accent, 0.16)
+    border.width: 1
+    border.color: Util.alpha(Color.accent, 0.4)
     Text {
       id: premiumText
       anchors.centerIn: parent
@@ -68,12 +70,13 @@ Row {
   }
   Text {
     anchors.verticalCenter: parent.verticalCenter
-    opacity: 0.4
+    opacity: 0.85
     text: "Solfa"
     textFormat: Text.PlainText
     color: root.foreground
     font.family: root.fontFamily
-    font.pixelSize: Style.font.caption
+    font.pixelSize: Style.font.body
+    font.weight: Font.DemiBold
   }
   HitButton {
     id: gear
