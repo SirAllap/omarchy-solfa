@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
@@ -315,11 +316,36 @@ Panel {
       id: keys
       anchors.fill: parent
       // The content lives in 'body', always full height; the clip on this
-      // box cuts it while it slides.
+      // box is masked while it opens.
       readonly property real fullH: parent.height - anchors.topMargin
       default property alias content: body.data
-      // It slides down from behind the top bar: y runs -fullH to 0 under the clip.
-      Item { id: body; x: 0; y: -keys.fullH * (1 - keys.reveal); width: keys.width; height: keys.fullH }
+      Item { id: body; x: 0; y: 0; width: keys.width; height: keys.fullH }
+      // The reveal mask: a rounded rect that starts at the bar pill's size and
+      // x (top centre if the pill is unknown), widens first, then drops down to
+      // the full card shape (radius 26). Same card colour, content only.
+      readonly property var pillRect: {
+        var it = root.anchorItem
+        if (it && it.width > 0 && it.height > 0) {
+          var p = it.mapToItem(keys, 0, 0)
+          return { x: Math.max(0, Math.min(keys.width - it.width, p.x)), w: Math.min(keys.width, it.width), h: Math.min(it.height, Style.space(40)) }
+        }
+        var w = Math.min(keys.width, Style.space(180))
+        return { x: (keys.width - w) / 2, w: w, h: Style.space(40) }
+      }
+      readonly property real maskW: Motion.spatialClamped(tms, 0, 300)
+      readonly property real maskH: Motion.spatialClamped(tms, 40, 420)
+      Rectangle {
+        id: revealMask
+        layer.enabled: true
+        visible: false
+        x: keys.pillRect.x * (1 - keys.maskW)
+        y: 0
+        width: keys.pillRect.w + (keys.width - keys.pillRect.w) * keys.maskW
+        height: keys.pillRect.h + (keys.fullH - keys.pillRect.h) * keys.maskH
+        radius: Math.min(height / 2, Style.space(26)) 
+      }
+      layer.enabled: tms < 600
+      layer.effect: MultiEffect { maskEnabled: true; maskSource: revealMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1 }
       // The mockup's margins inside the card: 28 px at the sides, 24 px at the top.
       anchors.leftMargin: Math.max(0, Style.space(28) - Style.spacing.popupPadding)
       anchors.rightMargin: anchors.leftMargin
@@ -345,8 +371,9 @@ Panel {
       }
 
       // Open: one timeline, 'tms', runs 0 to 600 ms and everything below
-      // reads it, so nothing can stick half-way. The content slides down
-      // from behind the top bar under a clip (420 ms, spatial curve); the
+      // reads it, so nothing can stick half-way. The content comes
+      // out of the bar pill through a rounded mask that starts at the pill's
+      // size and x, widens, then drops to the full card (420 ms, spatial); the
       // header, cover, title, seek bar, transport, volume row, tab pill and
       // first list rows follow with their own delays (NowPlaying, RowList
       // and the pill read 'tms'). The feel (not the code) follows
@@ -358,7 +385,6 @@ Panel {
       property real tms: 600
       readonly property real reveal: Motion.spatialClamped(tms, 0, 420)
       opacity: Motion.effects(tms, 0, 120)
-      clip: tms < 600
       NumberAnimation {
         id: enterAnim
         target: keys
