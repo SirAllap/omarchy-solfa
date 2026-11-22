@@ -368,14 +368,39 @@ Panel {
       readonly property bool off: root.svc ? root.svc.closed === true : false
       readonly property bool blocked: gated || off
 
+      // The tab bar's pill: a faint rounded track, and one accent pill that
+      // glides under the open tab (a still pill under reduce-motion).
+      Rectangle {
+        visible: tabRow.visible && root.pages.length === 0
+        x: tabRow.x - Style.space(4); y: tabRow.y - Style.space(4)
+        width: tabRow.width + Style.space(8); height: tabRow.height + Style.space(8)
+        radius: height / 2
+        color: Util.alpha(root.fg, 0.05)
+        border.width: 1; border.color: Util.alpha(root.fg, 0.08)
+      }
+      Rectangle {
+        id: tabPill
+        readonly property int at: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return i; return 0 }
+        visible: tabRow.visible && root.pages.length === 0
+        x: tabRow.x + at * (tabRow.cell + tabRow.spacing); y: tabRow.y
+        width: tabRow.cell; height: tabRow.height
+        radius: height / 2
+        color: Util.alpha(Color.accent, 0.2)
+        border.width: 1; border.color: Util.alpha(Color.accent, 0.45)
+        Behavior on x { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
+      }
+
       Row {
         id: tabRow
         objectName: "panelTabs"
         visible: !keys.blocked && !root.settingsOpen
         anchors.top: gate.visible ? gate.bottom : hero.bottom
-        anchors.topMargin: Style.space(14)
+        anchors.topMargin: Style.space(18)
         anchors.left: parent.left
-        spacing: Style.space(4)
+        anchors.leftMargin: Style.space(4)
+        width: parent.width - Style.space(8)
+        spacing: Style.space(2)
+        readonly property real cell: (width - spacing * (root.tabs.length - 1)) / root.tabs.length
 
         Repeater {
           model: root.tabs
@@ -383,6 +408,8 @@ Panel {
             required property var modelData
             required property int index
             text: modelData.label
+            width: tabRow.cell
+            height: Style.space(36)
             fontFamily: root.family
             foreground: root.fg
             selected: root.pages.length === 0 && root.tab === modelData.key
