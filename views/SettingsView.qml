@@ -41,7 +41,8 @@ Item {
   // needs; move()/change()/act() below call through them.
   property var handlers: []
 
-  readonly property real navWidth: Style.space(150)
+  // A narrow panel (460 px) gets a slimmer side menu so the 10 EQ bands fit.
+  readonly property real navWidth: width < Style.space(520) ? Style.space(112) : Style.space(150)
 
   // ---- transient, per-open UI state (never persisted) -------------------
 
@@ -299,7 +300,7 @@ Item {
     Rectangle {
       anchors.fill: parent
       radius: Style.space(10)
-      color: rowShell.focused ? Style.selectedFillFor(rowShell.fg, Color.accent)
+      color: rowShell.focused ? Calm.a(Calm.accent, 0.12)
                               : (rowHover.containsMouse ? Util.alpha(rowShell.fg, 0.05) : "transparent")
     }
 
@@ -324,6 +325,8 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(2)
       Text {
+        width: parent.width
+        wrapMode: Text.WordWrap
         text: rowShell.label
         textFormat: Text.PlainText
         color: rowShell.fg
@@ -360,7 +363,7 @@ Item {
     width: Style.space(44)
     height: Style.space(26)
     radius: height / 2
-    color: active ? Color.accent : Calm.a(Qt.rgba(1, 1, 1, 1), 0.1)
+    color: active ? Calm.accent : Calm.a(Qt.rgba(1, 1, 1, 1), 0.1)
     border.width: active ? 0 : 1
     border.color: Calm.hair
     Rectangle {
@@ -383,15 +386,15 @@ Item {
     width: chipText.implicitWidth + Style.space(16)
     height: Style.space(24)
     radius: height / 2
-    color: active ? Calm.a(Color.accent, 0.2) : Calm.wash
+    color: active ? Calm.a(Calm.accent, 0.2) : Calm.wash
     border.width: 1
-    border.color: active ? Calm.a(Color.accent, 0.55) : Calm.hair
+    border.color: active ? Calm.a(Calm.accent, 0.55) : Calm.hair
     Text {
       id: chipText
       anchors.centerIn: parent
       text: chip.label
       textFormat: Text.PlainText
-      color: chip.active ? Color.accent : Util.alpha(chip.fg, 0.8)
+      color: chip.active ? Calm.accent : Util.alpha(chip.fg, 0.8)
       font.family: root.family
       font.pixelSize: Style.font.caption
     }
@@ -444,15 +447,15 @@ Item {
     width: qbtnText.implicitWidth + Style.space(20)
     height: Style.space(26)
     radius: height / 2
-    color: focused ? Style.selectedFillFor(fg, Color.accent) : Calm.wash
+    color: focused ? Calm.a(Calm.accent, 0.12) : Calm.wash
     border.width: 1
-    border.color: danger ? Calm.a(Color.urgent, 0.45) : (focused ? Color.accent : Calm.hair)
+    border.color: danger ? Calm.a(Color.urgent, 0.45) : (focused ? Calm.accent : Calm.hair)
     Text {
       id: qbtnText
       anchors.centerIn: parent
       text: qbtn.label
       textFormat: Text.PlainText
-      color: qbtn.danger ? Color.urgent : (qbtn.focused ? Color.accent : qbtn.fg)
+      color: qbtn.danger ? Color.urgent : (qbtn.focused ? Calm.accent : qbtn.fg)
       font.family: root.family
       font.pixelSize: Style.font.caption
     }
@@ -526,7 +529,7 @@ Item {
           Rectangle {
             anchors.fill: parent
             radius: height / 2
-            color: navFocused ? Style.selectedFillFor(root.fg, Color.accent)
+            color: navFocused ? Calm.a(Calm.accent, 0.12)
               : modelData.key === root.section ? Util.alpha(root.fg, 0.08) : "transparent"
           }
           Text {
@@ -535,7 +538,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: modelData.label
             textFormat: Text.PlainText
-            color: modelData.key === root.section ? Color.accent : Util.alpha(root.fg, 0.85)
+            color: modelData.key === root.section ? Calm.accent : Util.alpha(root.fg, 0.85)
             font.family: root.family
             font.pixelSize: Style.font.body
             font.bold: modelData.key === root.section
@@ -684,13 +687,15 @@ Item {
           Rectangle {
             anchors.fill: parent
             radius: Style.spacing.labelGap
-            color: root.column === "content" && root.cursor === 1 ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
+            color: root.column === "content" && root.cursor === 1 ? Calm.a(Calm.accent, 0.12) : "transparent"
           }
           MouseArea { anchors.fill: parent; onClicked: root.pointAt(1) }
-          Row {
+          Flow {
             id: presetRow
             anchors.left: parent.left
+            anchors.right: parent.right
             anchors.leftMargin: Style.space(6)
+            anchors.rightMargin: Style.space(6)
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
             Repeater {
@@ -707,7 +712,11 @@ Item {
         }
 
         Row {
-          spacing: Style.space(10)
+          id: bandRow
+          // Cell width comes from the room we have: all 10 bands always fit.
+          readonly property real gap: Style.space(2)
+          readonly property real cellW: Math.floor((parent.width - 9 * gap) / 10)
+          spacing: gap
           Repeater {
             model: 10
             delegate: Item {
@@ -715,13 +724,13 @@ Item {
               required property int index
               readonly property real db: root.section === "sound" ? Model.eqBandDb(root.currentBands(), index) : 0
               readonly property bool bandFocused: root.column === "content" && root.cursor === index + 2
-              width: bandCol.implicitWidth + Style.space(8)
+              width: bandRow.cellW
               height: bandCol.implicitHeight + Style.space(8)
 
               Rectangle {
                 anchors.fill: parent
                 radius: Style.spacing.labelGap
-                color: bandCell.bandFocused ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
+                color: bandCell.bandFocused ? Calm.a(Calm.accent, 0.12) : "transparent"
               }
 
               Column {
@@ -731,7 +740,7 @@ Item {
                 Item {
                   id: track
                   objectName: "eqBandTrack" + bandCell.index
-                  width: Style.space(18)
+                  width: Math.min(Style.space(18), bandRow.cellW - Style.space(4))
                   height: Style.space(90)
                   // Press or drag on the track: the knob goes where the
                   // pointer is (whole dB, -12..+12, like the arrow keys).
@@ -758,11 +767,11 @@ Item {
                   }
                   Rectangle {
                     width: Style.space(14); height: width; radius: width / 2
-                    color: bandCell.db !== 0 ? Color.accent : root.fg
+                    color: bandCell.db !== 0 ? Calm.accent : root.fg
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: (parent.height / 2) - (bandCell.db / 12) * (parent.height / 2) - height / 2
                     border.width: bandCell.bandFocused ? 2 : 0
-                    border.color: Util.alpha(Color.accent, 0.6)
+                    border.color: Util.alpha(Calm.accent, 0.6)
                   }
                 }
                 Text {
