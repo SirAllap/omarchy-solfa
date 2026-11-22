@@ -134,7 +134,7 @@ Item {
       id: actions
       anchors.verticalCenter: cover.verticalCenter
       spacing: Style.space(4)
-      Button {
+      HitButton {
         visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
         iconText: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
         text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
@@ -143,7 +143,7 @@ Item {
         bordered: true
         onClicked: view.playAll(false)
       }
-      Button {
+      HitButton {
         visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
         iconText: Icons.shuffle
         tooltipText: "Shuffle"
