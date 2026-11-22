@@ -335,6 +335,7 @@ Panel {
       // radius. If it cannot be found the card below is still ours.
       property Item hostCard: null
       property Item bridgeItem: null
+      Component.onDestruction: if (bridgeItem) bridgeItem.destroy()
       // Two drops, the pill's and the card's, stretch toward each other,
       // touch and merge: one card-coloured shape with a concave neck
       // (cubic curves). The panel window is full-screen and above the bar,
