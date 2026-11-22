@@ -105,9 +105,22 @@ ListView {
     Rectangle {
       visible: !cell.isHeader
       anchors.fill: parent
-      radius: Style.spacing.labelGap
-      color: cell.selected ? Style.selectedFillFor(list.fg, Color.accent)
-        : rowHover.hovered ? Style.hoverFillFor(list.fg, Color.accent) : "transparent"
+      radius: Style.space(14)
+      // The song that plays is tinted; the keyboard cursor is an outline; the
+      // pointer is a faint wash (the calm mockup's three row states).
+      color: cell.now ? Util.alpha(Color.accent, 0.14)
+        : rowHover.hovered || cell.selected ? Util.alpha(list.fg, 0.05) : "transparent"
+      border.width: cell.selected ? 1 : 0
+      border.color: Util.alpha(list.fg, 0.5)
+      Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 140 } }
+
+      Rectangle {
+        visible: cell.now
+        x: 0; width: 2; radius: 1
+        anchors.verticalCenter: parent.verticalCenter
+        height: parent.height * 0.5
+        color: Color.accent
+      }
     }
 
     HoverHandler { id: rowHover; enabled: !cell.isHeader }
@@ -165,6 +178,7 @@ ListView {
             color: cell.now ? Color.accent : list.fg
             font.family: list.family
             font.pixelSize: Style.font.body
+            font.weight: Font.DemiBold
           }
         }
         Text {
