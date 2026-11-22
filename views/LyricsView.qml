@@ -180,23 +180,13 @@ Item {
   }
 
   // Synced lines: the current one sits mid-stage, big and bright; the rest
-  // fade with their distance from it. A soft glow rests behind it.
+  // fade with their distance from it. No box or glow behind it.
   Item {
     id: stage
     anchors.fill: parent
     anchors.topMargin: 30
     anchors.bottomMargin: source.height
     visible: view.timed
-    Rectangle {
-      anchors.verticalCenter: parent.verticalCenter
-      width: parent.width
-      height: 140
-      gradient: Gradient {
-        GradientStop { position: 0; color: Calm.a(Calm.accent, 0) }
-        GradientStop { position: 0.5; color: Calm.a(Calm.accent, 0.08) }
-        GradientStop { position: 1; color: Calm.a(Calm.accent, 0) }
-      }
-    }
     ListView {
       id: lines
       anchors.fill: parent
