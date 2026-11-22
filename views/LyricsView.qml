@@ -2,6 +2,7 @@ import QtQuick
 import "../lib/Calm.js" as Calm
 import qs.Commons
 import "../lib/Model.js" as Model
+import "../lib/Icons.js" as Icons
 
 // Lyrics for the song that plays. Timed lines follow the music; plain
 // lyrics scroll by hand.
@@ -11,7 +12,7 @@ Item {
   property var svc: null
   property QtObject bar: null
   property var panel: null
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: bar ? bar.foreground : Calm.fg
   readonly property string family: Calm.font
 
   // On screen: the panel is open on this view (see QueueView).
@@ -67,84 +68,194 @@ Item {
 
   onLineChanged: if (timed && line >= 0) lines.currentIndex = line
 
-  Text {
+  readonly property color ok: Qt.rgba(0.498, 0.647, 0.576, 1)
+  readonly property color err: Qt.rgba(0.725, 0.439, 0.486, 1)
+  readonly property int lineH: 46
+  readonly property bool failed: !busy && error !== ""
+  readonly property bool none: !busy && !failed && (!lyrics || lyrics.kind === "none")
+
+  // No lyrics, or the lookup failed: the calm badge, a title and a sentence.
+  Column {
+    objectName: "lyricsState"
     anchors.centerIn: parent
-    width: parent.width - Style.space(40)
-    visible: !view.lyrics || view.lyrics.kind === "none"
-    text: view.busy ? "Looking for lyrics" : view.error !== "" ? view.error
-      : !view.svc || !view.svc.hasTrack ? "Play something to see its lyrics" : "No lyrics for this song"
-    textFormat: Text.PlainText
-    wrapMode: Text.WordWrap
-    horizontalAlignment: Text.AlignHCenter
-    color: Util.alpha(view.fg, 0.6)
-    font.family: view.family
-    font.pixelSize: Style.font.body
+    width: Math.min(300, parent.width - 40)
+    visible: view.none || view.failed
+    spacing: 10
+    Rectangle {
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: 64
+      height: width
+      radius: 22
+      color: Calm.a(view.failed ? view.err : Calm.accent, 0.14)
+      border.width: 1
+      border.color: Calm.a(view.failed ? view.err : Calm.accent, 0.4)
+      Text {
+        anchors.centerIn: parent
+        text: view.failed ? "!" : Icons.tabLyrics
+        textFormat: Text.PlainText
+        color: view.failed ? view.err : Calm.accent
+        font.family: view.family
+        font.pixelSize: 28
+        font.bold: view.failed
+      }
+    }
+    Text {
+      width: parent.width
+      horizontalAlignment: Text.AlignHCenter
+      wrapMode: Text.WordWrap
+      text: view.failed ? "Could not load the lyrics"
+        : !view.svc || !view.svc.hasTrack ? "Nothing is playing" : "No lyrics for this song"
+      textFormat: Text.PlainText
+      color: view.fg
+      font.family: view.family
+      font.pixelSize: 16
+      font.weight: Font.Bold
+    }
+    Text {
+      width: parent.width
+      horizontalAlignment: Text.AlignHCenter
+      wrapMode: Text.WordWrap
+      text: view.failed ? view.error
+        : !view.svc || !view.svc.hasTrack ? "Play something to see its lyrics."
+        : "YouTube Music has none for \u201C" + view.svc.title + "\u201D. Enjoy the music."
+      textFormat: Text.PlainText
+      color: Util.alpha(view.fg, 0.64)
+      font.family: view.family
+      font.pixelSize: 13
+    }
+  }
+
+  // Loading: six faint bars, like lines about to appear.
+  Column {
+    objectName: "lyricsLoading"
+    y: 40
+    width: parent.width
+    visible: view.busy
+    spacing: 16
+    Repeater {
+      model: 6
+      Rectangle {
+        required property int index
+        width: 200 + (index * 53) % 190
+        height: 18
+        radius: height / 2
+        color: Util.alpha(view.fg, 0.08)
+      }
+    }
   }
 
   // Calm tag: says how the lyrics behave and what the keys do.
   Row {
     id: tag
     visible: !!view.lyrics && (view.timed || view.lyrics.kind === "plain")
-    spacing: Style.space(8)
-    height: visible ? Style.space(22) : 0
+    spacing: 8
+    height: visible ? 22 : 0
+    z: 3
     Rectangle {
-      height: Style.space(22)
-      width: tagText.implicitWidth + Style.space(18)
+      height: 22
+      width: tagText.implicitWidth + 18
       radius: height / 2
-      color: Util.alpha(Color.accent, 0.14)
+      color: Calm.a(view.ok, 0.14)
       border.width: 1
-      border.color: Util.alpha(Color.accent, 0.4)
+      border.color: Calm.a(view.ok, 0.4)
       Text {
         id: tagText
         anchors.centerIn: parent
         text: view.timed ? "Synced" : "Plain text"
         textFormat: Text.PlainText
-        color: Color.accent
+        color: view.ok
         font.family: view.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: 11
         font.weight: Font.DemiBold
       }
     }
     Text {
       anchors.verticalCenter: parent.verticalCenter
-      text: view.timed ? "follows the song · j k scroll" : "j k scroll"
+      text: view.timed ? "follows the song \u00B7 j k scroll" : "j k scroll"
       textFormat: Text.PlainText
       color: Util.alpha(view.fg, 0.36)
       font.family: view.family
-      font.pixelSize: Style.font.caption
+      font.pixelSize: 11
     }
   }
 
-  ListView {
-    id: lines
+  // Synced lines: the current one sits mid-stage, big and bright; the rest
+  // fade with their distance from it. A soft glow rests behind it.
+  Item {
+    id: stage
     anchors.fill: parent
-    anchors.topMargin: tag.height + Style.space(8)
-    anchors.bottomMargin: source.height + Style.space(6)
+    anchors.topMargin: 30
+    anchors.bottomMargin: source.height
     visible: view.timed
-    clip: true
-    model: view.timed ? view.lyrics.lines : []
-    boundsBehavior: Flickable.StopAtBounds
-    highlightRangeMode: ListView.ApplyRange
-    preferredHighlightBegin: height * 0.35
-    preferredHighlightEnd: height * 0.45
-    highlightMoveDuration: 240
-    delegate: Text {
-      required property var modelData
-      required property int index
-      width: ListView.view ? ListView.view.width : 0
-      topPadding: Style.space(3)
-      bottomPadding: Style.space(3)
-      text: modelData.text === "" ? " " : modelData.text
-      textFormat: Text.PlainText
-      wrapMode: Text.WordWrap
-      color: index === view.line ? view.fg : Util.alpha(view.fg, index < view.line ? 0.3 : 0.5)
-      font.family: view.family
-      font.pixelSize: index === view.line ? Style.font.title : Style.font.body
-      font.weight: index === view.line ? Font.Bold : Font.DemiBold
-      MouseArea {
-        anchors.fill: parent
-        cursorShape: Qt.PointingHandCursor
-        onClicked: if (view.svc) view.svc.seek(parent.modelData.t / 1000)
+    Rectangle {
+      anchors.verticalCenter: parent.verticalCenter
+      width: parent.width
+      height: 140
+      gradient: Gradient {
+        GradientStop { position: 0; color: Calm.a(Calm.accent, 0) }
+        GradientStop { position: 0.5; color: Calm.a(Calm.accent, 0.08) }
+        GradientStop { position: 1; color: Calm.a(Calm.accent, 0) }
+      }
+    }
+    ListView {
+      id: lines
+      anchors.fill: parent
+      clip: true
+      model: view.timed ? view.lyrics.lines : []
+      boundsBehavior: Flickable.StopAtBounds
+      highlightRangeMode: ListView.ApplyRange
+      preferredHighlightBegin: height / 2 - view.lineH / 2
+      preferredHighlightEnd: height / 2 + view.lineH / 2
+      highlightMoveDuration: 320
+      header: Item { height: lines.height / 2 - view.lineH / 2 }
+      footer: Item { height: lines.height / 2 - view.lineH / 2 }
+      delegate: Item {
+        id: ln
+        required property var modelData
+        required property int index
+        readonly property real dist: Math.abs(index - view.line)
+        width: ListView.view ? ListView.view.width : 0
+        height: view.lineH
+        opacity: Math.max(0.16, 1 - dist * 0.3)
+        Behavior on opacity { NumberAnimation { duration: 320 } }
+        Text {
+          x: 4
+          width: parent.width - 8
+          anchors.verticalCenter: parent.verticalCenter
+          text: ln.modelData.text === "" ? " " : ln.modelData.text
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          maximumLineCount: 1
+          color: ln.dist === 0 ? view.fg : Util.alpha(view.fg, 0.64)
+          font.family: view.family
+          font.pixelSize: ln.dist === 0 ? 22 : 18
+          font.weight: ln.dist === 0 ? Font.Bold : Font.DemiBold
+          Behavior on color { ColorAnimation { duration: 320 } }
+        }
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: if (view.svc) view.svc.seek(ln.modelData.t / 1000)
+        }
+      }
+    }
+    // The first and last lines melt into the card.
+    Rectangle {
+      anchors.top: parent.top
+      width: parent.width
+      height: 50
+      gradient: Gradient {
+        GradientStop { position: 0; color: Calm.surface }
+        GradientStop { position: 1; color: Calm.a(Calm.surface, 0) }
+      }
+    }
+    Rectangle {
+      anchors.bottom: parent.bottom
+      width: parent.width
+      height: 50
+      gradient: Gradient {
+        GradientStop { position: 0; color: Calm.a(Calm.surface, 0) }
+        GradientStop { position: 1; color: Calm.surface }
       }
     }
   }
@@ -152,22 +263,29 @@ Item {
   Flickable {
     id: plain
     anchors.fill: parent
-    anchors.topMargin: tag.height + Style.space(8)
-    anchors.bottomMargin: source.height + Style.space(6)
+    anchors.topMargin: 34
+    anchors.bottomMargin: source.height + 6
     visible: !!view.lyrics && view.lyrics.kind === "plain"
     clip: true
-    contentHeight: plainText.implicitHeight
+    contentHeight: plainCol.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
-    Text {
-      id: plainText
+    Column {
+      id: plainCol
       width: plain.width
-      text: view.lyrics && view.lyrics.kind === "plain" ? view.lyrics.text : ""
-      textFormat: Text.PlainText
-      wrapMode: Text.WordWrap
-      lineHeight: 1.3
-      color: Util.alpha(view.fg, 0.7)
-      font.family: view.family
-      font.pixelSize: Style.font.body
+      spacing: 9
+      Repeater {
+        model: view.lyrics && view.lyrics.kind === "plain" ? String(view.lyrics.text).split("\n") : []
+        Text {
+          required property string modelData
+          width: plainCol.width
+          text: modelData === "" ? " " : modelData
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          color: Util.alpha(view.fg, 0.64)
+          font.family: view.family
+          font.pixelSize: 15
+        }
+      }
     }
   }
 
@@ -181,6 +299,6 @@ Item {
     elide: Text.ElideRight
     color: Util.alpha(view.fg, 0.36)
     font.family: view.family
-    font.pixelSize: Style.font.caption
+    font.pixelSize: 11
   }
 }
