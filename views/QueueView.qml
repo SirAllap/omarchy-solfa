@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -248,7 +248,7 @@ Item {
       text: view.failed ? "Try again" : "Search for music"
       iconText: view.failed ? Icons.repeat : Icons.search
       fontFamily: view.family
-      foreground: view.failed ? view.fg : Calm.bg
+      foreground: view.failed ? view.fg : Calm.onAccent
       background: view.failed ? Util.alpha(view.fg, 0.08) : Calm.accent
       radius: height / 2
       onClicked: if (view.failed) view.load(true); else if (view.panel) view.panel.showTab("search")

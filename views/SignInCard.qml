@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 
@@ -127,7 +127,7 @@ Column {
       visible: !card.shown && !card.broken && !card.signingIn && !card.asking
       text: "Sign in"
       fontFamily: card.family
-      foreground: Calm.bg
+      foreground: Calm.onAccent
       background: Calm.accent
       radius: height / 2
       onClicked: if (card.svc) card.svc.signIn()
@@ -166,7 +166,7 @@ Column {
       visible: card.broken
       text: "Try again"
       fontFamily: card.family
-      foreground: Calm.bg
+      foreground: Calm.onAccent
       background: Calm.accent
       radius: height / 2
       onClicked: if (card.svc) card.svc.restartEngine()
