@@ -1,0 +1,61 @@
+pragma Singleton
+import QtQuick
+
+// Design tokens for the Solfa redesign mockup. Fake data, no engine.
+QtObject {
+  readonly property color bg: "#0d0e11"
+  readonly property color surface: "#15171b"
+  readonly property color raised: "#1e2126"
+  readonly property color fg: "#e6e8ec"
+  readonly property color dim: Qt.rgba(0.933, 0.941, 0.969, 0.64)
+  readonly property color faint: Qt.rgba(0.933, 0.941, 0.969, 0.36)
+  readonly property color hair: Qt.rgba(1, 1, 1, 0.075)
+  readonly property color wash: Qt.rgba(1, 1, 1, 0.05)
+  readonly property color accent: "#8f8aa8"
+  readonly property color accent2: "#8f8aa8"
+  readonly property color ok: "#7fa593"
+  readonly property color warn: "#c4a56b"
+  readonly property color err: "#b9707c"
+  readonly property string font: "Inter"
+
+  function a(c, v) { return Qt.rgba(c.r, c.g, c.b, v) }
+  // quiet graphite shades with only a trace of tint, so covers stay calm
+  function hue(seed, l) { return Qt.hsla(((seed * 47 + 250) % 360) / 360, 0.09, 0.1 + (l === undefined ? 0.5 : l) * 0.32, 1) }
+
+  // 24x24 icon paths. Transport icons are filled, the rest are strokes.
+  readonly property var icons: ({
+    play: "M6.5 5v14l11-7z",
+    pause: "M6.5 5h3.5v14H6.5zM14 5h3.5v14H14z",
+    next: "M6 5l10 7-10 7zM17.5 5H20v14h-2.5z",
+    prev: "M18 5L8 12l10 7zM6.5 5H4v14h2.5z",
+    heart: "M12 20.5S3.5 15.4 3.5 9.4A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.5 2.4c0 6-8.500 11.100-8.500 11.100z",
+    search: "M10.500 4a6.500 6.500 0 1 0 0 13 6.500 6.500 0 0 0 0-13zM15.500 15.500L20 20",
+    gear: "M12 8.500a3.500 3.500 0 1 0 0 7 3.500 3.500 0 0 0 0-7zM12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M5.300 18.700l2.100-2.100M16.600 7.400l2.100-2.100",
+    shuffle: "M3 7h3.500c3.500 0 4.500 10 8 10H20M3 17h3.500c1.500 0 2.500-2 3.300-3.500M13.500 9c.8-1 1.600-2 3-2H20M17.500 4l3 3-3 3M17.500 14l3 3-3 3",
+    repeat: "M4 11V9.500A2.500 2.500 0 0 1 6.500 7H19M16 4l3 3-3 3M20 13v1.500a2.500 2.500 0 0 1-2.500 2.500H5M8 14l-3 3 3 3",
+    queue: "M4 6h16M4 12h16M4 18h9M17 16v4M15 18h4",
+    plus: "M12 5v14M5 12h14",
+    close: "M6 6l12 12M18 6L6 18",
+    back: "M15 5l-7 7 7 7",
+    chev: "M7 10l5 5 5-5",
+    volume: "M4 9.500v5h3.500L12.500 19V5L7.500 9.500zM16 9a4.500 4.500 0 0 1 0 6M18.500 6.500a8 8 0 0 1 0 11",
+    mute: "M4 9.500v5h3.500L12.500 19V5L7.500 9.500zM16.500 9.500l5 5M21.500 9.500l-5 5",
+    clock: "M12 3.500a8.500 8.500 0 1 0 0 17 8.500 8.500 0 0 0 0-17zM12 7.500V12l3 2",
+    history: "M3.500 12a8.500 8.500 0 1 0 2.600-6.100M3.500 4v4.500H8M12 8v4.500l3 1.500",
+    library: "M5 4v16M10 4v16M14.500 5.500l4.500 14",
+    lyrics: "M4 6h16M4 11h12M4 16h16M4 21h8",
+    user: "M12 11.500a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20.500c0-3.800 3.400-5.500 7.500-5.500s7.500 1.700 7.500 5.500",
+    check: "M5 12.500l4.500 4.500L19 7.500",
+    moon: "M20 14.500A8 8 0 0 1 9.500 4a8 8 0 1 0 10.500 10.500z",
+    radio: "M5 8.500a9 9 0 0 0 0 7M19 8.500a9 9 0 0 1 0 7M8.500 10.500a4.500 4.500 0 0 0 0 3M15.500 10.500a4.500 4.500 0 0 1 0 3M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
+    note: "M9 17.500V5.500l10-2v12M9 17.500a2.500 2.500 0 1 1-5 0 2.500 2.500 0 0 1 5 0zM19 15.500a2.500 2.500 0 1 1-5 0 2.500 2.500 0 0 1 5 0z",
+    warn: "M12 4L21.500 20h-19zM12 10v4.500M12 17.200v.1",
+    power: "M12 3v8M7 6.500a7.500 7.500 0 1 0 10 0",
+    next2: "M6.500 6.500l5.500 5.500-5.500 5.500M12.500 6.500L18 12l-5.500 5.500",
+    trash: "M5 7h14M9.500 7V4.500h5V7M7 7l1 13h8l1-13",
+    globe: "M12 3.500a8.500 8.500 0 1 0 0 17 8.500 8.500 0 0 0 0-17zM3.500 12h17M12 3.500c2.500 2.500 3.500 5.500 3.500 8.500s-1 6-3.500 8.500c-2.500-2.500-3.500-5.500-3.500-8.500s1-6 3.500-8.500z",
+    bolt: "M13 3L5 13.500h6L10 21l8-10.500h-6z",
+    keyboard: "M3.500 7h17a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM7 10.500h.1M10.500 10.500h.1M14 10.500h.1M17.500 10.500h.1M8 14h8",
+    album: "M12 3.500a8.500 8.500 0 1 0 0 17 8.500 8.500 0 0 0 0-17zM12 10.500a1.500 1.500 0 1 0 0 3 1.500 1.500 0 0 0 0-3z"
+  })
+}
