@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Icons.js" as Icons
 
 // The bar's round cover inside its progress ring. The gap between ring and
 // cover is a whole pixel count, the same on every side: an odd total gap
@@ -17,6 +18,7 @@ Item {
   property color fill: "transparent"
   property string fontFamily: ""
   property bool dim: false
+  property string glyph: ""
 
   readonly property int gap: Math.max(2, Math.round(barSize * 0.1))
 
@@ -42,5 +44,6 @@ Item {
     fill: root.fill
     fontFamily: root.fontFamily
     dim: root.dim
+    glyph: root.glyph !== "" ? root.glyph : Icons.note
   }
 }

@@ -113,6 +113,8 @@ BarWidget {
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
       fontFamily: root.family
       dim: root.hasTrack && !root.playing
+      // idle: an album; off: the power mark (as in the mockup)
+      glyph: root.closed ? Icons.power : Icons.album
       opacity: root.closed || (root.svc && (root.svc.ready || root.svc.hasTrack)) ? 1 : 0.55
 
       // While a sign-in runs (the panel closes when the Google window is
