@@ -78,6 +78,21 @@ BarWidget {
   // hint the bar draws it at 55% of the slot and it cuts the title short.
   readonly property real openPanelIndicatorWidth: body.implicitWidth
 
+  // The widget is a quiet pill: a faint wash and a hairline, a little
+  // brighter (with an accent edge) while the pointer is on it or the panel is open.
+  Rectangle {
+    readonly property bool hot: barMouse.containsMouse || root.opened
+    anchors.centerIn: parent
+    width: body.implicitWidth + Style.space(10)
+    height: Math.min(parent.height, root.barSize) - Style.space(4)
+    radius: height / 2
+    visible: !root.closed
+    color: Util.alpha(root.fg, hot ? 0.1 : 0.045)
+    border.width: 1
+    border.color: hot ? Util.alpha(Color.accent, 0.5) : Util.alpha(root.fg, 0.08)
+    Behavior on color { ColorAnimation { duration: 160 } }
+  }
+
   Row {
     id: body
     anchors.centerIn: parent
@@ -156,6 +171,7 @@ BarWidget {
 
   // Clicks and wheel on the cover and the title (the buttons take their own).
   MouseArea {
+    id: barMouse
     x: body.x
     y: 0
     width: coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + Style.space(5)
