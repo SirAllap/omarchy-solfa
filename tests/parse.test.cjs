@@ -103,6 +103,51 @@ test("a playlist edit: added, a duplicate the check refused, or a failure", () =
   assert.equal(P.playlistEditResult(null), "failed")
 })
 
+test("a playlist of the user's own is editable; Liked songs, albums and other people's are not", () => {
+  // No signed-in capture of a user's playlist exists, so this one is composed
+  // of two real ones: the rows of playlist.json under the header that
+  // playlist-edit-added.json returns as `newHeader` (the editable header).
+  const compose = (swap) => {
+    const page = JSON.parse(JSON.stringify(F("playlist")))
+    const tab = page.contents.twoColumnBrowseResultsRenderer.tabs[0].tabRenderer.content.sectionListRenderer.contents
+    tab[0] = JSON.parse(swap(JSON.stringify(F("playlist-edit-added").newHeader)))
+    return page
+  }
+  const noPlayButton = (h) => h.replace(/"watch(Playlist)?Endpoint"/g, '"somethingElse"')
+  const mine = P.playlist(compose((h) => h))
+  const header = F("playlist-edit-added").newHeader.musicEditablePlaylistDetailHeaderRenderer
+  assert.equal(mine.editable, true)
+  assert.equal(mine.playlistId, header.playlistId)
+  assert.equal(mine.tracks.length, P.playlist(F("playlist")).tracks.length)
+  assert.ok(mine.tracks.every((t) => t.setVideoId))
+  assert.equal(P.browse("VL" + header.playlistId, compose((h) => h)).editable, true)
+  // Without a Play button the page's own id is used, else the header's.
+  const noPlay = compose((h) => noPlayButton(h))
+  assert.equal(P.playlist(noPlay).playlistId, F("playlist").contents.twoColumnBrowseResultsRenderer.secondaryContents.sectionListRenderer.contents[0].musicPlaylistShelfRenderer.playlistId)
+  const bare = compose((h) => noPlayButton(h))
+  delete bare.contents.twoColumnBrowseResultsRenderer.secondaryContents.sectionListRenderer.contents[0].musicPlaylistShelfRenderer.playlistId
+  assert.equal(P.playlist(bare).playlistId, header.playlistId)
+  assert.equal(P.playlist(bare).editable, true)
+  // Liked songs (LM, with or without the VL prefix) never is.
+  const liked = P.playlist(compose((h) => h.split(header.playlistId).join("LM")))
+  assert.equal(liked.playlistId, "LM")
+  assert.equal(liked.editable, false)
+  assert.equal(P.playlist(compose((h) => h.split(header.playlistId).join("VLLM"))).editable, false)
+  // Somebody else's playlist, an album, a continuation: not editable.
+  assert.equal(P.playlist(F("playlist")).editable, false)
+  assert.equal(P.playlist(F("album")).editable, false)
+  assert.notEqual(P.browse("MPREb_x", F("album")).editable, true)
+  assert.equal(P.playlist({ continuationContents: {} }).editable, false)
+})
+
+test("a playlist removal: only STATUS_SUCCEEDED is a removal", () => {
+  assert.equal(P.playlistRemoveResult({ status: "STATUS_SUCCEEDED" }), true)
+  assert.equal(P.playlistRemoveResult(F("playlist-edit-added")), true)
+  assert.equal(P.playlistRemoveResult({ status: "STATUS_FAILED" }), false)
+  assert.equal(P.playlistRemoveResult({}), false)
+  assert.equal(P.playlistRemoveResult(null), false)
+})
+
 test("filter params decode to the filter they name", () => {
   const field = (p) => Buffer.from(decodeURIComponent(p), "base64")
   assert.equal(field(P.SEARCH_FILTERS.songs)[5], 0x08)

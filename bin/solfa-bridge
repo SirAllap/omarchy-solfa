@@ -436,6 +436,7 @@ class BadArgs(Exception):
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 LIST_ID = re.compile(r"[A-Za-z0-9_-]{2,120}")
+SET_VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{1,100}")
 PARAMS = re.compile(r"[A-Za-z0-9_%=-]{1,400}")
 TOKEN = re.compile(r"[A-Za-z0-9_%=-]{1,6000}")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
@@ -450,6 +451,12 @@ def a_video(v):
 def a_list(v, name="playlistId"):
     if not isinstance(v, str) or not LIST_ID.fullmatch(v):
         raise BadArgs(name)
+    return v
+
+
+def a_set_video(v):
+    if not isinstance(v, str) or not SET_VIDEO_ID.fullmatch(v):
+        raise BadArgs("setVideoId")
     return v
 
 
@@ -666,6 +673,8 @@ PAGE_OPS = {
     "playlist.options": (lambda a: {"videoId": a_video(only(a, "videoId").get("videoId"))}, 15),
     "playlist.add": (lambda a: {"playlistId": a_list(only(a, "playlistId", "videoId", "force").get("playlistId")), "videoId": a_video(a.get("videoId")),
                                 **({"force": a_bool(a["force"], "force")} if "force" in a else {})}, 15),
+    "playlist.remove": (lambda a: {"playlistId": a_list(only(a, "playlistId", "videoId", "setVideoId").get("playlistId")), "videoId": a_video(a.get("videoId")),
+                                   "setVideoId": a_set_video(a.get("setVideoId"))}, 15),
     "eq.set": (check_eq, 5),
     "account.info": (check_none, 10),
 }

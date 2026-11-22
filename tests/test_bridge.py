@@ -217,7 +217,13 @@ class BridgeTest(unittest.TestCase):
                ("like", {"videoId": "AAAAAAAAAAA", "status": "LOVE"}), ("browse", {"id": "../etc"}),
                ("radio", {"playlistId": "PLnotaradio"}), ("nonsense", {}), (7, {}),
                ("playlist.options", {}), ("playlist.options", {"videoId": "x"}), ("playlist.options", {"videoId": "AAAAAAAAAAA", "extra": 1}),
-               ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"})]
+               ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"}),
+               ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA"}), ("playlist.remove", {"playlistId": "PLabc", "setVideoId": "ABCDEF0123"}),
+               ("playlist.remove", {"playlistId": "x", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123"}),
+               ("playlist.remove", {"playlistId": "PLabc", "videoId": "x", "setVideoId": "ABCDEF0123"}),
+               ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": ""}),
+               ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": "a b"}),
+               ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123", "extra": 1})]
         for op, args in bad:
             r = c.call(op, args)
             self.assertFalse(r["ok"], (op, args))
@@ -246,6 +252,13 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(dup["data"], {"added": False, "duplicate": True})
         forced = c.call("playlist.add", {"playlistId": "PLfixture2", "videoId": "AAAAAAAAAAA", "force": True})
         self.assertEqual(forced["data"], {"added": True})
+
+    def test_playlist_remove_reaches_the_page_with_its_three_ids(self):
+        c = self.start(FAKE_SIGNED_IN="1")
+        self.wait_ready(c)
+        args = {"playlistId": "VLPLfixture1", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123"}
+        self.assertEqual(c.call("playlist.remove", args)["data"], {"removed": True})
+        self.assertIn({"op": "playlist.remove", "args": args}, self.page_log())
 
     def test_library_history_is_a_valid_section_and_needs_sign_in(self):
         c = self.start()

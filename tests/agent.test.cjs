@@ -827,6 +827,35 @@ test("playlist.add checks for a duplicate and only adds it twice when forced", a
   await assert.rejects(bad.call("playlist.add", { playlistId: "PLabc", videoId: "AAAAAAAAAAA" }), /failed/)
 })
 
+test("playlist.remove sends the row's setVideoId, without the VL prefix, and needs a success", async () => {
+  const args = { playlistId: "VLPLabc", videoId: "AAAAAAAAAAA", setVideoId: "SET12345" }
+  const out = makePage()
+  await out.settle()
+  await assert.rejects(out.call("playlist.remove", args), /signin-required/)
+  assert.equal(out.requests.filter((x) => x.endpoint === "browse/edit_playlist").length, 0)
+  const p = makePage({ signedIn: true, replies: { "browse/edit_playlist": () => ({ status: "STATUS_SUCCEEDED" }) } })
+  await p.settle()
+  const r = await p.call("playlist.remove", args)
+  assert.deepEqual(JSON.parse(JSON.stringify(r)), { removed: true })
+  const req = p.requests.find((x) => x.endpoint === "browse/edit_playlist")
+  assert.equal(req.body.playlistId, "PLabc")
+  assert.deepEqual(JSON.parse(JSON.stringify(req.body.actions)), [{ action: "ACTION_REMOVE_VIDEO", setVideoId: "SET12345", removedVideoId: "AAAAAAAAAAA" }])
+  assert.match(req.init.headers.Authorization, /^SAPISIDHASH /)
+  await p.call("playlist.remove", Object.assign({}, args, { playlistId: "PLabc" }))
+  assert.equal(p.requests.filter((x) => x.endpoint === "browse/edit_playlist").pop().body.playlistId, "PLabc")
+  // Liked songs is not a playlist to edit: refused before any request.
+  const before = p.requests.length
+  await assert.rejects(p.call("playlist.remove", Object.assign({}, args, { playlistId: "LM" })), /failed/)
+  await assert.rejects(p.call("playlist.remove", Object.assign({}, args, { playlistId: "VLLM" })), /failed/)
+  assert.equal(p.requests.length, before)
+  // A reply that is not STATUS_SUCCEEDED is a failure.
+  for (const reply of [{ status: "STATUS_FAILED" }, {}, null]) {
+    const bad = makePage({ signedIn: true, replies: { "browse/edit_playlist": () => reply } })
+    await bad.settle()
+    await assert.rejects(bad.call("playlist.remove", args), /failed/)
+  }
+})
+
 test("the account event says Premium only for a signed-in subscriber", async () => {
   const account = async (opts) => {
     const p = makePage(opts)

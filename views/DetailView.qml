@@ -23,7 +23,12 @@ Item {
   readonly property var rows: !info ? [] : info.tracks ? Model.trackRows(info.tracks) : Model.sectionRows(info.sections, info.kind === "artist" ? 6 : 0)
   property alias cursor: list.cursor
   readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
-  readonly property var hints: [["↵", "play or open"], ["e", "play next"], ["esc", "back"]]
+  // x only where it works: on a row of the user's own playlist.
+  readonly property var hints: Model.removable(info, current)
+    ? [["↵", "play or open"], ["x", "remove"], ["e", "play next"], ["esc", "back"]]
+    : [["↵", "play or open"], ["e", "play next"], ["esc", "back"]]
+  // Rows whose removal is on its way (by setVideoId): a second x sends nothing.
+  property var removing: ({})
 
   function shown() {}
   function move(dy) {
@@ -63,6 +68,33 @@ Item {
       view.info = d
       view.page.info = d
     })
+  }
+
+  // x, Delete or the row's button: the song leaves the playlist, no
+  // confirmation, and the row goes without reloading the page.
+  function remove(row) {
+    if (!Model.removable(view.info, row) || !svc) return
+    var sid = row.item.setVideoId
+    if (view.removing[sid]) return
+    view.removing[sid] = true
+    var page = view.page
+    var title = view.info.title || (page ? page.title : "")
+    svc.request("playlist.remove", { playlistId: view.info.playlistId, videoId: row.item.videoId, setVideoId: sid }, function (r) {
+      delete view.removing[sid]
+      if (!r.ok) { svc.report(r.error); return }
+      if (page) page.info = Model.withoutTrack(page.info, sid)
+      if (view.page !== page) return
+      var at = list.cursor   // the list moves it when its rows change
+      view.info = Model.withoutTrack(view.info, sid)
+      list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
+      if (view.panel) view.panel.say(Model.removedMessage(title))
+    })
+  }
+
+  // Keys only a playlist of the user's has (the queue's x is in QueueView).
+  function key(t) {
+    if (t === "x" && Model.removable(view.info, view.current)) { remove(view.current); return true }
+    return false
   }
 
   // Tracks play in their list's context: an album keeps playing the album.
@@ -164,10 +196,14 @@ Item {
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
-    actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
+    actionsFor: function (row) {
+      var out = view.panel ? view.panel.itemActions(row) : []
+      if (Model.removable(view.info, row)) out.push({ name: "remove", icon: Icons.close, tip: "Remove from this playlist (x)" })
+      return out
+    }
     emptyText: view.busy ? "Loading" : view.error
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.contextList()) }
-    onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
+    onAction: function (name, i) { if (name === "remove") view.remove(view.rows[i]); else view.panel.runAction(name, view.rows[i]) }
     onHeaderActivated: function (i) { var r = view.rows[i]; if (r.more) view.panel.openPage({ browseId: r.more, title: r.header }, r.moreParams) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
   }

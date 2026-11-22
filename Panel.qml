@@ -232,7 +232,7 @@ Panel {
     }
     if (k === Qt.Key_Space) { svc.togglePlaying(); event.accepted = true; return }
     if (k === Qt.Key_Backspace) { root.back(); event.accepted = true; return }
-    if (k === Qt.Key_Delete) { if (v === queueView) queueView.key("x"); event.accepted = true; return }
+    if (k === Qt.Key_Delete) { if (v === queueView || v === detailView) v.key("x"); event.accepted = true; return }
     if (!t) return
     if (v && v.key && v.key(t)) { event.accepted = true; return }
     var handled = true
@@ -424,7 +424,7 @@ Panel {
         Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && root.view === libraryView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && root.view === lyricsView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && root.view === historyView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.DetailView { id: detailView; anchors.fill: parent; visible: !root.settingsOpen && root.view === detailView; svc: root.svc; bar: root.bar; panel: root }
+        Views.DetailView { id: detailView; objectName: "detailView"; anchors.fill: parent; visible: !root.settingsOpen && root.view === detailView; svc: root.svc; bar: root.bar; panel: root }
 
         Views.SettingsView {
           id: settingsView

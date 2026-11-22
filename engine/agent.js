@@ -1044,6 +1044,20 @@
       return outcome === "added" ? { added: true } : { added: false, duplicate: true }
     },
 
+    // "Remove from playlist": the setVideoId names that one row, so a song
+    // that is in twice keeps its other copy. Liked songs has its own unlike.
+    "playlist.remove": async function (args) {
+      needSignIn()
+      var id = String(args.playlistId).replace(/^VL/, "")
+      if (id === "LM") fail("failed")
+      var res = await innertube("browse/edit_playlist", {
+        playlistId: id,
+        actions: [{ action: "ACTION_REMOVE_VIDEO", setVideoId: args.setVideoId, removedVideoId: args.videoId }]
+      })
+      if (!P.playlistRemoveResult(res)) fail("failed")
+      return { removed: true }
+    },
+
     "eq.set": function (args) {
       var on = applyEq(parseEqArgs(args))
       return { applied: true, built: on }

@@ -79,6 +79,7 @@ run account-state python3 tests/test_account_state.py
 run signin-card python3 tests/test_signin_card.py
 run panel-settings python3 tests/test_panel_settings.py
 run save-picker python3 tests/test_save_picker.py
+run remove-from-playlist python3 tests/test_remove_from_playlist.py
 run widget-move python3 tests/test_widget_move.py
 if command -v omarchy >/dev/null 2>&1; then run manifest omarchy plugin validate .; fi
 echo "solfa in /run/user leftovers: $(ls "/run/user/$(id -u)" 2>/dev/null | grep -c solfa || true)"

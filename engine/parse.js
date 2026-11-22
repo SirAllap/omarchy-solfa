@@ -552,6 +552,11 @@ var SolfaParse = (function () {
     }
     var tracks = items(rows, { thumbPx: 120 })
     var play = firstPlaylistPlay(h.buttons)
+    // Only the user's own playlists come with the editable header. A song
+    // can be taken out of those, except Liked songs.
+    var own = collect(data, "musicEditablePlaylistDetailHeaderRenderer")[0] || null
+    var playlistId = play ? String(play.playlistId || "") : (shelf && shelf.playlistId ? String(shelf.playlistId) : "")
+    if (!playlistId && own && own.playlistId) playlistId = String(own.playlistId)
     var author = text(h.straplineTextOne) || String(dig(h, ["facepile", "avatarStackViewModel", "text", "content"]) || "")
     return {
       kind: "playlist",
@@ -559,7 +564,8 @@ var SolfaParse = (function () {
       subtitle: segments(runs(h.secondSubtitle || h.subtitle)).map(segText).filter(Boolean).join(" · "),
       author: author,
       thumb: bestThumb(thumbsOf(h.thumbnail), 544),
-      playlistId: play ? String(play.playlistId || "") : (shelf && shelf.playlistId ? String(shelf.playlistId) : ""),
+      playlistId: playlistId,
+      editable: !!own && playlistId.replace(/^VL/, "") !== "LM",
       tracks: tracks,
       continuation: continuationOf(shelf || data)
     }
@@ -701,6 +707,11 @@ var SolfaParse = (function () {
     return "failed"
   }
 
+  // `browse/edit_playlist` for one removed song: true only when it says so.
+  function playlistRemoveResult(res) {
+    return !!res && res.status === "STATUS_SUCCEEDED"
+  }
+
   return {
     text: text,
     seconds: seconds,
@@ -726,6 +737,7 @@ var SolfaParse = (function () {
     accountInfo: accountInfo,
     addToPlaylist: addToPlaylist,
     playlistEditResult: playlistEditResult,
+    playlistRemoveResult: playlistRemoveResult,
     SEARCH_FILTERS: SEARCH_FILTERS
   }
 })()

@@ -59,7 +59,7 @@ Media keys work through Chromium's own MPRIS player.
 In the panel: `space` play/pause, `n`/`p` next/previous, `,`/`.` seek 10 s,
 `-`/`=` volume, `m` mute, `f` like, `d` dislike, `r` repeat, `s` shuffle,
 `1`–`5` or `←`/`→` tabs, `/` search, `↵` play or open, `e` play next,
-`a` add to queue, `R` radio, `S` save to a playlist (signed in; `↵` again adds a duplicate anyway), `g` artist, `o` album, `x` remove and `J`/`K`
+`a` add to queue, `R` radio, `S` save to a playlist (signed in; `↵` again adds a duplicate anyway), `g` artist, `o` album, `x` (or `Delete`) remove a song from the queue or from one of your own playlists (not Liked songs), `J`/`K`
 move in the queue, `[`/`]` filter or section, `w` show the YouTube window,
 `esc` back or close, `?` all keys. The line at the bottom of the panel shows
 the few you use most (the view's main key, play, next, like); `?` there, typed
