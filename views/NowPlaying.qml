@@ -288,7 +288,7 @@ Column {
     height: transport.height + Style.space(10) + volumeRow.height
     visible: root.hasTrack
 
-    readonly property real slot: Style.space(44)
+    readonly property real slot: Style.space(48)
     readonly property real playSlot: Style.space(62)
     readonly property real volumeSlot: Style.space(36)
     readonly property real glyph: Style.space(20)
@@ -304,7 +304,7 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: "shuffle"; size: controls.glyph; color: root.fg; stroke: 1.7 }
+        VIcon { anchors.centerIn: parent; name: "shuffle"; size: Style.space(22); color: root.fg; stroke: 1.7 }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Shuffle the queue (s)"
@@ -315,7 +315,7 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: "prev"; size: controls.glyph; filled: true; color: root.fg }
+        VIcon { anchors.centerIn: parent; name: "prev"; size: Style.space(22); filled: true; color: root.fg }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Previous (p)"
@@ -347,7 +347,7 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: "next"; size: controls.glyph; filled: true; color: root.fg }
+        VIcon { anchors.centerIn: parent; name: "next"; size: Style.space(22); filled: true; color: root.fg }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Next (n)"
@@ -358,14 +358,14 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: root.svc && root.svc.repeatMode === "ONE" ? "repeatOnce" : "repeat"; size: controls.glyph; color: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg; stroke: 1.7 }
+        VIcon { anchors.centerIn: parent; name: root.svc && root.svc.repeatMode === "ONE" ? "repeatOnce" : "repeat"; size: Style.space(22); color: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg; stroke: 1.7 }
         foreground: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg
         fontFamily: root.family
         tooltipText: Model.repeatLabel(root.svc ? root.svc.repeatMode : "NONE") + " (r)"
         Rectangle {
           z: -1
           anchors.centerIn: parent
-          width: Style.space(38); height: width
+          width: Style.space(48); height: width
           radius: width / 2
           color: Util.alpha(Calm.accent, 0.22)
           visible: !!(root.svc && root.svc.repeatMode !== "NONE")
@@ -379,7 +379,7 @@ Column {
         minSize: controls.slot
         visible: !!(root.svc && !root.svc.isAd)
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: "queue"; size: controls.glyph; color: root.fg; stroke: 1.7 }
+        VIcon { anchors.centerIn: parent; name: "queue"; size: Style.space(22); color: root.fg; stroke: 1.7 }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: root.svc && !root.svc.signedIn ? "Sign in to save to a playlist" : "Save to a playlist (S)"
@@ -400,7 +400,7 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.volumeSlot
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: root.svc && (root.svc.muted || root.svc.volume === 0) ? "mute" : "volume"; size: Style.space(18); color: Util.alpha(root.fg, 0.75); stroke: 1.7 }
+        VIcon { anchors.centerIn: parent; name: root.svc && (root.svc.muted || root.svc.volume === 0) ? "mute" : "volume"; size: Style.space(22); color: Util.alpha(root.fg, 0.75); stroke: 1.7 }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: root.svc && root.svc.muted ? "Unmute (m)" : "Mute (m)"
@@ -432,15 +432,15 @@ Column {
       Rectangle {
         id: sleepChip
         anchors.verticalCenter: parent.verticalCenter
-        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(32); radius: height / 2
+        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
         color: sleepMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
         border.width: 1; border.color: Calm.hair
         Row {
           id: sleepRow
           anchors.centerIn: parent
           spacing: Style.space(6)
-          VIcon { anchors.verticalCenter: parent.verticalCenter; name: "moon"; size: Style.space(16); color: root.fg; stroke: 1.8 }
-          Text { anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
+          VIcon { anchors.verticalCenter: parent.verticalCenter; name: "moon"; size: Style.space(20); color: root.fg; stroke: 1.8 }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold }
         }
         MouseArea {
           id: sleepMouse
@@ -454,15 +454,15 @@ Column {
       Rectangle {
         id: radioChip
         anchors.verticalCenter: parent.verticalCenter
-        width: radioRow.implicitWidth + Style.space(24); height: Style.space(32); radius: height / 2
+        width: radioRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
         color: radioMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
         border.width: 1; border.color: Calm.hair
         Row {
           id: radioRow
           anchors.centerIn: parent
           spacing: Style.space(6)
-          VIcon { anchors.verticalCenter: parent.verticalCenter; name: "radio"; size: Style.space(16); color: root.fg; stroke: 1.8 }
-          Text { anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
+          VIcon { anchors.verticalCenter: parent.verticalCenter; name: "radio"; size: Style.space(20); color: root.fg; stroke: 1.8 }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold }
         }
         MouseArea {
           id: radioMouse
