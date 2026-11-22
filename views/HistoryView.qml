@@ -42,6 +42,11 @@ Item {
     })
   }
 
+  // Signed in, loaded, and empty: a calm card instead of one grey line.
+  readonly property bool nothingYet: signedIn && !busy && error === "" && !!info && rows.length === 0
+  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property string family: bar ? bar.fontFamily : Style.font.family
+
   onSignedInChanged: { view.info = null; view.error = ""; if (signedIn && active) load() }
 
   RowList {
@@ -51,11 +56,39 @@ Item {
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
     actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
-    emptyText: !view.signedIn ? "Sign in to YouTube Music to see your history"
+    emptyText: view.nothingYet ? "" : !view.signedIn ? "Sign in to YouTube Music to see your history"
       : view.busy && !view.info ? "Loading"
       : view.error !== "" ? view.error + ". Open this tab again to retry"
       : "Nothing played yet"
     onActivated: function (i) { view.panel.activateRow(view.rows[i], "") }
     onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
+  }
+
+  Column {
+    objectName: "historyEmpty"
+    anchors.centerIn: parent
+    width: parent.width - Style.space(40)
+    visible: view.nothingYet
+    spacing: Style.space(6)
+    Text {
+      width: parent.width
+      horizontalAlignment: Text.AlignHCenter
+      text: "Nothing played yet"
+      textFormat: Text.PlainText
+      color: view.fg
+      font.family: view.family
+      font.pixelSize: Style.font.title
+      font.weight: Font.Bold
+    }
+    Text {
+      width: parent.width
+      horizontalAlignment: Text.AlignHCenter
+      wrapMode: Text.WordWrap
+      text: "Songs you play show up here, newest first."
+      textFormat: Text.PlainText
+      color: Util.alpha(view.fg, 0.6)
+      font.family: view.family
+      font.pixelSize: Style.font.body
+    }
   }
 }
