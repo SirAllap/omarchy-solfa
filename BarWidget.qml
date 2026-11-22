@@ -88,9 +88,8 @@ BarWidget {
     height: Math.min(parent.height, root.barSize) - Style.space(4)
     radius: height / 2
     visible: !root.closed
-    color: Util.alpha(root.fg, hot ? 0.1 : 0.045)
-    border.width: 1
-    border.color: hot ? Util.alpha(Color.accent, 0.5) : Util.alpha(root.fg, 0.08)
+    // One shape: a soft fill, no outline (the shell draws the open-panel mark).
+    color: Util.alpha(root.fg, hot ? 0.1 : 0.05)
     Behavior on color { ColorAnimation { duration: 160 } }
   }
 
