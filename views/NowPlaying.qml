@@ -3,6 +3,7 @@ import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
 import "../lib/Icons.js" as Icons
+import "../lib/Calm.js" as Calm
 
 // The top of the panel: the song, its cover, time, and every control.
 Column {
@@ -10,7 +11,7 @@ Column {
 
   property var svc: null
   property QtObject bar: null
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: Calm.fg
   readonly property string family: bar ? bar.fontFamily : Style.font.family
   readonly property bool hasTrack: svc ? svc.hasTrack : false
   // Width kept free at the top right (the panel puts Solfa's name there).
@@ -29,8 +30,9 @@ Column {
 
     RoundCover {
       id: cover
-      width: Style.space(84)
+      width: Style.space(92)
       height: width
+      cornerRadius: Style.space(20)
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: Util.alpha(root.fg, 0.08)
@@ -55,7 +57,7 @@ Column {
         wrapMode: Text.WordWrap
         color: root.fg
         font.family: root.family
-        font.pixelSize: Style.font.heading
+        font.pixelSize: Math.round(Style.font.heading * 1.25)
         font.bold: root.hasTrack
       }
       Text {
@@ -102,14 +104,14 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasTrack && !root.svc.isAd
         iconText: root.svc && root.svc.like === "LIKE" ? Icons.heart : Icons.heartOutline
-        foreground: root.svc && root.svc.like === "LIKE" ? Color.accent : root.fg
+        foreground: root.svc && root.svc.like === "LIKE" ? Calm.accent : root.fg
         // a round chip behind the heart, tinted once it is liked
         Rectangle {
           z: -1
           anchors.centerIn: parent
           width: Math.min(parent.width, parent.height); height: width
           radius: width / 2
-          color: root.svc && root.svc.like === "LIKE" ? Util.alpha(Color.accent, 0.22) : Util.alpha(root.fg, 0.07)
+          color: root.svc && root.svc.like === "LIKE" ? Util.alpha(Calm.accent, 0.22) : Util.alpha(root.fg, 0.07)
         }
         iconSize: Style.font.iconLarge
         fontFamily: root.family
@@ -134,7 +136,7 @@ Column {
       value: root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0
       step: 1
       enabled: root.svc && root.svc.duration > 0 && !root.svc.isAd
-      fillColor: root.svc && root.svc.isAd ? Color.urgent : Color.accent
+      fillColor: root.svc && root.svc.isAd ? Color.urgent : Calm.accent
       onReleased: function (v) { if (root.svc) root.svc.seek(v) }
     }
 
@@ -188,11 +190,11 @@ Column {
         height: skipRow.implicitHeight + Style.space(12)
         radius: height / 2
         color: !skippable ? Util.alpha(root.fg, 0.12)
-          : skipMouse.pressed ? Qt.darker(Color.accent, 1.25) : skipMouse.containsMouse ? Qt.lighter(Color.accent, 1.15) : Color.accent
+          : skipMouse.pressed ? Qt.darker(Calm.accent, 1.25) : skipMouse.containsMouse ? Qt.lighter(Calm.accent, 1.15) : Calm.accent
         scale: skippable && skipMouse.pressed ? 0.94 : 1
         Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
         readonly property color ink: !skippable ? Util.alpha(root.fg, 0.6)
-          : (0.299 * Color.accent.r + 0.587 * Color.accent.g + 0.114 * Color.accent.b) > 0.6 ? "#101010" : "#ffffff"
+          : (0.299 * Calm.accent.r + 0.587 * Calm.accent.g + 0.114 * Calm.accent.b) > 0.6 ? "#101010" : "#ffffff"
         Row {
           id: skipRow
           anchors.centerIn: parent
@@ -245,7 +247,7 @@ Column {
   Item {
     id: controls
     width: parent.width
-    height: Math.max(transport.height, volumeRow.height)
+    height: transport.height + Style.space(10) + volumeRow.height
     visible: root.hasTrack
 
     readonly property real slot: Style.space(44)
@@ -255,8 +257,9 @@ Column {
 
     Row {
       id: transport
-      spacing: Style.space(4)
-      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(10)
+      anchors.top: parent.top
+      anchors.horizontalCenter: parent.horizontalCenter
 
       HitButton {
         onPressedDown: function (it) { cover.lookAt(it) }
@@ -288,7 +291,7 @@ Column {
         iconSize: Math.round(controls.glyph * 1.3)
         // The one filled control: a calm accent disc with a dark glyph.
         foreground: playInk
-        readonly property color playInk: (0.299 * Color.accent.r + 0.587 * Color.accent.g + 0.114 * Color.accent.b) > 0.6 ? "#101010" : "#ffffff"
+        readonly property color playInk: (0.299 * Calm.accent.r + 0.587 * Calm.accent.g + 0.114 * Calm.accent.b) > 0.6 ? "#101010" : "#ffffff"
         fontFamily: root.family
         tooltipText: (root.svc && root.svc.isPlaying ? "Pause" : "Play") + " (space)"
         Rectangle {
@@ -296,7 +299,7 @@ Column {
           anchors.centerIn: parent
           width: Math.min(parent.width, parent.height); height: width
           radius: width / 2
-          color: Color.accent
+          color: Calm.accent
           opacity: parent.hovered ? 0.92 : 1
         }
         onClicked: if (root.svc) root.svc.togglePlaying()
@@ -318,7 +321,7 @@ Column {
         minSize: controls.slot
         iconText: Icons.repeatIcon(root.svc ? root.svc.repeatMode : "NONE")
         iconSize: controls.glyph
-        foreground: root.svc && root.svc.repeatMode !== "NONE" ? Color.accent : root.fg
+        foreground: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg
         fontFamily: root.family
         tooltipText: Model.repeatLabel(root.svc ? root.svc.repeatMode : "NONE") + " (r)"
         onClicked: if (root.svc) root.svc.cycleRepeat()
@@ -337,11 +340,13 @@ Column {
       }
     }
 
+    // volume, its number, Sleep and Radio: one line under the transport
     Row {
       id: volumeRow
+      anchors.left: parent.left
       anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      spacing: Style.space(4)
+      anchors.bottom: parent.bottom
+      spacing: Style.space(8)
 
       HitButton {
         onPressedDown: function (it) { cover.lookAt(it) }
@@ -353,20 +358,69 @@ Column {
         tooltipText: root.svc && root.svc.muted ? "Unmute (m)" : "Mute (m)"
         onClicked: if (root.svc) root.svc.toggleMute()
       }
-      // On a narrow card the slider gives way before it runs into the
-      // transport buttons; m and the volume keys still work.
       PanelSlider {
         anchors.verticalCenter: parent.verticalCenter
-        visible: controls.width >= transport.width + controls.volumeSlot + width + Style.space(24)
-        width: Style.space(110)
+        width: parent.width - controls.volumeSlot - volText.width - sleepChip.width - radioChip.width - parent.spacing * 4
         bar: root.bar
         minimum: 0
         maximum: 100
         step: 1
         integer: true
+        fillColor: Calm.accent
         value: root.svc ? (root.svc.muted ? 0 : root.svc.volume) : 100
         onMoved: function (v) { if (root.svc) root.svc.setVolume(v) }
         onReleased: function (v) { if (root.svc) root.svc.setVolume(v) }
+      }
+      Text {
+        id: volText
+        anchors.verticalCenter: parent.verticalCenter
+        width: Style.space(38)
+        text: (root.svc ? (root.svc.muted ? 0 : root.svc.volume) : 100) + "%"
+        textFormat: Text.PlainText
+        color: Util.alpha(root.fg, 0.6)
+        font.family: root.family
+        font.pixelSize: Style.font.caption
+      }
+      Rectangle {
+        id: sleepChip
+        anchors.verticalCenter: parent.verticalCenter
+        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(32); radius: height / 2
+        color: sleepMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
+        border.width: 1; border.color: Calm.hair
+        Row {
+          id: sleepRow
+          anchors.centerIn: parent
+          spacing: Style.space(6)
+          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.sleep; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.icon }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
+        }
+        MouseArea {
+          id: sleepMouse
+          anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.svc) {
+            var o = Model.SLEEP_OPTIONS, k = o.indexOf(root.svc.sleepMode)
+            root.svc.setSleepMode(o[(k + 1) % o.length])
+          }
+        }
+      }
+      Rectangle {
+        id: radioChip
+        anchors.verticalCenter: parent.verticalCenter
+        width: radioRow.implicitWidth + Style.space(24); height: Style.space(32); radius: height / 2
+        color: radioMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
+        border.width: 1; border.color: Calm.hair
+        Row {
+          id: radioRow
+          anchors.centerIn: parent
+          spacing: Style.space(6)
+          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.radio; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.icon }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
+        }
+        MouseArea {
+          id: radioMouse
+          anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.svc && root.svc.hasTrack) root.svc.radioFor(root.svc.player)
+        }
       }
     }
   }

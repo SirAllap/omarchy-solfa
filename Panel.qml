@@ -3,6 +3,7 @@ import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
+import "lib/Calm.js" as Calm
 import "views" as Views
 
 // The panel: now playing at the top, then Queue, Search, Library, Lyrics
@@ -17,7 +18,7 @@ Panel {
   property var hostWidget: null
   property var svc: null
 
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: Calm.fg
   readonly property string family: bar ? bar.fontFamily : Style.font.family
 
   readonly property var tabs: [
@@ -311,6 +312,18 @@ Panel {
       focus: true
       Keys.onPressed: function (event) { root.onKey(event) }
 
+      // The calm card: graphite surface, hairline, big corners (the shell's own
+      // popup fill sits underneath, in the card's padding).
+      Rectangle {
+        z: -2
+        anchors.fill: parent
+        anchors.margins: -Style.spacing.popupPadding
+        radius: Style.space(26)
+        color: Calm.surface
+        border.width: 1
+        border.color: Calm.hair
+      }
+
       Views.NowPlaying {
         id: hero
         objectName: "panelHero"
@@ -385,8 +398,8 @@ Panel {
         x: tabRow.x + at * (tabRow.cell + tabRow.spacing); y: tabRow.y
         width: tabRow.cell; height: tabRow.height
         radius: height / 2
-        color: Util.alpha(Color.accent, 0.2)
-        border.width: 1; border.color: Util.alpha(Color.accent, 0.45)
+        color: Util.alpha(Calm.accent, 0.2)
+        border.width: 1; border.color: Util.alpha(Calm.accent, 0.45)
         Behavior on x { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
       }
 
@@ -412,7 +425,7 @@ Panel {
             height: Style.space(36)
             fontFamily: root.family
             foreground: root.fg
-            selected: root.pages.length === 0 && root.tab === modelData.key
+            selected: false   // the gliding pill behind the row marks the open tab
             tooltipText: String(index + 1)
             onClicked: root.showTab(modelData.key)
           }
@@ -509,7 +522,7 @@ Panel {
           text: root.flash
           textFormat: Text.PlainText
           elide: Text.ElideRight
-          color: Color.accent
+          color: Calm.accent
           font.family: root.family
           font.pixelSize: Style.font.caption
         }

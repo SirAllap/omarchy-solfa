@@ -69,7 +69,18 @@ ShellRoot {
     function accountSignOut(cb) { if (cb) cb({ ok: true, data: {} }) }
     // Everything a view may call: recorded, never acted on.
     property var calls: []
-    function request(op, args, cb) { calls.push(op); if (cb) cb({ ok: false, error: "not-found" }); return 0 }
+    function request(op, args, cb) {
+      calls.push(op)
+      // SOLFA_SCENE_OUT0 (the parity render) wants a queue to draw; the
+      // other runs keep the old "not found".
+      if (op === "queue" && cb && Quickshell.env("SOLFA_SCENE_OUT0")) {
+        var names = [["Northern Lights", "The Examples"], ["Paper Lanterns", "The Quiet Meridian"], ["Static Bloom", "Orla Vance"], ["Seventeen Windows", "Kite & Compass"], ["Slow Neon", "Hollow Parade"]]
+        cb({ ok: true, data: { index: 0, items: names.map(function (n, i) { return { videoId: "ID" + i, title: n[0], artists: [{ name: n[1] }], duration: 200 + i * 17, kind: "song" } }) } })
+        return 0
+      }
+      if (cb) cb({ ok: false, error: "not-found" })
+      return 0
+    }
     function report(code) {}
     function startEngine() { calls.push("startEngine") }
     function restartEngine() {}
@@ -148,6 +159,7 @@ ShellRoot {
         win.after(function () {
           var card = win.find(stage, "panelCard")
           var closedState = { hero: win.shown("panelHero"), tabs: win.shown("panelTabs"), settings: win.shown("settingsView") }
+          var go = function () {
           panel.toggleSettings()
           win.after(function () {
             var openState = {
@@ -196,6 +208,10 @@ ShellRoot {
             if (out) card.grabToImage(function (r) { r.saveToFile(out); finish() })
             else finish()
           })
+          }
+          var out0 = Quickshell.env("SOLFA_SCENE_OUT0")
+          if (out0) card.grabToImage(function (r) { r.saveToFile(out0); go() })
+          else go()
         })
       }
     }

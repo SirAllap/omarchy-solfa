@@ -2,6 +2,7 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
+import "../lib/Calm.js" as Calm
 import "../lib/Icons.js" as Icons
 
 // One list for every view: section headers and rows, a keyboard cursor, and
@@ -19,7 +20,7 @@ ListView {
   property bool isPlaying: true
   property var actionsFor: function (row) { return [] }
   property string emptyText: ""
-  property color fg: bar ? bar.foreground : Color.foreground
+  property color fg: Calm.fg
   property string family: bar ? bar.fontFamily : Style.font.family
 
   signal activated(int index)
@@ -86,7 +87,7 @@ ListView {
         visible: !!cell.modelData.more
         text: "Show all"
         textFormat: Text.PlainText
-        color: headerMouse.containsMouse ? Color.accent : Util.alpha(list.fg, 0.45)
+        color: headerMouse.containsMouse ? Calm.accent : Util.alpha(list.fg, 0.45)
         font.family: list.family
         font.pixelSize: Style.font.caption
         font.underline: headerMouse.containsMouse
@@ -108,7 +109,7 @@ ListView {
       radius: Style.space(14)
       // The song that plays is tinted; the keyboard cursor is an outline; the
       // pointer is a faint wash (the calm mockup's three row states).
-      color: cell.now ? Util.alpha(Color.accent, 0.14)
+      color: cell.now ? Util.alpha(Calm.accent, 0.14)
         : rowHover.hovered || cell.selected ? Util.alpha(list.fg, 0.05) : "transparent"
       border.width: cell.selected ? 1 : 0
       border.color: Util.alpha(list.fg, 0.5)
@@ -119,7 +120,7 @@ ListView {
         x: 0; width: 2; radius: 1
         anchors.verticalCenter: parent.verticalCenter
         height: parent.height * 0.5
-        color: Color.accent
+        color: Calm.accent
       }
     }
 
@@ -145,8 +146,9 @@ ListView {
       spacing: Style.space(10)
 
       RoundCover {
-        width: Style.space(32)
+        width: Style.space(36)
         height: width
+        cornerRadius: Style.space(9)
         anchors.verticalCenter: parent.verticalCenter
         source: cell.item ? (cell.item.thumb || "") : ""
         foreground: list.fg
@@ -168,14 +170,14 @@ ListView {
             anchors.verticalCenter: parent.verticalCenter
             playing: list.isPlaying
             reduceMotion: Style.reduceMotion
-            color: Color.accent
+            color: Calm.accent
           }
           Text {
             width: parent.width - (cell.now ? 14 + parent.spacing : 0)
             text: cell.item ? cell.item.title : ""
             textFormat: Text.PlainText
             elide: Text.ElideRight
-            color: cell.now ? Color.accent : list.fg
+            color: cell.now ? Calm.accent : list.fg
             font.family: list.family
             font.pixelSize: Style.font.body
             font.weight: Font.DemiBold
@@ -210,7 +212,7 @@ ListView {
             enabled: cell.showActions
             iconText: modelData.icon
             iconSize: Style.font.icon
-            foreground: actionButton.hot ? Color.accent : Util.alpha(list.fg, 0.75)
+            foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
             tooltipText: modelData.tip
             onClicked: { list.cursor = cell.index; list.action(actionButton.modelData.name, cell.index) }

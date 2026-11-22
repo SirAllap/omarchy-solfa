@@ -16,6 +16,9 @@ Item {
   property string glyph: Icons.note
   property string fontFamily: ""
   property bool dim: false
+  // Corner radius; below zero is a full circle (the bar's record cover).
+  property real cornerRadius: -1
+  readonly property real cr: cornerRadius >= 0 ? Math.min(cornerRadius, Math.min(width, height) / 2) : Math.min(width, height) / 2
   // Life: while the panel is open and a song plays the cover breathes, and
   // it can look toward a control (a critically damped spring, so a new look
   // never jumps). All of it stops with the system's reduce-motion setting.
@@ -64,7 +67,7 @@ Item {
 
   Rectangle {
     anchors.fill: parent
-    radius: width / 2
+    radius: root.cr
     color: root.fill
     visible: img.status !== Image.Ready
 
@@ -119,10 +122,13 @@ Item {
         var k = Math.max(root.width / iw, root.height / ih) * 1.03   // a hair over, so the edge never samples past the crop
         return PlanarTransform.fromAffineMatrix(k, 0, 0, k, (root.width - iw * k) / 2, (root.height - ih * k) / 2)
       }
-      PathAngleArc {
-        centerX: root.width / 2; centerY: root.height / 2
-        radiusX: root.width / 2; radiusY: root.height / 2
-        startAngle: 0; sweepAngle: 360
+      PathSvg {
+        path: {
+          var w = root.width, h = root.height, r = root.cr
+          return "M" + r + " 0H" + (w - r) + "A" + r + " " + r + " 0 0 1 " + w + " " + r + "V" + (h - r)
+            + "A" + r + " " + r + " 0 0 1 " + (w - r) + " " + h + "H" + r + "A" + r + " " + r + " 0 0 1 0 " + (h - r)
+            + "V" + r + "A" + r + " " + r + " 0 0 1 " + r + " 0Z"
+        }
       }
     }
   }

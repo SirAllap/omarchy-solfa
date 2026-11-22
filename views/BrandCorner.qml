@@ -2,6 +2,7 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 import "../lib/Icons.js" as Icons
+import "../lib/Calm.js" as Calm
 
 // Solfa's name, small and quiet, the gear (Settings) and the power button:
 // power closes Solfa (the engine; the music stops) and, once closed, starts
@@ -11,7 +12,7 @@ Row {
   id: root
 
   property var svc: null
-  property color foreground: Color.foreground
+  property color foreground: Calm.fg
   property string fontFamily: Style.font.family
   property bool settingsOpen: false
 
@@ -49,15 +50,15 @@ Row {
     width: premiumText.implicitWidth + Style.space(12)
     height: premiumText.implicitHeight + Style.space(4)
     radius: height / 2
-    color: Util.alpha(Color.accent, 0.16)
+    color: Util.alpha(Calm.accent, 0.16)
     border.width: 1
-    border.color: Util.alpha(Color.accent, 0.4)
+    border.color: Util.alpha(Calm.accent, 0.4)
     Text {
       id: premiumText
       anchors.centerIn: parent
       text: "Premium"
       textFormat: Text.PlainText
-      color: Color.accent
+      color: Calm.accent
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
     }
@@ -85,7 +86,7 @@ Row {
     minSize: Style.space(28)
     iconText: Icons.gear
     iconSize: Style.font.body
-    foreground: root.settingsOpen ? Color.accent : root.foreground
+    foreground: root.settingsOpen ? Calm.accent : root.foreground
     selected: root.settingsOpen
     visible: root.reachable
     opacity: root.settingsOpen || hot ? 1 : 0.45
@@ -100,7 +101,7 @@ Row {
     minSize: Style.space(28)
     iconText: Icons.power
     iconSize: Style.font.body
-    foreground: root.closed ? Color.accent : root.foreground
+    foreground: root.closed ? Calm.accent : root.foreground
     selected: root.closed
     visible: root.reachable
     opacity: root.closed || hot ? 1 : 0.45
