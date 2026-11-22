@@ -90,7 +90,7 @@ Item {
   Row {
     id: head
     width: parent.width
-    spacing: Style.space(12)
+    spacing: Style.space(20)  // mockup DetailView: 20 px between cover and text
 
     RoundCover {
       id: cover
@@ -125,7 +125,7 @@ Item {
           : (view.info.subtitle || "")
         textFormat: Text.PlainText
         elide: Text.ElideRight
-        color: Util.alpha(view.fg, 0.65)
+        color: Util.alpha(view.fg, 0.64)
         font.family: view.family
         font.pixelSize: Style.font.caption
       }

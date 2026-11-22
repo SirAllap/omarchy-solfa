@@ -23,9 +23,9 @@ Column {
     width: Style.space(64)
     height: width
     radius: width / 2
-    color: Util.alpha(card.fg, 0.06)
+    color: Calm.wash
     border.width: 1
-    border.color: Util.alpha(card.fg, 0.18)
+    border.color: Calm.a(Color.accent, 0.5)
     Text {
       anchors.centerIn: parent
       text: Icons.power
