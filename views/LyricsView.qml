@@ -80,9 +80,44 @@ Item {
     font.pixelSize: Style.font.body
   }
 
+  // Calm tag: says how the lyrics behave and what the keys do.
+  Row {
+    id: tag
+    visible: !!view.lyrics && (view.timed || view.lyrics.kind === "plain")
+    spacing: Style.space(8)
+    height: visible ? Style.space(22) : 0
+    Rectangle {
+      height: Style.space(22)
+      width: tagText.implicitWidth + Style.space(18)
+      radius: height / 2
+      color: Util.alpha(Color.accent, 0.14)
+      border.width: 1
+      border.color: Util.alpha(Color.accent, 0.4)
+      Text {
+        id: tagText
+        anchors.centerIn: parent
+        text: view.timed ? "Synced" : "Plain text"
+        textFormat: Text.PlainText
+        color: Color.accent
+        font.family: view.family
+        font.pixelSize: Style.font.caption
+        font.weight: Font.DemiBold
+      }
+    }
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      text: view.timed ? "follows the song · j k scroll" : "j k scroll"
+      textFormat: Text.PlainText
+      color: Util.alpha(view.fg, 0.45)
+      font.family: view.family
+      font.pixelSize: Style.font.caption
+    }
+  }
+
   ListView {
     id: lines
     anchors.fill: parent
+    anchors.topMargin: tag.height + Style.space(8)
     anchors.bottomMargin: source.height + Style.space(6)
     visible: view.timed
     clip: true
@@ -101,10 +136,10 @@ Item {
       text: modelData.text === "" ? " " : modelData.text
       textFormat: Text.PlainText
       wrapMode: Text.WordWrap
-      color: index === view.line ? Color.accent : Util.alpha(view.fg, index < view.line ? 0.4 : 0.7)
+      color: index === view.line ? view.fg : Util.alpha(view.fg, index < view.line ? 0.3 : 0.5)
       font.family: view.family
       font.pixelSize: index === view.line ? Style.font.title : Style.font.body
-      font.bold: index === view.line
+      font.weight: index === view.line ? Font.Bold : Font.DemiBold
       MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
@@ -116,6 +151,7 @@ Item {
   Flickable {
     id: plain
     anchors.fill: parent
+    anchors.topMargin: tag.height + Style.space(8)
     anchors.bottomMargin: source.height + Style.space(6)
     visible: !!view.lyrics && view.lyrics.kind === "plain"
     clip: true
@@ -127,8 +163,8 @@ Item {
       text: view.lyrics && view.lyrics.kind === "plain" ? view.lyrics.text : ""
       textFormat: Text.PlainText
       wrapMode: Text.WordWrap
-      lineHeight: 1.25
-      color: Util.alpha(view.fg, 0.85)
+      lineHeight: 1.3
+      color: Util.alpha(view.fg, 0.7)
       font.family: view.family
       font.pixelSize: Style.font.body
     }

@@ -52,6 +52,8 @@ Item {
   property bool switchArmed: false
   property bool signOutArmed: false
   property bool eraseArmed: false
+  // A setting read that survives a null service (load and teardown).
+  function settingOr(key, fallback) { return root.svc ? root.svc.setting(key, fallback) : fallback }
   readonly property int armTimeoutMs: 5000
   readonly property bool armTimerRunning: armTimer.running
   function disarm() {
@@ -286,9 +288,16 @@ Item {
     height: Math.max(Style.space(46), rowText.implicitHeight + Style.space(12))
     default property alias controlChildren: controlSlot.children
 
+    // Hairline between rows (calm list, no boxes).
+    Rectangle {
+      anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+      anchors.leftMargin: Style.space(6); anchors.rightMargin: Style.space(6)
+      height: 1
+      color: Util.alpha(rowShell.fg, 0.08)
+    }
     Rectangle {
       anchors.fill: parent
-      radius: Style.spacing.labelGap
+      radius: Style.space(10)
       color: rowShell.focused ? Style.selectedFillFor(rowShell.fg, Color.accent)
                               : (rowHover.containsMouse ? Util.alpha(rowShell.fg, 0.05) : "transparent")
     }
@@ -348,14 +357,14 @@ Item {
     width: Style.space(38)
     height: Style.space(20)
     radius: height / 2
-    color: active ? Util.alpha(Color.accent, 0.35) : Util.alpha(fg, 0.12)
+    color: active ? Color.accent : Util.alpha(fg, 0.12)
     border.width: 1
     border.color: active ? Color.accent : Util.alpha(fg, 0.25)
     Rectangle {
       width: parent.height - 4
       height: width
       radius: width / 2
-      color: toggle.active ? Color.accent : toggle.fg
+      color: toggle.active ? "white" : Util.alpha(toggle.fg, 0.7)
       anchors.verticalCenter: parent.verticalCenter
       x: toggle.active ? parent.width - width - 2 : 2
       Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -431,10 +440,10 @@ Item {
     readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
     width: qbtnText.implicitWidth + Style.space(20)
     height: Style.space(26)
-    radius: Style.space(6)
+    radius: height / 2
     color: focused ? Style.selectedFillFor(fg, Color.accent) : Util.alpha(fg, 0.06)
-    border.width: danger || focused ? 1 : 0
-    border.color: danger ? Color.urgent : Color.accent
+    border.width: 1
+    border.color: danger ? Color.urgent : (focused ? Color.accent : Util.alpha(fg, 0.14))
     Text {
       id: qbtnText
       anchors.centerIn: parent
@@ -463,7 +472,18 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     height: backLabel.implicitHeight
+    anchors.leftMargin: Style.space(12)
 
+    Rectangle {
+      anchors.fill: backLabel
+      anchors.leftMargin: -Style.space(12); anchors.rightMargin: -Style.space(12)
+      anchors.topMargin: -Style.space(4); anchors.bottomMargin: -Style.space(4)
+      radius: height / 2
+      color: backHover.containsMouse ? Util.alpha(root.fg, 0.1) : Util.alpha(root.fg, 0.06)
+      border.width: 1
+      border.color: Util.alpha(root.fg, 0.12)
+      MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+    }
     Text {
       id: backLabel
       objectName: "settingsBack"
@@ -502,8 +522,9 @@ Item {
           readonly property bool navFocused: root.column === "nav" && index === root.navIndex
           Rectangle {
             anchors.fill: parent
-            radius: Style.spacing.labelGap
-            color: navFocused ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
+            radius: height / 2
+            color: navFocused ? Style.selectedFillFor(root.fg, Color.accent)
+              : modelData.key === root.section ? Util.alpha(root.fg, 0.08) : "transparent"
           }
           Text {
             anchors.left: parent.left
@@ -675,7 +696,7 @@ Item {
                 required property string modelData
                 objectName: "eqPreset_" + modelData
                 label: Model.EQ_PRESET_LABELS[modelData]
-                active: root.svc && root.svc.setting("eqPreset", "flat") === modelData
+                active: root.settingOr("eqPreset", "flat") === modelData
                 onClicked: { root.pointAt(1); root.setEqPreset(modelData) }
               }
             }
@@ -790,12 +811,12 @@ Item {
         RowShell {
           label: "When Solfa starts"
           row: 1
-          StepValue { row: 1; value: root.svc && root.svc.setting("startPaused", false) ? "Resume paused" : "Resume playing" }
+          StepValue { row: 1; value: root.settingOr("startPaused", false) ? "Resume paused" : "Resume playing" }
         }
         RowShell {
           label: "Volume at start"
           row: 2
-          StepValue { row: 2; value: !root.svc || root.svc.setting("startVolume", "last") === "last" ? "Last used" : root.svc.setting("startVolume", "last") + "%" }
+          StepValue { row: 2; value: root.settingOr("startVolume", "last") === "last" ? "Last used" : root.settingOr("startVolume", "last") + "%" }
         }
         RowShell {
           label: "Start with the shell"
