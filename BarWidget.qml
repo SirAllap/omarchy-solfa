@@ -94,7 +94,8 @@ BarWidget {
     radius: height / 2
     visible: !root.closed
     // One shape: a soft fill, no outline (the shell draws the open-panel mark).
-    color: Util.alpha(root.fg, root.opened ? 0.14 : hot ? 0.1 : 0.05)
+    // The card's own graphite (Calm.surface), so pill, bridge and card are one colour.
+    color: Calm.surface
     Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 160 } }
   }
 
