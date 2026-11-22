@@ -22,9 +22,9 @@ Panel {
   readonly property string family: bar ? bar.fontFamily : Style.font.family
 
   readonly property var tabs: [
-    { key: "queue", label: "Queue" }, { key: "search", label: "Search" },
-    { key: "library", label: "Library" }, { key: "lyrics", label: "Lyrics" },
-    { key: "history", label: "History" }
+    { key: "queue", label: "Queue", icon: Icons.tabQueue }, { key: "search", label: "Search", icon: Icons.search },
+    { key: "library", label: "Library", icon: Icons.tabLibrary }, { key: "lyrics", label: "Lyrics", icon: Icons.tabLyrics },
+    { key: "history", label: "History", icon: Icons.tabHistory }
   ]
   property string tab: "queue"
   property var pages: []
@@ -334,7 +334,7 @@ Panel {
         anchors.right: parent.right
         svc: root.svc
         bar: root.bar
-        reserveRight: brand.width
+        topInset: brand.height
         onSaveRequested: root.saveRow(null)
       }
 
@@ -350,7 +350,20 @@ Panel {
         foreground: root.fg
         fontFamily: root.family
         settingsOpen: root.settingsOpen
+        showLeft: false
         onGearClicked: root.toggleSettings()
+      }
+
+      // The name, top left (Settings puts its own back row there).
+      Views.BrandCorner {
+        objectName: "panelBrandLeft"
+        anchors.top: parent.top
+        anchors.left: parent.left
+        visible: !root.settingsOpen
+        svc: root.svc
+        foreground: root.fg
+        fontFamily: root.family
+        showRight: false
       }
 
       Views.SignInCard {
@@ -395,12 +408,13 @@ Panel {
         id: tabPill
         readonly property int at: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return i; return 0 }
         visible: tabRow.visible && root.pages.length === 0
-        x: tabRow.x + at * (tabRow.cell + tabRow.spacing); y: tabRow.y
-        width: tabRow.cell; height: tabRow.height
+        x: tabRow.x + at * (tabRow.restW + tabRow.spacing); y: tabRow.y
+        width: tabRow.activeW; height: tabRow.height
         radius: height / 2
         color: Util.alpha(Calm.accent, 0.2)
         border.width: 1; border.color: Util.alpha(Calm.accent, 0.45)
         Behavior on x { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
+        Behavior on width { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
       }
 
       Row {
@@ -413,15 +427,29 @@ Panel {
         anchors.leftMargin: Style.space(4)
         width: parent.width - Style.space(8)
         spacing: Style.space(2)
-        readonly property real cell: (width - spacing * (root.tabs.length - 1)) / root.tabs.length
+        // The open tab grows to show its name; the others fold to an icon.
+        readonly property bool hasActive: root.pages.length === 0
+        property real activeW: hasActive ? tabMetrics.width + Style.space(56) : 0
+        readonly property real restW: (width - spacing * (root.tabs.length - 1) - activeW) / (hasActive ? root.tabs.length - 1 : root.tabs.length)
+        TextMetrics {
+          id: tabMetrics
+          font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
+          text: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return root.tabs[i].label; return "" }
+        }
+        Behavior on activeW { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
 
         Repeater {
+          id: tabRep
           model: root.tabs
           delegate: Views.HitButton {
+            id: tabBtn
             required property var modelData
             required property int index
-            text: modelData.label
-            width: tabRow.cell
+            readonly property bool open: tabRow.hasActive && root.tab === modelData.key
+            iconText: modelData.icon
+            iconSize: Style.font.iconLarge
+            text: open ? modelData.label : ""
+            width: open ? tabRow.activeW : tabRow.restW
             height: Style.space(36)
             fontFamily: root.family
             foreground: root.fg

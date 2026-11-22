@@ -15,6 +15,9 @@ Row {
   property color foreground: Calm.fg
   property string fontFamily: Style.font.family
   property bool settingsOpen: false
+  // The header is two instances: the name (left) and the buttons (right).
+  property bool showLeft: true
+  property bool showRight: true
 
   signal gearClicked()
 
@@ -29,24 +32,29 @@ Row {
 
   spacing: Style.space(4)
 
-  HitButton {
-    id: signIn
-    objectName: "signInButton"
+  Logo {
+    visible: root.showLeft
+    objectName: "brandLogo"
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(28)
-    text: "Sign in"
-    fontFamily: root.fontFamily
-    fontSize: Style.font.caption
-    foreground: root.foreground
-    bordered: true
-    visible: root.showSignIn
-    onClicked: if (root.svc) root.svc.signIn()
+    size: Style.font.body + Style.space(4)
+    rim: root.foreground
+  }
+  Text {
+    visible: root.showLeft
+    anchors.verticalCenter: parent.verticalCenter
+    opacity: 0.85
+    text: "Solfa"
+    textFormat: Text.PlainText
+    color: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.body
+    font.weight: Font.DemiBold
   }
   Rectangle {
     id: premium
     objectName: "premiumBadge"
     anchors.verticalCenter: parent.verticalCenter
-    visible: root.showPremium
+    visible: root.showLeft && root.showPremium
     width: premiumText.implicitWidth + Style.space(12)
     height: premiumText.implicitHeight + Style.space(4)
     radius: height / 2
@@ -63,21 +71,18 @@ Row {
       font.pixelSize: Style.font.caption
     }
   }
-  Logo {
-    objectName: "brandLogo"
+  HitButton {
+    id: signIn
+    objectName: "signInButton"
     anchors.verticalCenter: parent.verticalCenter
-    size: Style.font.body + Style.space(4)
-    rim: root.foreground
-  }
-  Text {
-    anchors.verticalCenter: parent.verticalCenter
-    opacity: 0.85
-    text: "Solfa"
-    textFormat: Text.PlainText
-    color: root.foreground
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.body
-    font.weight: Font.DemiBold
+    minSize: Style.space(28)
+    text: "Sign in"
+    fontFamily: root.fontFamily
+    fontSize: Style.font.caption
+    foreground: root.foreground
+    bordered: true
+    visible: root.showRight && root.showSignIn
+    onClicked: if (root.svc) root.svc.signIn()
   }
   HitButton {
     id: gear
@@ -88,7 +93,7 @@ Row {
     iconSize: Style.font.body
     foreground: root.settingsOpen ? Calm.accent : root.foreground
     selected: root.settingsOpen
-    visible: root.reachable
+    visible: root.showRight && root.reachable
     opacity: root.settingsOpen || hot ? 1 : 0.45
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: "Settings"
@@ -103,7 +108,7 @@ Row {
     iconSize: Style.font.body
     foreground: root.closed ? Calm.accent : root.foreground
     selected: root.closed
-    visible: root.reachable
+    visible: root.showRight && root.reachable
     opacity: root.closed || hot ? 1 : 0.45
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: root.closed ? "Turn Solfa on" : "Turn Solfa off — the music stops"

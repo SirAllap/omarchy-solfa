@@ -16,10 +16,13 @@ Column {
   readonly property bool hasTrack: svc ? svc.hasTrack : false
   // Width kept free at the top right (the panel puts Solfa's name there).
   property real reserveRight: 0
+  // Room for the header row (name, buttons) the panel draws over the top.
+  property real topInset: 0
   // Decoration moves only while the panel is open and a song plays.
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
   spacing: Style.space(10)
+  topPadding: topInset + (topInset > 0 ? Style.space(6) : 0)
 
   // The save-to-playlist button was pressed (the panel opens the picker).
   signal saveRequested()
@@ -270,6 +273,14 @@ Column {
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Shuffle the queue (s)"
+        Rectangle {
+          z: -1
+          anchors.centerIn: parent
+          width: Math.min(parent.width, parent.height) * 0.85; height: width
+          radius: width / 2
+          color: Calm.wash
+        }
+
         onClicked: if (root.svc) root.svc.shuffle()
       }
       HitButton {
@@ -324,6 +335,14 @@ Column {
         foreground: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg
         fontFamily: root.family
         tooltipText: Model.repeatLabel(root.svc ? root.svc.repeatMode : "NONE") + " (r)"
+        Rectangle {
+          z: -1
+          anchors.centerIn: parent
+          width: Math.min(parent.width, parent.height) * 0.85; height: width
+          radius: width / 2
+          color: root.svc && root.svc.repeatMode !== "NONE" ? Util.alpha(Calm.accent, 0.22) : Calm.wash
+        }
+
         onClicked: if (root.svc) root.svc.cycleRepeat()
       }
       HitButton {
