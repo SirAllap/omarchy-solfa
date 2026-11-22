@@ -172,6 +172,8 @@ def page_op(op, a):
         (PROFILE / "fake-eq-lost").unlink()
         emit_event("eq-lost", {})
         return {"applied": True, "built": False}, None
+    if op == "share.link":
+        return {"url": "https://music.youtube.com/watch?v=" + a["videoId"], "source": "share-panel"}, None
     if op == "session.arm":
         state["armed"] = bool(a.get("armed"))
         return {"armed": state["armed"]}, None

@@ -965,3 +965,82 @@ test("library history: signed out is refused before any request, signed in brows
   assert.equal(req.body.browseId, "FEmusic_history")
   assert.equal(r.sections.map((s) => s.title).join("|"), "Today|Yesterday|This week")
 })
+
+// ------------------------------------------------------------------ share.link
+
+function withShare(e, entity) {
+  e.playlistPanelVideoRenderer.menu = { menuRenderer: { items: [
+    { menuNavigationItemRenderer: { navigationEndpoint: { watchEndpoint: { videoId: e.playlistPanelVideoRenderer.videoId } } } },
+    { menuNavigationItemRenderer: { navigationEndpoint: { shareEntityEndpoint: { serializedShareEntity: entity, sharePanelType: "SHARE_PANEL_TYPE_UNIFIED_SHARE_PANEL" } } } }
+  ] } }
+  return e
+}
+
+// The share panel's reply, with its Copy link row saying `url`.
+function sharePanel(url) {
+  const r = F("share-panel")
+  r.actions[0].openPopupAction.popup.unifiedSharePanelRenderer.contents[0].thirdPartyNetworkSection.copyLinkContainer.copyLinkRenderer.shortUrl = url
+  return r
+}
+
+const PLAIN = (id) => "https://music.youtube.com/watch?v=" + id
+const plainCopy = (r) => JSON.parse(JSON.stringify(r))
+
+test("share.link: the entity comes from the app's queue, the link from the Share panel, cleaned", async () => {
+  const p = makePage({ items: [withShare(entry("AAAAAAAAAAA", "First Light"), "ENTITY-AAA"), entry("BBBBBBBBBBB", "Second Wind")],
+    replies: { "share/get_share_panel": () => F("share-panel") } })
+  await p.settle()
+  const r = plainCopy(await p.call("share.link", { videoId: "AAAAAAAAAAA" }))
+  assert.deepEqual(r, { url: PLAIN("AAAAAAAAAAA"), source: "share-panel" })
+  assert.deepEqual(p.requests.map((x) => x.endpoint), ["share/get_share_panel"], "nothing else was asked for")
+  assert.equal(p.requests[0].body.serializedSharedEntity, "ENTITY-AAA")
+  assert.equal(p.requests[0].body.context.client.clientName, "WEB_REMIX")
+  assert.equal(p.requests[0].init.headers.Authorization, undefined, "signed out: no account needed")
+})
+
+test("share.link: a song the queue has no menu for goes through `next`", async () => {
+  const p = makePage({ replies: {
+    "next": (body) => ({ contents: { playlistPanelRenderer: { contents: [withShare(entry(body.videoId, "Far Away"), "ENTITY-ZZZ")] } } }),
+    "share/get_share_panel": () => sharePanel("https://music.youtube.com/watch?v=ZZZZZZZZZZZ&si=FAKEsiTOKEN12345&feature=share")
+  } })
+  await p.settle()
+  const r = plainCopy(await p.call("share.link", { videoId: "ZZZZZZZZZZZ" }))
+  assert.deepEqual(r, { url: PLAIN("ZZZZZZZZZZZ"), source: "share-panel" })
+  assert.deepEqual(p.requests.map((x) => x.endpoint), ["next", "share/get_share_panel"])
+  assert.equal(p.requests[0].body.videoId, "ZZZZZZZZZZZ")
+  assert.equal(p.requests[1].body.serializedSharedEntity, "ENTITY-ZZZ")
+})
+
+test("share.link: a link the cleaning refuses, or any failure, gives the plain link as the fallback", async () => {
+  const queue = [withShare(entry("AAAAAAAAAAA", "First Light"), "ENTITY-AAA")]
+  const fallback = { url: PLAIN("AAAAAAAAAAA"), source: "fallback" }
+  const abort = () => { const e = new Error("aborted"); e.name = "AbortError"; throw e }
+  const cases = {
+    "another song's link": { "share/get_share_panel": () => sharePanel(PLAIN("BBBBBBBBBBB")) },
+    "another host": { "share/get_share_panel": () => sharePanel("https://evil.example/watch?v=AAAAAAAAAAA") },
+    "a reply with no link": { "share/get_share_panel": () => ({ actions: [] }) },
+    "an empty reply": {},
+    "a timeout": { "share/get_share_panel": abort },
+    "a network error": { "share/get_share_panel": () => { throw new TypeError("Failed to fetch") } }
+  }
+  for (const [name, replies] of Object.entries(cases)) {
+    const p = makePage({ items: queue, replies })
+    await p.settle()
+    assert.deepEqual(plainCopy(await p.call("share.link", { videoId: "AAAAAAAAAAA" })), fallback, name)
+  }
+  // no entity anywhere: the queue has none and `next` has none either
+  const none = makePage({ replies: { "next": () => ({}) } })
+  await none.settle()
+  assert.deepEqual(plainCopy(await none.call("share.link", { videoId: "AAAAAAAAAAA" })), fallback, "no Share item")
+  assert.deepEqual(none.requests.map((x) => x.endpoint), ["next"], "and the share panel is not asked without an entity")
+  // `next` itself times out
+  const slow = makePage({ replies: { "next": abort } })
+  await slow.settle()
+  assert.deepEqual(plainCopy(await slow.call("share.link", { videoId: "AAAAAAAAAAA" })), fallback, "next timed out")
+})
+
+test("share.link: an off-site page fails like every other operation", async () => {
+  const p = makePage({ host: "consent.youtube.com" })
+  await p.settle()
+  await assert.rejects(p.call("share.link", { videoId: "AAAAAAAAAAA" }), /not-on-app/)
+})
