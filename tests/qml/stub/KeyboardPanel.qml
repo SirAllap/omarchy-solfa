@@ -40,10 +40,11 @@ Item {
     id: card
     objectName: "panelCard"
     anchors.fill: parent
+    property var borderSpec: root.borderSpec
     radius: Style.cornerRadius
     color: Color.popups.background
-    border.width: Border.top(root.borderSpec)
-    border.color: Border.color(root.borderSpec)
+    border.width: Border.top(borderSpec)
+    border.color: Border.color(borderSpec)
 
     Item {
       id: contentHolder
