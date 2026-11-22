@@ -410,15 +410,12 @@ Panel {
       }
       Rectangle {
         id: tabPill
-        readonly property int at: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return i; return 0 }
         visible: tabRow.visible && root.pages.length === 0
-        x: tabRow.x + at * (tabRow.restW + tabRow.spacing); y: tabRow.y
-        width: tabRow.activeW; height: tabRow.height
+        x: tabRow.x + tabRow.pillX; y: tabRow.y
+        width: tabRow.pillW; height: tabRow.height
         radius: height / 2
         color: Util.alpha(Calm.accent, 0.2)
         border.width: 1; border.color: Util.alpha(Calm.accent, 0.45)
-        Behavior on x { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
-        Behavior on width { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
       }
 
       Row {
@@ -431,16 +428,43 @@ Panel {
         anchors.leftMargin: Style.space(4)
         width: parent.width - Style.space(8)
         spacing: Style.space(2)
-        // The open tab grows to show its name; the others fold to an icon.
+        // One number drives the whole bar: "pos" is the open tab as a real
+        // index. The pill (x and width), each tab's width and each label's
+        // fade all read it, so they land together. A critically damped
+        // spring (about 260 ms, no overshoot); a new click re-aims it mid-glide.
         readonly property bool hasActive: root.pages.length === 0
-        property real activeW: hasActive ? tabMetrics.width + Style.space(56) : 0
-        readonly property real restW: (width - spacing * (root.tabs.length - 1) - activeW) / (hasActive ? root.tabs.length - 1 : root.tabs.length)
-        TextMetrics {
-          id: tabMetrics
-          font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
-          text: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return root.tabs[i].label; return "" }
+        readonly property int target: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return i; return 0 }
+        property real pos: target
+        Behavior on pos { enabled: !Style.reduceMotion; SpringAnimation { spring: 11; damping: 1; epsilon: 0.001 } }
+        // 1 while a tab is open, 0 while a detail page covers the bar.
+        property real act: hasActive ? 1 : 0
+        Behavior on act { enabled: !Style.reduceMotion; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        property var labelWs: []
+        function setLabelW(i, w) { var c = labelWs.slice(); c[i] = w; labelWs = c }
+        function labelW(i) { return labelWs[i] || 0 }
+        readonly property real lo: Math.max(0, Math.min(root.tabs.length - 1, Math.floor(pos)))
+        readonly property real frac: Math.max(0, Math.min(1, pos - lo))
+        // The open tab's full width: its label, its icon and some air.
+        readonly property real activeW: (labelW(lo) * (1 - frac) + labelW(Math.min(lo + 1, root.tabs.length - 1)) * frac + Style.space(56)) * act
+        readonly property real restW: (width - spacing * (root.tabs.length - 1) - activeW) / (root.tabs.length - act)
+        // How open tab i is: 1 under the pill, 0 away from it.
+        function weight(i) { return act * Math.max(0, 1 - Math.abs(pos - i)) }
+        function tabW(i) { return restW + (activeW - restW) * (act > 0 ? weight(i) / act : 0) }
+        function tabX(i) { var x = 0; for (var j = 0; j < i; j++) x += tabW(j) + spacing; return x }
+        readonly property real pillX: tabX(lo) + (tabX(Math.min(lo + 1, root.tabs.length - 1)) - tabX(lo)) * frac
+        readonly property real pillW: activeW
+
+        Repeater {
+          model: root.tabs
+          delegate: TextMetrics {
+            required property var modelData
+            required property int index
+            font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
+            text: modelData.label
+            onWidthChanged: tabRow.setLabelW(index, width)
+            Component.onCompleted: tabRow.setLabelW(index, width)
+          }
         }
-        Behavior on activeW { enabled: !Style.reduceMotion; SpringAnimation { spring: 4.2; damping: 0.5; epsilon: 0.4 } }
 
         Repeater {
           id: tabRep
@@ -451,36 +475,46 @@ Panel {
             id: tabBtn
             required property var modelData
             required property int index
-            readonly property bool open: tabRow.hasActive && root.tab === modelData.key
-            width: open ? tabRow.activeW : tabRow.restW
+            readonly property real open: tabRow.weight(index)
+            width: tabRow.tabW(index)
             height: Style.space(38)
             Rectangle {
               anchors.fill: parent
               radius: height / 2
               color: Util.alpha(root.fg, 0.07)
-              opacity: !tabBtn.open && tabMouse.containsMouse ? 1 : 0
+              opacity: tabBtn.open < 0.5 && tabMouse.containsMouse ? 1 : 0
               Behavior on opacity { NumberAnimation { duration: 120 } }
             }
             Row {
               anchors.centerIn: parent
-              spacing: Style.space(8)
+              spacing: 0
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: tabBtn.modelData.icon
                 textFormat: Text.PlainText
-                color: tabBtn.open ? Calm.accent : Util.alpha(root.fg, tabMouse.containsMouse ? 1 : 0.7)
+                color: tabBtn.open > 0.5 ? Calm.accent : Util.alpha(root.fg, tabMouse.containsMouse ? 1 : 0.7)
                 font.family: root.family
                 font.pixelSize: Style.space(20)
               }
-              Text {
+              // The name opens and closes with the pill: width and opacity
+              // follow its progress.
+              Item {
                 anchors.verticalCenter: parent.verticalCenter
-                visible: tabBtn.open
-                text: tabBtn.modelData.label
-                textFormat: Text.PlainText
-                color: root.fg
-                font.family: root.family
-                font.pixelSize: Style.font.body
-                font.weight: Font.DemiBold
+                width: (tabRow.labelW(tabBtn.index) + Style.space(8)) * tabBtn.open
+                height: labelText.implicitHeight
+                clip: true
+                visible: tabBtn.open > 0.001
+                Text {
+                  id: labelText
+                  x: Style.space(8)
+                  opacity: tabBtn.open
+                  text: tabBtn.modelData.label
+                  textFormat: Text.PlainText
+                  color: root.fg
+                  font.family: root.family
+                  font.pixelSize: Style.font.body
+                  font.weight: Font.DemiBold
+                }
               }
             }
             MouseArea {
@@ -521,12 +555,33 @@ Panel {
         anchors.bottom: footer.top
         anchors.bottomMargin: Style.space(8)
 
-        Views.QueueView { id: queueView; objectName: "queueView"; anchors.fill: parent; visible: !root.settingsOpen && root.view === queueView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.SearchView { id: searchView; anchors.fill: parent; visible: !root.settingsOpen && root.view === searchView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && root.view === libraryView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && root.view === lyricsView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && root.view === historyView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.DetailView { id: detailView; anchors.fill: parent; visible: !root.settingsOpen && root.view === detailView; svc: root.svc; bar: root.bar; panel: root }
+        // The view change: the old view fades out and the new one in, each
+        // sliding a few px, on one 200 ms OutCubic clock (instant with reduce motion).
+        property var last: root.view
+        property var prev: null
+        property real mix: 1
+        readonly property real slidePx: Style.space(8)
+        function fade(v) { return root.view === v ? mix : (prev === v ? 1 - mix : 0) }
+        function slide(v) { return root.view === v ? (1 - mix) * slidePx : (prev === v ? -mix * slidePx : 0) }
+        function shows(v) { return root.view === v || prev === v }
+        Connections {
+          target: root
+          function onViewChanged() {
+            stage.prev = stage.last
+            stage.last = root.view
+            if (Style.reduceMotion) { mixAnim.stop(); stage.prev = null; stage.mix = 1; return }
+            stage.mix = 0
+            mixAnim.restart()
+          }
+        }
+        NumberAnimation { id: mixAnim; target: stage; property: "mix"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic; onFinished: stage.prev = null }
+
+        Views.QueueView { id: queueView; objectName: "queueView"; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(queueView); opacity: stage.fade(queueView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(queueView) } }
+        Views.SearchView { id: searchView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(searchView); opacity: stage.fade(searchView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(searchView) } }
+        Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(libraryView); opacity: stage.fade(libraryView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(libraryView) } }
+        Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(lyricsView); opacity: stage.fade(lyricsView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(lyricsView) } }
+        Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(historyView); opacity: stage.fade(historyView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(historyView) } }
+        Views.DetailView { id: detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
 
         Views.SettingsView {
           id: settingsView
