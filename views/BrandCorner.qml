@@ -36,18 +36,17 @@ Row {
     visible: root.showLeft
     objectName: "brandLogo"
     anchors.verticalCenter: parent.verticalCenter
-    size: Style.font.body + Style.space(4)
+    size: Style.space(32)
     rim: root.foreground
   }
   Text {
     visible: root.showLeft
     anchors.verticalCenter: parent.verticalCenter
-    opacity: 0.85
     text: "Solfa"
     textFormat: Text.PlainText
     color: root.foreground
     font.family: root.fontFamily
-    font.pixelSize: Style.font.body
+    font.pixelSize: Style.space(22)
     font.weight: Font.DemiBold
   }
   Rectangle {
@@ -68,7 +67,7 @@ Row {
       textFormat: Text.PlainText
       color: Calm.accent
       font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
+      font.pixelSize: Style.space(14)
     }
   }
   HitButton {
@@ -88,9 +87,9 @@ Row {
     id: gear
     objectName: "gearButton"
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(28)
-    iconText: Icons.gear
-    iconSize: Style.font.body
+    minSize: Style.space(32)
+    iconText: ""
+    VIcon { anchors.centerIn: parent; name: "gear"; size: Style.space(22); stroke: 1.6; color: gear.foreground }
     foreground: root.settingsOpen ? Calm.accent : root.foreground
     selected: root.settingsOpen
     visible: root.showRight && root.reachable
@@ -103,9 +102,9 @@ Row {
     id: power
     objectName: "powerButton"
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(28)
-    iconText: Icons.power
-    iconSize: Style.font.body
+    minSize: Style.space(32)
+    iconText: ""
+    VIcon { anchors.centerIn: parent; name: "power"; size: Style.space(22); stroke: 1.6; color: power.foreground }
     foreground: root.closed ? Calm.accent : root.foreground
     selected: root.closed
     visible: root.showRight && root.reachable

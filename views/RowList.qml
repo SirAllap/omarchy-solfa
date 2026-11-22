@@ -212,8 +212,12 @@ ListView {
             anchors.verticalCenter: parent.verticalCenter
             opacity: cell.showActions ? 1 : 0
             enabled: cell.showActions
-            iconText: modelData.icon
-            iconSize: Style.space(15)
+            // The common actions draw as thin vector icons, like the mockup.
+            readonly property string vname: modelData.icon === Icons.savePlaylist ? "queue" : modelData.icon === Icons.close ? "close"
+              : modelData.icon === Icons.plus ? "plus" : modelData.icon === Icons.play ? "play" : ""
+            iconText: vname === "" ? modelData.icon : ""
+            iconSize: Style.space(20)
+            VIcon { visible: actionButton.vname !== ""; anchors.centerIn: parent; name: actionButton.vname; size: Style.space(20); stroke: 1.7; filled: actionButton.vname === "play"; color: actionButton.foreground }
             foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
             tooltipText: modelData.tip

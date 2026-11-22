@@ -29,7 +29,7 @@ Row {
       textFormat: Text.PlainText
       color: Util.alpha(hint.fg, 0.85)
       font.family: hint.family
-      font.pixelSize: Style.font.caption
+      font.pixelSize: Style.space(14)
     }
   }
 

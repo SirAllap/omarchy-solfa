@@ -516,13 +516,12 @@ Panel {
             Row {
               anchors.centerIn: parent
               spacing: 0
-              Text {
+              Views.VIcon {
                 anchors.verticalCenter: parent.verticalCenter
-                text: tabBtn.modelData.icon
-                textFormat: Text.PlainText
+                name: tabBtn.modelData.key
+                size: Style.space(22)
+                stroke: 1.7
                 color: tabBtn.open > 0.5 ? Calm.accent : Util.alpha(root.fg, tabMouse.containsMouse ? 1 : 0.7)
-                font.family: root.family
-                font.pixelSize: Style.space(20)
               }
               // The name opens and closes with the pill: width and opacity
               // follow its progress.
