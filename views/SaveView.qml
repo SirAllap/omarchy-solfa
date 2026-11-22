@@ -43,7 +43,7 @@ Rectangle {
     : playlists.length === 0 ? "No playlists yet: press Enter to make the first one"
     : rows.length === 1 && query.trim() !== "" ? "No playlist matches" : ""
 
-  color: Color.popups.background
+  color: Calm.surface
   radius: Style.spacing.labelGap
   clip: true
 

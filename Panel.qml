@@ -422,6 +422,8 @@ Panel {
         if (!p) return
         p.borderSpec = Border.none()
         p.radius = Qt.binding(function () { return keys.frameRadius })
+        // Opaque derived surface, never the theme's see-through popup colour (the bridge copies this).
+        p.color = Qt.binding(function () { return Calm.surface })
         keys.hostCard = p
         // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
         if (p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel))
@@ -761,7 +763,7 @@ Panel {
           anchors.fill: parent
           visible: root.allKeys
           clip: true
-          color: Color.popups.background
+          color: Calm.surface
           radius: Style.spacing.labelGap
           Flow {
             anchors.fill: parent

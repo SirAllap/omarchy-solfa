@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
-import qs.Commons
+// Qualified: a bare `Color` can resolve to a Qt builtin instead of the shell singleton.
+import qs.Commons as Commons
 
 // The calm palette of the approved mockup (mockups/redesign/Theme.qml),
 // derived live from the shell theme (Commons.Color) so a light theme gets a
@@ -20,18 +21,22 @@ QtObject {
   readonly property color lightFg: Qt.rgba(0.102, 0.106, 0.122, 1)
   readonly property color darkAccent: Qt.rgba(0.561, 0.541, 0.659, 1)
 
-  readonly property color _shellSurface: Color.popups && valid(Color.popups.background) ? Color.popups.background : darkSurface
-  // Opaque: the card never shows the desktop through.
-  readonly property color surface: Qt.rgba(_shellSurface.r, _shellSurface.g, _shellSurface.b, 1)
+  readonly property color _shellSurface: Commons.Color.popups && valid(Commons.Color.popups.background) ? Commons.Color.popups.background : darkSurface
+  readonly property color _shellBg: valid(Commons.Color.background) ? Commons.Color.background : darkSurface
+  // Opaque, whatever alpha the theme's popup colour has: it is blended over the
+  // theme background and forced to alpha 1, so the card, pill and bridge never
+  // show the desktop through.
+  readonly property real _sa: _shellSurface.a
+  readonly property color surface: Qt.rgba(_shellSurface.r * _sa + _shellBg.r * (1 - _sa), _shellSurface.g * _sa + _shellBg.g * (1 - _sa), _shellSurface.b * _sa + _shellBg.b * (1 - _sa), 1)
   readonly property bool light: lum(surface) > 0.5
   readonly property color ink: light ? Qt.rgba(0, 0, 0, 1) : Qt.rgba(1, 1, 1, 1)
   readonly property color raised: mix(surface, ink, light ? 0.06 : 0.045)
   readonly property color bg: light ? mix(surface, ink, 0.1) : mix(surface, ink, -0.4)
   // Text: the shell's popup text when it reads on the card, else picked by luminance.
-  readonly property color _shellText: Color.popups && valid(Color.popups.text) ? Color.popups.text : (light ? lightFg : darkFg)
+  readonly property color _shellText: Commons.Color.popups && valid(Commons.Color.popups.text) ? Commons.Color.popups.text : (light ? lightFg : darkFg)
   readonly property color fg: Math.abs(lum(_shellText) - lum(surface)) > 0.45 ? Qt.rgba(_shellText.r, _shellText.g, _shellText.b, 1) : (light ? lightFg : darkFg)
   readonly property color muted: a(fg, 0.6)
-  readonly property color _shellAccent: valid(Color.accent) ? Color.accent : darkAccent
+  readonly property color _shellAccent: valid(Commons.Color.accent) ? Commons.Color.accent : darkAccent
   readonly property color accent: Math.abs(lum(_shellAccent) - lum(surface)) > 0.2 ? _shellAccent : (light ? mix(darkAccent, ink, 0.35) : darkAccent)
   // Ink on an accent fill (primary buttons, the active chip).
   readonly property color onAccent: lum(accent) > 0.5 ? Qt.rgba(0.051, 0.055, 0.067, 1) : Qt.rgba(1, 1, 1, 1)
