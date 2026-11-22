@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -354,19 +355,21 @@ Item {
     id: toggle
     property color fg: root.fg
     property bool active: false
-    width: Style.space(38)
-    height: Style.space(20)
+    // Mockup Toggle: 44x26, 20 px knob 3 px in; the on state is a solid accent
+    // with no outline, the off state a wash with one hairline.
+    width: Style.space(44)
+    height: Style.space(26)
     radius: height / 2
-    color: active ? Color.accent : Util.alpha(fg, 0.12)
-    border.width: 1
-    border.color: active ? Color.accent : Util.alpha(fg, 0.25)
+    color: active ? Color.accent : Calm.a(Qt.rgba(1, 1, 1, 1), 0.1)
+    border.width: active ? 0 : 1
+    border.color: Calm.hair
     Rectangle {
-      width: parent.height - 4
+      width: parent.height - Style.space(6)
       height: width
       radius: width / 2
-      color: toggle.active ? "white" : Util.alpha(toggle.fg, 0.7)
+      color: toggle.active ? "white" : Util.alpha(toggle.fg, 0.64)
       anchors.verticalCenter: parent.verticalCenter
-      x: toggle.active ? parent.width - width - 2 : 2
+      x: toggle.active ? parent.width - width - Style.space(3) : Style.space(3)
       Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
   }
@@ -379,10 +382,10 @@ Item {
     signal clicked()
     width: chipText.implicitWidth + Style.space(16)
     height: Style.space(24)
-    radius: Style.space(12)
-    color: active ? Style.selectedFillFor(fg, Color.accent) : "transparent"
+    radius: height / 2
+    color: active ? Calm.a(Color.accent, 0.2) : Calm.wash
     border.width: 1
-    border.color: active ? Color.accent : Util.alpha(fg, 0.2)
+    border.color: active ? Calm.a(Color.accent, 0.55) : Calm.hair
     Text {
       id: chipText
       anchors.centerIn: parent
@@ -441,9 +444,9 @@ Item {
     width: qbtnText.implicitWidth + Style.space(20)
     height: Style.space(26)
     radius: height / 2
-    color: focused ? Style.selectedFillFor(fg, Color.accent) : Util.alpha(fg, 0.06)
+    color: focused ? Style.selectedFillFor(fg, Color.accent) : Calm.wash
     border.width: 1
-    border.color: danger ? Color.urgent : (focused ? Color.accent : Util.alpha(fg, 0.14))
+    border.color: danger ? Calm.a(Color.urgent, 0.45) : (focused ? Color.accent : Calm.hair)
     Text {
       id: qbtnText
       anchors.centerIn: parent
@@ -481,7 +484,7 @@ Item {
       radius: height / 2
       color: backHover.containsMouse ? Util.alpha(root.fg, 0.1) : Util.alpha(root.fg, 0.06)
       border.width: 1
-      border.color: Util.alpha(root.fg, 0.12)
+      border.color: Calm.hair
       MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
     }
     Text {
