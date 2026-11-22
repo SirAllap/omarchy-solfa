@@ -1098,7 +1098,7 @@ Item {
             id: aboutCol
             anchors.centerIn: parent
             spacing: Style.space(10)
-            Logo { anchors.horizontalCenter: parent.horizontalCenter; size: Style.space(52); rim: root.fg; label: Calm.accent }
+            Logo { anchors.horizontalCenter: parent.horizontalCenter; size: Style.space(72) }
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.bold: true }
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineLabel(root.engineVersionText); textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.space(12) }
           }

@@ -44,9 +44,6 @@ Row {
     objectName: root.showLeft ? "brandLogo" : ""
     anchors.verticalCenter: parent.verticalCenter
     size: Style.space(36)
-    rim: Util.alpha(root.foreground, 0.7)
-    disc: Qt.rgba(0.62, 0.63, 0.66, 1)
-    label: root.muted
   }
   Text {
     visible: root.showLeft
