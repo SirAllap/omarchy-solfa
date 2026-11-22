@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
@@ -322,7 +321,7 @@ Panel {
       Keys.onPressed: function (event) { root.onKey(event) }
 
       // The frame is the mockup's (PanelFrame.qml): a graphite card with
-      // rounded corners and a soft drop shadow, no border. The shell draws
+      // rounded corners, no border and no shadow of our own (a solid offset shape under the card read as a second frame). The shell draws
       // its own card (KeyboardPanel.qml:514-517: popups background, theme
       // border, Style.cornerRadius = Hyprland rounding), so we find that card
       // above us at runtime and restyle it to the same shape: one frame, one
@@ -337,28 +336,6 @@ Panel {
         p.radius = Qt.binding(function () { return keys.frameRadius })
         p.color = Calm.surface
         keys.hostCard = p
-      }
-
-      Rectangle {
-        id: frameFace
-        z: -2
-        anchors.fill: parent
-        anchors.margins: -Style.spacing.popupPadding
-        radius: keys.frameRadius
-        color: Calm.surface
-        layer.enabled: true
-        visible: false
-      }
-      MultiEffect {
-        z: -2
-        anchors.fill: frameFace
-        source: frameFace
-        shadowEnabled: true
-        shadowColor: "#000000"
-        shadowOpacity: 0.5
-        shadowBlur: 1.0
-        shadowVerticalOffset: Style.space(10)
-        shadowScale: 1.0
       }
 
       Views.NowPlaying {
