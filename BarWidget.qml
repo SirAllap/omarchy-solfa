@@ -93,7 +93,7 @@ BarWidget {
     visible: !root.closed
     // One shape: a soft fill, no outline (the shell draws the open-panel mark).
     color: Util.alpha(root.fg, hot ? 0.1 : 0.05)
-    Behavior on color { ColorAnimation { duration: 160 } }
+    Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 160 } }
   }
 
   Row {

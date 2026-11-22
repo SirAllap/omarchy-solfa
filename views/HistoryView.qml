@@ -56,6 +56,7 @@ Item {
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    panelOpen: !!(view.svc && view.svc.panelOpen)
     actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
     emptyText: view.nothingYet ? "" : !view.signedIn ? "Sign in to YouTube Music to see your history"
       : view.busy && !view.info ? "Loading"

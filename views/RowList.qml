@@ -18,6 +18,8 @@ ListView {
   property QtObject bar: null
   property string playingId: ""
   property bool isPlaying: true
+  // The owner passes svc.panelOpen: the equalizers stand still in a closed panel.
+  property bool panelOpen: true
   property var actionsFor: function (row) { return [] }
   property string emptyText: ""
   property color fg: Calm.fg
@@ -171,6 +173,7 @@ ListView {
             visible: cell.now
             anchors.verticalCenter: parent.verticalCenter
             playing: list.isPlaying
+            panelOpen: list.panelOpen
             reduceMotion: Style.reduceMotion
             color: Calm.accent
           }

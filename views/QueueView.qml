@@ -146,6 +146,7 @@ Item {
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    panelOpen: !!(view.svc && view.svc.panelOpen)
     isPlaying: view.svc ? view.svc.isPlaying !== false : true
     actionsFor: view.actionsFor
     // The empty, loading and error states are drawn by `state` below.

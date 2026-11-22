@@ -213,6 +213,7 @@ Item {
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    panelOpen: !!(view.svc && view.svc.panelOpen)
     actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
     emptyText: view.busy ? "Loading" : view.error
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.contextList()) }

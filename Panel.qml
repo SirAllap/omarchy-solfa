@@ -6,6 +6,7 @@ import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
 import "lib/Calm.js" as Calm
 import "views" as Views
+import QtQuick.Controls as QC
 
 // The panel: now playing at the top, then Queue, Search, Library, Lyrics
 // and History, and pages (album, artist, playlist) opened from any list.
@@ -489,13 +490,19 @@ Panel {
 
         Repeater {
           model: root.tabs
-          delegate: TextMetrics {
+          // An Item wrapper: a Repeater delegate must be an Item, or it is
+          // dropped after its first run and later width changes never arrive.
+          delegate: Item {
+            id: metricsHost
             required property var modelData
             required property int index
-            font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
-            text: modelData.label
-            onWidthChanged: if (tabRow) tabRow.setLabelW(index, width)
-            Component.onCompleted: if (tabRow) tabRow.setLabelW(index, width)
+            TextMetrics {
+              id: metrics
+              font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
+              text: metricsHost.modelData.label
+              onWidthChanged: if (tabRow) tabRow.setLabelW(metricsHost.index, width)
+              Component.onCompleted: if (tabRow) tabRow.setLabelW(metricsHost.index, width)
+            }
           }
         }
 
@@ -516,7 +523,7 @@ Panel {
               radius: height / 2
               color: Util.alpha(root.fg, 0.07)
               opacity: tabBtn.open < 0.5 && tabMouse.containsMouse ? 1 : 0
-              Behavior on opacity { NumberAnimation { duration: 120 } }
+              Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
             }
             Row {
               anchors.centerIn: parent
@@ -555,6 +562,9 @@ Panel {
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               onClicked: root.showTab(tabBtn.modelData.key)
+              QC.ToolTip.visible: containsMouse
+              QC.ToolTip.delay: 400
+              QC.ToolTip.text: String(tabBtn.index + 1)
             }
           }
         }
@@ -608,12 +618,12 @@ Panel {
         }
         NumberAnimation { id: mixAnim; target: stage; property: "mix"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic; onFinished: stage.prev = null }
 
-        Views.QueueView { id: queueView; objectName: "queueView"; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(queueView); opacity: stage.fade(queueView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(queueView) } }
-        Views.SearchView { id: searchView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(searchView); opacity: stage.fade(searchView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(searchView) } }
-        Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(libraryView); opacity: stage.fade(libraryView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(libraryView) } }
-        Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(lyricsView); opacity: stage.fade(lyricsView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(lyricsView) } }
-        Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(historyView); opacity: stage.fade(historyView); active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(historyView) } }
-        Views.DetailView { id: detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
+        Views.QueueView { id: queueView; objectName: "queueView"; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(queueView); opacity: stage.fade(queueView); enabled: root.view === queueView; active: root.opened && root.view === queueView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(queueView) } }
+        Views.SearchView { id: searchView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(searchView); opacity: stage.fade(searchView); enabled: root.view === searchView; active: root.opened && root.view === searchView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(searchView) } }
+        Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(libraryView); opacity: stage.fade(libraryView); enabled: root.view === libraryView; active: root.opened && root.view === libraryView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(libraryView) } }
+        Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(lyricsView); opacity: stage.fade(lyricsView); enabled: root.view === lyricsView; active: root.opened && root.view === lyricsView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(lyricsView) } }
+        Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(historyView); opacity: stage.fade(historyView); enabled: root.view === historyView; active: root.opened && root.view === historyView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(historyView) } }
+        Views.DetailView { id: detailView; enabled: root.view === detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
 
         Views.SettingsView {
           id: settingsView
@@ -672,7 +682,7 @@ Panel {
         border.color: Calm.hair
         opacity: root.flash !== "" ? 1 : 0
         visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: 160 } }
+        Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 160 } }
         Row {
           id: toastRow
           anchors.centerIn: parent
