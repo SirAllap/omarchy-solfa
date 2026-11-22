@@ -767,7 +767,10 @@
       nextQueueItemId: q.nextQueueItemId || 0,
       videoId: selectedId() || playingId(), position: Math.max(0, Number(p.getCurrentTime()) || 0),
       playing: p.getPlayerState() === 1,
-      volume: Math.round(Number(p.getVolume()) || 0), muted: !!(p.isMuted && p.isMuted())
+      volume: Math.round(Number(p.getVolume()) || 0), muted: !!(p.isMuted && p.isMuted()),
+      // Without it the fresh page never asks for the next page of a long
+      // list: the queue would end with the songs it has.
+      continuation: continuationOf(app())
     }
     Object.keys(QUEUE_SETTERS).forEach(function (k) { if (k in q) out[k] = q[k] })
     return out
@@ -800,6 +803,20 @@
     s.dispatch({ type: "SET_INDEX", payload: saved.selectedItemIndex })
   }
 
+  // The token goes back last, once the queue is in place: set any earlier,
+  // the song's load could fetch a page that the saved items then overwrite,
+  // and the queue would skip it.
+  function putContinuation(s, a, saved) {
+    if (!a || !a.queue) return
+    a.queue.continuation = typeof saved.continuation === "string" && saved.continuation ? saved.continuation : undefined
+    if (!a.queue.continuation) return
+    // The app asks for the next page when the selection comes within 5
+    // songs of the end. If the saved song is already there, the old page's
+    // request went with it: ask now, or the queue stops at its last song.
+    var q = s.getState().queue
+    if (q.selectedItemIndex + 5 >= q.items.length + (q.automixItems || []).length) queueMore().catch(function () {})
+  }
+
   async function restoreSession(saved) {
     var s = needStore()
     var p = needPlayer()
@@ -808,7 +825,10 @@
     putQueue(s, saved)
     var i = saved.selectedItemIndex
     if (typeof i !== "number" || i < 0 || i >= saved.items.length || !a || !a.queue ||
-        typeof a.queue.selectQueueItem !== "function") return { restored: "queue" }
+        typeof a.queue.selectQueueItem !== "function") {
+      putContinuation(s, a, saved)
+      return { restored: "queue" }
+    }
     // Load the song muted when it is to stay paused: selecting it plays it.
     p.setVolume(saved.volume)
     s.dispatch({ type: "SET_VOLUME", payload: saved.volume })
@@ -849,6 +869,7 @@
       // alone, the list grows by one page (50 songs) at every recycle.
       s.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: saved.automixItems || [], shouldAssignIds: false } })
     }
+    putContinuation(s, a, saved)
     schedule(false)
     return { restored: ok ? "song" : "queue" }
   }

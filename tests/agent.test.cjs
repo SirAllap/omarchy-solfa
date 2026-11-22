@@ -465,6 +465,74 @@ const plain = (x) => JSON.parse(JSON.stringify(x))
 const nextPage = (from, n, token) => ({ continuationContents: { playlistPanelContinuation: {
   contents: songs(from, n), continuations: token ? [{ nextContinuationData: { continuation: token } }] : undefined } } })
 
+test("session: the app's token for the next page of a long list goes to the fresh page, after the queue", async () => {
+  const old = makePage({ items: songs(0, 50) })
+  await old.settle()
+  old.store.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: [] } })
+  old.store.dispatch({ type: "SET_INDEX", payload: 10 })
+  old.player.current = "S0000000010"
+  old.app.queue.continuation = "fixture-page-2"
+  const saved = JSON.parse(JSON.stringify(await old.call("session.save")))
+  assert.equal(saved.continuation, "fixture-page-2")
+
+  const fresh = makePage({ items: [entry("ZZZZZZZZZZZ", "Zero")] })
+  await fresh.settle()
+  let atSelection = "unset"
+  const select = fresh.app.queue.selectQueueItem
+  fresh.app.queue.selectQueueItem = function (item) {
+    atSelection = this.continuation
+    select.call(this, item)
+    this.continuation = "fixture-fresh-load"   // the song's own load may leave one of its own
+  }
+  const res = await fresh.call("session.restore", saved)
+  assert.equal(res.restored, "song")
+  assert.equal(atSelection, undefined, "not there yet while the song loads")
+  assert.equal(fresh.app.queue.continuation, "fixture-page-2", "the saved token wins")
+  assert.equal(fresh.requests.filter((r) => r.endpoint === "next").length, 0, "far from the end: the app asks by itself later")
+  assert.equal((await fresh.call("queue")).more, true)
+})
+
+test("session: a saved song already near the end asks for the next page at once", async () => {
+  const old = makePage({ items: songs(0, 50) })
+  await old.settle()
+  old.store.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: [] } })
+  // Within 5 of the end: the old page had asked, and its request went with it.
+  old.store.dispatch({ type: "SET_INDEX", payload: 49 })
+  old.player.current = "S0000000049"
+  old.app.queue.continuation = "fixture-page-2"
+  const saved = JSON.parse(JSON.stringify(await old.call("session.save")))
+
+  const fresh = makePage({ items: [entry("ZZZZZZZZZZZ", "Zero")], replies: { next: () => nextPage(50, 49, "fixture-page-3") } })
+  await fresh.settle()
+  await fresh.call("session.restore", saved)
+  await fresh.settle()
+  const asked = fresh.requests.filter((r) => r.endpoint === "next")
+  assert.equal(asked.length, 1)
+  assert.equal(asked[0].body.continuation, "fixture-page-2")
+  const q = fresh.store.getState().queue
+  assert.equal(q.items.length, 99)
+  assert.deepEqual(ids(q.items).slice(48, 51), ["S0000000048", "S0000000049", "S0000000050"])
+  assert.equal(q.selectedItemIndex, 49)
+  assert.equal(fresh.app.queue.continuation, "fixture-page-3")
+})
+
+test("session: a queue with no next page leaves the fresh page none either", async () => {
+  const old = makePage()
+  await old.settle()
+  old.store.dispatch({ type: "SET_INDEX", payload: 1 })
+  old.player.current = "BBBBBBBBBBB"
+  const saved = JSON.parse(JSON.stringify(await old.call("session.save")))
+  assert.equal(saved.continuation, "")
+
+  const fresh = makePage({ items: [entry("ZZZZZZZZZZZ", "Zero")] })
+  await fresh.settle()
+  const select = fresh.app.queue.selectQueueItem
+  fresh.app.queue.selectQueueItem = function (item) { select.call(this, item); this.continuation = "fixture-fresh-load" }
+  await fresh.call("session.restore", saved)
+  assert.equal(fresh.app.queue.continuation, undefined)
+  assert.equal(fresh.requests.filter((r) => r.endpoint === "next").length, 0)
+})
+
 test("armed: the next song is paused the moment it is selected, a queue edit is not a new song", async () => {
   const p = makePage()
   await p.settle()
