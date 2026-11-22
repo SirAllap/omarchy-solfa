@@ -75,7 +75,7 @@ BarWidget {
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
   readonly property real pillHeight: Math.min(height, barSize) - Style.space(4)
-  readonly property real pillPad: Math.max(Style.space(2), Math.round((pillHeight - coverSlot.height) / 2))
+  readonly property real pillPad: Math.max(3, Math.round((pillHeight - coverSlot.height) / 2))
   implicitWidth: visible ? body.implicitWidth + 2 * pillPad : 0
   implicitHeight: barSize
   // The open-panel underline follows what the widget paints; without this
