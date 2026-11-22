@@ -4,7 +4,7 @@ import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
-import "lib/Calm.js" as Calm
+import "lib"
 import "lib/Motion.js" as Motion
 import "views" as Views
 import QtQuick.Controls as QC
@@ -373,7 +373,7 @@ Panel {
           layer.samples: 8
           ShapePath {
             id: sp
-            fillColor: bridge.card ? bridge.card.color : "transparent"
+            fillColor: Calm.surface
             strokeWidth: -1
             readonly property real m: bridge.width / 2
             readonly property real h: bridge.height
@@ -402,7 +402,8 @@ Panel {
         if (!p) return
         p.borderSpec = Border.none()
         p.radius = Qt.binding(function () { return keys.frameRadius })
-        p.color = Calm.surface
+        // Opaque derived surface, never the theme's see-through popup colour (the bridge copies this).
+        p.color = Qt.binding(function () { return Calm.surface })
         keys.hostCard = p
         // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
         // One bridge per card: the content is reloaded on every open.
@@ -750,7 +751,7 @@ Panel {
           anchors.fill: parent
           visible: root.allKeys
           clip: true
-          color: Color.popups.background
+          color: Calm.surface
           radius: Style.spacing.labelGap
           Flow {
             anchors.fill: parent

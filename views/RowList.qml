@@ -2,7 +2,7 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
-import "../lib/Calm.js" as Calm
+import "../lib"
 import "../lib/Icons.js" as Icons
 import "../lib/Motion.js" as Motion
 

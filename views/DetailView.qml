@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -107,13 +107,13 @@ Item {
       Text {
         anchors.verticalCenter: parent.verticalCenter
         text: pill.glyph
-        color: pill.primary ? "#14101f" : Calm.fg
+        color: pill.primary ? Calm.onAccent : Calm.fg
         font.pixelSize: Style.space(15)
       }
       Text {
         anchors.verticalCenter: parent.verticalCenter
         text: pill.text
-        color: pill.primary ? "#14101f" : Calm.fg
+        color: pill.primary ? Calm.onAccent : Calm.fg
         font.family: view.family
         font.pixelSize: Style.space(13)
         font.weight: Font.DemiBold

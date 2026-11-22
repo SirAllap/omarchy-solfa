@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Icons.js" as Icons
@@ -64,7 +64,7 @@ Column {
     text: "Turn on"
     iconText: Icons.power
     fontFamily: card.family
-    foreground: Calm.bg
+    foreground: Calm.onAccent
     background: Calm.accent
     radius: height / 2
     onClicked: if (card.svc) card.svc.startEngine()

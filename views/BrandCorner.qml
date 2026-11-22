@@ -2,7 +2,7 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 import "../lib/Icons.js" as Icons
-import "../lib/Calm.js" as Calm
+import "../lib"
 
 // Solfa's name, small and quiet, the gear (Settings) and the power button:
 // power closes Solfa (the engine; the music stops) and, once closed, starts

@@ -1,6 +1,6 @@
 import QtQuick
 import qs.Commons
-import "../lib/Calm.js" as Calm
+import "../lib"
 
 // A key and what it does, for the hint line.
 Row {

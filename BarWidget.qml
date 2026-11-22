@@ -1,5 +1,5 @@
 import QtQuick
-import "lib/Calm.js" as Calm
+import "lib"
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model

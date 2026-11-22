@@ -1,6 +1,6 @@
 import QtQuick
 import qs.Commons
-import "../lib/Calm.js" as Calm
+import "../lib"
 
 // One filter chip of the calm mockup (Chip.qml): a 32 px pill, a hairline,
 // and the open one tinted with the accent.

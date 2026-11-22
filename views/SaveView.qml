@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -43,7 +43,7 @@ Rectangle {
     : playlists.length === 0 ? "No playlists yet: press Enter to make the first one"
     : rows.length === 1 && query.trim() !== "" ? "No playlist matches" : ""
 
-  color: Color.popups.background
+  color: Calm.surface
   radius: Style.spacing.labelGap
   clip: true
 

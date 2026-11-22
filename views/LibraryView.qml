@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -157,7 +157,7 @@ Item {
             anchors.centerIn: parent
             width: Style.space(40); height: width; radius: width / 2
             color: Calm.accent
-            Text { anchors.centerIn: parent; text: Icons.play; color: "#14101f"; font.pixelSize: Style.space(18) }
+            Text { anchors.centerIn: parent; text: Icons.play; color: Calm.onAccent; font.pixelSize: Style.space(18) }
           }
         }
       }

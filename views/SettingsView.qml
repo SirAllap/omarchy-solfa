@@ -1,5 +1,5 @@
 import QtQuick
-import "../lib/Calm.js" as Calm
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -384,7 +384,7 @@ Item {
     width: Style.space(44)
     height: Style.space(26)
     radius: height / 2
-    color: active ? Calm.accent : Calm.a(Qt.rgba(1, 1, 1, 1), 0.1)
+    color: active ? Calm.accent : Calm.a(Calm.fg, 0.1)
     border.width: active ? 0 : 1
     border.color: Calm.hair
     Rectangle {
@@ -480,8 +480,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         x: sl.frac * (slBar.width - width)
         color: "white"
-        border.width: sl.focused ? 2 : 0
-        border.color: Calm.a(Calm.accent, 0.8)
+        border.width: sl.focused ? 2 : 1
+        border.color: sl.focused ? Calm.a(Calm.accent, 0.8) : Calm.hair
       }
       MouseArea {
         anchors.fill: parent
@@ -876,8 +876,8 @@ Item {
                     color: "white"
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: (parent.height / 2) - (bandCell.db / 12) * (parent.height / 2) - height / 2
-                    border.width: bandCell.bandFocused ? 2 : 0
-                    border.color: Calm.a(Calm.accent, 0.8)
+                    border.width: bandCell.bandFocused ? 2 : 1
+                    border.color: bandCell.bandFocused ? Calm.a(Calm.accent, 0.8) : Calm.hair
                   }
                 }
                 Text {
