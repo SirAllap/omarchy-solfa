@@ -4,6 +4,7 @@ import qs.Commons
 import "../lib/Model.js" as Model
 import "../lib/Calm.js" as Calm
 import "../lib/Icons.js" as Icons
+import "../lib/Motion.js" as Motion
 
 // One list for every view: section headers and rows, a keyboard cursor, and
 // per-row actions that show on hover or on the cursor row.
@@ -24,6 +25,14 @@ ListView {
   property string emptyText: ""
   property color fg: Calm.fg
   property string family: Calm.font
+
+  // The panel's open clock (its content root's 'tms', 600 = settled).
+  property real openMs: 600
+  Component.onCompleted: {
+    var p = list.parent
+    while (p && !("tms" in p)) p = p.parent
+    if (p) list.openMs = Qt.binding(function () { return p.tms })
+  }
 
   signal activated(int index)
   signal action(string name, int index)
@@ -64,6 +73,11 @@ ListView {
     // A handler, not the MouseArea: it stays hovered while the pointer is on
     // one of the row's own buttons, so they do not hide under it.
     readonly property bool showActions: selected || rowHover.hovered
+
+    // The first 8 rows cascade up from 8 px below, 25 ms apart, from 280 ms.
+    readonly property real rise: index < 8 ? Motion.effects(list.openMs, 280 + 25 * index, 140) : 1
+    opacity: rise
+    transform: Translate { y: Style.space(8) * (1 - cell.rise) }
 
     width: ListView.view ? ListView.view.width : 0
     height: isHeader ? Style.space(30) : Style.space(58)

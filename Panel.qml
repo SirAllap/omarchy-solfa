@@ -4,6 +4,7 @@ import qs.Commons
 import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
 import "lib/Calm.js" as Calm
+import "lib/Motion.js" as Motion
 import "views" as Views
 import QtQuick.Controls as QC
 
@@ -313,6 +314,12 @@ Panel {
     Item {
       id: keys
       anchors.fill: parent
+      // The reveal shortens this box from the bottom; the content lives in
+      // 'body', always full height, so it is cut, never squeezed.
+      readonly property real fullH: parent.height - anchors.topMargin
+      anchors.bottomMargin: fullH * (1 - reveal)
+      default property alias content: body.data
+      Item { id: body; x: 0; y: 0; width: keys.width; height: keys.fullH }
       // The mockup's margins inside the card: 28 px at the sides, 24 px at the top.
       anchors.leftMargin: Math.max(0, Style.space(28) - Style.spacing.popupPadding)
       anchors.rightMargin: anchors.leftMargin
@@ -338,52 +345,45 @@ Panel {
         keys.hostCard = p
       }
 
-      // Open: the content grows out of the top edge with a soft overshoot
-      // while it fades in. The feel (not the code) follows caelestia-dots/shell
-      // (GPL-3.0; Material 3 expressive tokens): a spatial curve for the
-      // growth, 0.38 1.21 0.22 1, and a shorter effects curve for the fade,
-      // 0.34 0.8 0.34 1. Durations are shorter than its 500/200 ms because
-      // this card is large. It only touches this item's own opacity and
-      // scale: never the host card, 'visible', 'active' or 'opened', so
-      // closing is exactly the host's. No reverse: on close it stops and the
-      // item is reset at once.
-      property real grow: 1
-      property real fade: 1
-      opacity: fade
-      scale: 0.9 + 0.1 * grow
+      // Open: one timeline, 'tms', runs 0 to 600 ms and everything below
+      // reads it, so nothing can stick half-way. A clip mask unfolds the
+      // content from the top edge (380 ms) while it grows .94 to 1; the
+      // header, cover, title, seek bar, transport, volume row, tab pill and
+      // first list rows follow with their own delays (NowPlaying, RowList
+      // and the pill read 'tms'). The feel (not the code) follows
+      // caelestia-dots/shell (GPL-3.0; Material 3 expressive tokens): the
+      // spatial curve 0.38 1.21 0.22 1 and the effects curve 0.34 0.8 0.34 1
+      // (Motion.js). Only this item's own geometry, opacity and scale move:
+      // never the host card, 'visible', 'active' or 'opened'. Closing, reduce
+      // motion or a new open jump to the end state (600) at once.
+      property real tms: 600
+      readonly property real reveal: Motion.spatialClamped(tms, 0, 380)
+      opacity: Motion.effects(tms, 0, 200)
+      scale: 0.94 + 0.06 * Motion.spatial(tms, 0, 380)
       transformOrigin: Item.Top
-      ParallelAnimation {
+      clip: tms < 600
+      NumberAnimation {
         id: enterAnim
-        NumberAnimation {
-          target: keys
-          property: "grow"
-          to: 1
-          duration: Style.duration(380)
-          easing.type: Easing.Bezier
-          easing.bezierCurve: [0.38, 1.21, 0.22, 1, 1, 1]
-        }
-        NumberAnimation {
-          target: keys
-          property: "fade"
-          to: 1
-          duration: Style.duration(200)
-          easing.type: Easing.Bezier
-          easing.bezierCurve: [0.34, 0.8, 0.34, 1, 1, 1]
-        }
+        target: keys
+        property: "tms"
+        from: 0
+        to: 600
+        duration: Style.duration(600)
+        easing.type: Easing.Linear
       }
       Connections {
         target: root
         function onOpenedChanged() {
           enterAnim.stop()
-          keys.grow = 1
-          keys.fade = 1
-          if (root.opened && !Style.reduceMotion) { keys.grow = 0; keys.fade = 0; enterAnim.start() }
+          keys.tms = 600
+          if (root.opened && !Style.reduceMotion) { keys.tms = 0; enterAnim.start() }
         }
       }
 
       Views.NowPlaying {
         id: hero
         objectName: "panelHero"
+        openMs: keys.tms
         // Settings replaces the whole body: no hero, no transport, no tabs.
         visible: !root.settingsOpen
         anchors.top: parent.top
@@ -409,6 +409,8 @@ Panel {
         fontFamily: root.family
         settingsOpen: root.settingsOpen
         showLeft: false
+        opacity: Motion.effects(keys.tms, 0, 240)
+        transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 240)) }
         // Settings has its own header: "‹ Settings" and "esc close".
         visible: !root.settingsOpen
         onGearClicked: root.toggleSettings()
@@ -417,6 +419,8 @@ Panel {
       // The name, top left (Settings puts its own back row there).
       Views.BrandCorner {
         objectName: "panelBrandLeft"
+        opacity: Motion.effects(keys.tms, 0, 240)
+        transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 240)) }
         anchors.top: parent.top
         anchors.left: parent.left
         visible: !root.settingsOpen
@@ -467,7 +471,8 @@ Panel {
       Rectangle {
         id: tabPill
         visible: tabRow.visible && root.pages.length === 0
-        x: tabRow.x + tabRow.pillX; y: tabRow.y
+        x: tabRow.x + tabRow.pillX - Style.space(60) * (1 - Motion.spatial(keys.tms, 260, 260)); y: tabRow.y
+        opacity: Motion.effects(keys.tms, 260, 200)
         width: tabRow.pillW; height: tabRow.height
         radius: height / 2
         color: Util.alpha(Calm.accent, 0.2)
