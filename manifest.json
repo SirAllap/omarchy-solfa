@@ -35,7 +35,8 @@
       "startPaused": false,
       "startVolume": "last",
       "recycleHeapMb": 400,
-      "recycleHours": 12
+      "recycleHours": 12,
+      "reduceMotion": false
     },
     "schema": [
       { "key": "barControls", "type": "bool", "label": "Previous, play/pause and next in the bar", "defaultValue": true },
@@ -55,7 +56,8 @@
       { "key": "startPaused", "type": "bool", "label": "When Solfa starts, resume paused instead of playing", "defaultValue": false },
       { "key": "startVolume", "type": "string", "label": "Volume when Solfa starts", "defaultValue": "last", "description": "\"last\" (the volume it had) or a 0-100 percent." },
       { "key": "recycleHeapMb", "type": "number", "label": "Refresh the page past this JS heap (MB)", "defaultValue": 400, "description": "Applies on the next start." },
-      { "key": "recycleHours", "type": "number", "label": "Refresh the page at least every (hours)", "defaultValue": 12, "description": "Applies on the next start." }
+      { "key": "recycleHours", "type": "number", "label": "Refresh the page at least every (hours)", "defaultValue": 12, "description": "Applies on the next start." },
+      { "key": "reduceMotion", "type": "boolean", "label": "Reduce motion", "defaultValue": false, "description": "Stops springs, glows, comets and typing." }
     ]
   }
 }
