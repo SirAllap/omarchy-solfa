@@ -234,6 +234,13 @@ Column {
     PanelSlider {
       id: seek
       width: parent.width
+      // thumb and track grow on hover or drag (the kit eases the fill to each new position)
+      HoverHandler { id: seekHover; enabled: seek.enabled }
+      readonly property bool grown: seek.enabled && (seekHover.hovered || seek.dragging)
+      trackHeight: Style.space(grown ? 6 : 4)
+      knobSize: Style.space(grown ? 18 : 12)
+      Behavior on trackHeight { enabled: !Style.reduceMotion; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+      Behavior on knobSize { enabled: !Style.reduceMotion; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
       bar: root.bar
       minimum: 0
       maximum: root.svc && root.svc.isAd ? Math.max(1, root.svc.adDuration) : (root.svc && root.svc.duration > 0 ? root.svc.duration : 1)
