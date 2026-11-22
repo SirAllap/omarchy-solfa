@@ -126,9 +126,7 @@ class BarCoverCentred(unittest.TestCase):
                     red = sum(1 for i in range(0, len(px), 3) if px[i] > 100 and px[i + 1] < 100)
                     slot = round(30 * 0.78)
                     radius = (slot - 2 * max(2, round(30 * 0.1))) / 2 * float(scale)
-                    # A few anti-aliased edge pixels may blend with the blue sides; a real
-                    # crop bug shows hundreds.
-                    self.assertLessEqual(blue, 8, "the picture's sides show: stretched or not centred")
+                    self.assertEqual(blue, 0, "the picture's sides show: stretched or not centred")
                     self.assertGreater(red, 0.85 * 3.14159 * radius * radius, "the circle is not filled")
 
 

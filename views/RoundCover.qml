@@ -116,7 +116,7 @@ Item {
         var win = root.Window.window
         var dpr = (win && win.devicePixelRatio) || root.Screen.devicePixelRatio || 1
         var iw = Math.max(1, img.implicitWidth) / dpr, ih = Math.max(1, img.implicitHeight) / dpr
-        var k = Math.max(root.width / iw, root.height / ih)
+        var k = Math.max(root.width / iw, root.height / ih) * 1.03   // a hair over, so the edge never samples past the crop
         return PlanarTransform.fromAffineMatrix(k, 0, 0, k, (root.width - iw * k) / 2, (root.height - ih * k) / 2)
       }
       PathAngleArc {
