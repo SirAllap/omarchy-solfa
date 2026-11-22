@@ -87,7 +87,7 @@ Item {
       wrapMode: Text.WordWrap
       text: "Songs you play show up here, newest first."
       textFormat: Text.PlainText
-      color: Util.alpha(view.fg, 0.6)
+      color: Util.alpha(view.fg, 0.64)
       font.family: view.family
       font.pixelSize: Style.font.body
     }
