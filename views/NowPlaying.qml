@@ -22,8 +22,8 @@ Column {
   // Decoration moves only while the panel is open and a song plays.
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
-  spacing: Style.space(10)
-  topPadding: topInset + (topInset > 0 ? Style.space(6) : 0)
+  spacing: Style.space(20)
+  topPadding: topInset + (topInset > 0 ? Style.space(24) : 0)
 
   // The save-to-playlist button was pressed (the panel opens the picker).
   signal saveRequested()
@@ -162,7 +162,9 @@ Column {
   // ---- time
   Column {
     width: parent.width
-    spacing: Style.space(2)
+    // The bar's line sits mid-way in its slider box: cover to line 28, line to times 8.
+    topPadding: Style.space(28) - Style.space(20) - seek.height / 2
+    spacing: Style.space(8) - seek.height / 2
     visible: root.hasTrack
 
     PanelSlider {
@@ -285,7 +287,7 @@ Column {
   Item {
     id: controls
     width: parent.width
-    height: transport.height + Style.space(10) + volumeRow.height
+    height: transport.height + Style.space(20) + volumeRow.height
     visible: root.hasTrack
 
     readonly property real slot: Style.space(48)

@@ -313,6 +313,10 @@ Panel {
     Item {
       id: keys
       anchors.fill: parent
+      // The mockup's margins inside the card: 28 px at the sides, 24 px at the top.
+      anchors.leftMargin: Math.max(0, Style.space(28) - Style.spacing.popupPadding)
+      anchors.rightMargin: anchors.leftMargin
+      anchors.topMargin: Math.max(0, Style.space(24) - Style.spacing.popupPadding)
       focus: true
       Keys.onPressed: function (event) { root.onKey(event) }
 
@@ -323,6 +327,9 @@ Panel {
         z: -2
         anchors.fill: parent
         anchors.margins: -Style.spacing.popupPadding
+        anchors.leftMargin: -Style.spacing.popupPadding - keys.anchors.leftMargin
+        anchors.rightMargin: -Style.spacing.popupPadding - keys.anchors.rightMargin
+        anchors.topMargin: -Style.spacing.popupPadding - keys.anchors.topMargin
         // The shell's real border width (zero in the test stand-in, which draws none).
         radius: Math.max(0, Style.cornerRadius - Border.top(panel.borderSpec))
         color: Calm.surface
@@ -423,7 +430,7 @@ Panel {
         objectName: "panelTabs"
         visible: !keys.blocked && !root.settingsOpen
         anchors.top: gate.visible ? gate.bottom : hero.bottom
-        anchors.topMargin: Style.space(22)
+        anchors.topMargin: Style.space(28)
         anchors.left: parent.left
         anchors.leftMargin: Style.space(4)
         width: parent.width - Style.space(8)
@@ -548,7 +555,7 @@ Panel {
         id: stage
         visible: root.settingsOpen || !keys.blocked
         anchors.top: root.settingsOpen ? parent.top : tabRow.bottom
-        anchors.topMargin: root.settingsOpen ? 0 : Style.space(10)
+        anchors.topMargin: root.settingsOpen ? 0 : Style.space(12)
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: footer.top
