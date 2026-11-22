@@ -44,8 +44,6 @@ Row {
     objectName: root.showLeft ? "brandLogo" : ""
     anchors.verticalCenter: parent.verticalCenter
     size: Style.space(36)
-    plain: true
-    rim: Util.alpha(root.foreground, 0.55)
   }
   Text {
     visible: root.showLeft
