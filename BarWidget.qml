@@ -78,9 +78,11 @@ BarWidget {
   readonly property real pillPad: Math.max(3, Math.round((pillHeight - coverSlot.height) / 2))
   implicitWidth: visible ? body.implicitWidth + 2 * pillPad : 0
   implicitHeight: barSize
-  // The open-panel underline follows what the widget paints; without this
-  // hint the bar draws it at 55% of the slot and it cuts the title short.
-  readonly property real openPanelIndicatorWidth: body.implicitWidth
+  // The shell underlines a widget whose panel is open. Solfa shows that state
+  // with a lighter pill instead, so the mark is pointed at an item far
+  // outside the bar, where it is never seen.
+  readonly property Item openPanelIndicatorItem: offMark
+  Item { id: offMark; x: -100000; width: 1; height: 1 }
 
   // The widget is a quiet pill: a faint wash and a hairline, a little
   // brighter (with an accent edge) while the pointer is on it or the panel is open.
@@ -92,7 +94,7 @@ BarWidget {
     radius: height / 2
     visible: !root.closed
     // One shape: a soft fill, no outline (the shell draws the open-panel mark).
-    color: Util.alpha(root.fg, hot ? 0.1 : 0.05)
+    color: Util.alpha(root.fg, root.opened ? 0.14 : hot ? 0.1 : 0.05)
     Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 160 } }
   }
 
