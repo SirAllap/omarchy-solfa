@@ -34,12 +34,15 @@ Panel {
   // Settings replaces the panel body; the gear in BrandCorner and Esc are
   // the only ways in and out — no new key letter is spent on it.
   property bool settingsOpen: false
+  // "Save to playlist": the song being saved ({ videoId, title }), or null.
+  property var saveItem: null
+  readonly property bool saveOpen: saveItem !== null
   function toggleSettings() { root.settingsOpen = !root.settingsOpen }
   function closeSettings() { root.settingsOpen = false }
 
   onOpenedChanged: {
     if (svc) svc.panelOpen = opened
-    if (!opened) { allKeys = false; settingsOpen = false; return }
+    if (!opened) { allKeys = false; settingsOpen = false; saveItem = null; return }
     if (svc) svc.lastError = ""  // old news from while it was closed
     if (svc && !svc.hasTrack && tab === "queue") tab = "search"
     // With autostart off, opening the panel is what starts YouTube Music.
@@ -84,6 +87,22 @@ Panel {
     focusKeys()
   }
 
+  // The song a row stands for, or else the one playing: what S saves.
+  function saveRow(row) {
+    var it = row && row.item && row.item.videoId ? row.item : (svc && svc.hasTrack && !svc.isAd ? { videoId: svc.videoId, title: svc.title } : null)
+    if (it) openSave(it)
+  }
+  function openSave(item) {
+    if (!item || !item.videoId || !svc) return
+    if (!svc.signedIn) { say("Sign in to save songs to a playlist"); return }
+    root.allKeys = false
+    root.saveItem = { videoId: item.videoId, title: item.title || "" }
+  }
+  function closeSave() {
+    root.saveItem = null
+    focusKeys()
+  }
+
   function say(text) { root.flash = text; flashTimer.restart() }
   Timer { id: flashTimer; interval: 2600; onTriggered: root.flash = "" }
 
@@ -108,7 +127,8 @@ Panel {
     if (it.videoId) return [
       { name: "next", icon: Icons.playNext, tip: "Play next (e)" },
       { name: "queue", icon: Icons.plus, tip: "Add to queue (a)" },
-      { name: "radio", icon: Icons.radio, tip: "Start radio (R)" }
+      { name: "radio", icon: Icons.radio, tip: "Start radio (R)" },
+      { name: "save", icon: Icons.savePlaylist, tip: "Save to a playlist (S)" }
     ]
     if (it.kind === "artist") return [{ name: "play", icon: Icons.shuffle, tip: "Shuffle this artist" }]
     if (it.playlistId) return [{ name: "play", icon: Icons.play, tip: "Play" }]
@@ -136,6 +156,8 @@ Panel {
         if (r.ok) root.say(name === "next" ? "Plays next: " + it.title : "Added to the queue: " + it.title)
         else svc.report(r.error)
       })
+    } else if (name === "save") {
+      root.saveRow(row)
     } else if (name === "radio") {
       svc.radioFor(it)
       root.say("Radio from " + it.title)
@@ -152,6 +174,7 @@ Panel {
     var inField = root.pages.length === 0 && root.tab === "search" && searchView.inputFocused
     if (k === Qt.Key_Escape) {
       if (root.allKeys) root.allKeys = false
+      else if (root.saveOpen) saveView.back()
       else if (root.settingsOpen) root.closeSettings()
       else root.back()
       event.accepted = true
@@ -161,6 +184,13 @@ Panel {
     // open or hidden (saving). A stray key must not cancel it or start
     // another; the card's Cancel button is the way out.
     if (root.svc && root.svc.signingIn) {
+      event.accepted = true
+      return
+    }
+    // The picker's field takes the typing; a key that reaches here means the
+    // field lost the focus (a click elsewhere): give it back, nothing else.
+    if (root.saveOpen) {
+      saveView.focusField()
       event.accepted = true
       return
     }
@@ -224,6 +254,7 @@ Panel {
       case "a": if (cur) root.runAction("queue", cur); break
       case "e": if (cur) root.runAction("next", cur); break
       case "R": if (cur && cur.item && cur.item.videoId) root.runAction("radio", cur); else if (svc.hasTrack) { svc.radioFor(svc.player); root.say("Radio from " + svc.title) } break
+      case "S": root.saveRow(cur); break
       case "g": root.openArtist(cur); break
       case "o": root.openAlbum(cur); break
       case "[": if (v === searchView) searchView.cycleFilter(-1); else if (v === libraryView) libraryView.cycleSection(-1); break
@@ -288,6 +319,7 @@ Panel {
         svc: root.svc
         bar: root.bar
         reserveRight: brand.width
+        onSaveRequested: root.saveRow(null)
       }
 
       // Solfa's name and the power button, top right: far from play.
@@ -384,7 +416,7 @@ Panel {
         anchors.bottom: footer.top
         anchors.bottomMargin: Style.space(8)
 
-        Views.QueueView { id: queueView; anchors.fill: parent; visible: !root.settingsOpen && root.view === queueView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
+        Views.QueueView { id: queueView; objectName: "queueView"; anchors.fill: parent; visible: !root.settingsOpen && root.view === queueView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.SearchView { id: searchView; anchors.fill: parent; visible: !root.settingsOpen && root.view === searchView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && root.view === libraryView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && root.view === lyricsView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
@@ -401,6 +433,17 @@ Panel {
           family: root.family
           onBackRequested: root.closeSettings()
           onShowAllKeys: { root.settingsOpen = false; root.allKeys = true }
+        }
+
+        Views.SaveView {
+          id: saveView
+          objectName: "saveView"
+          anchors.fill: parent
+          visible: root.saveOpen && !root.settingsOpen
+          svc: root.svc
+          bar: root.bar
+          panel: root
+          item: root.saveItem
         }
 
         // Every key, on "?".
@@ -445,12 +488,24 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           width: parent.width - (root.settingsOpen ? 0 : allKeysButton.width + Style.space(4))
           clip: true
-          visible: root.flash === "" && !keys.blocked && !root.settingsOpen
+          visible: root.flash === "" && !keys.blocked && !root.settingsOpen && !root.saveOpen
           spacing: Style.space(12)
           Repeater {
             model: Model.footerHints(root.view ? root.view.hints : null,
                                      !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
                                      root.pages.length === 0 && root.view === searchView && searchView.inputFocused)
+            delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar }
+          }
+        }
+
+        // The picker's keys: the field takes the letters, so only these.
+        Row {
+          objectName: "saveHints"
+          anchors.verticalCenter: parent.verticalCenter
+          visible: root.saveOpen && !root.settingsOpen && root.flash === ""
+          spacing: Style.space(12)
+          Repeater {
+            model: saveView.creating ? [["↵", "create"], ["esc", "back"]] : saveView.dupCurrent ? [["↵", "add anyway"], ["↑↓", "move"], ["esc", "back"]] : [["↑↓", "move"], ["↵", "choose"], ["esc", "back"]]
             delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar }
           }
         }
