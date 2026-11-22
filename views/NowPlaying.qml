@@ -4,6 +4,7 @@ import qs.Commons
 import "../lib/Model.js" as Model
 import "../lib/Icons.js" as Icons
 import "../lib/Calm.js" as Calm
+import "../lib/Motion.js" as Motion
 
 // The top of the panel: the song, its cover, time, and every control.
 Column {
@@ -21,7 +22,7 @@ Column {
   // Decoration moves only while the panel is open and a song plays.
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
-  spacing: Style.space(14)
+  spacing: Style.space(10)
   topPadding: topInset + (topInset > 0 ? Style.space(6) : 0)
 
   // The save-to-playlist button was pressed (the panel opens the picker).
@@ -40,6 +41,7 @@ Column {
       foreground: root.fg
       fill: Util.alpha(root.fg, 0.08)
       fontFamily: root.family
+      motif: true
       dim: root.hasTrack && !root.svc.isPlaying
       breathe: root.hasTrack
       live: root.live
@@ -51,17 +53,49 @@ Column {
       anchors.verticalCenter: cover.verticalCenter
       spacing: Style.space(3)
 
-      Text {
+      // A new title writes itself (30 ms a letter) only while the panel is
+      // open and a song plays, and never under reduce-motion. The invisible
+      // copy holds the full height, so nothing below jumps.
+      Item {
+        id: titleBox
         width: parent.width
-        text: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : "Nothing playing")
-        textFormat: Text.PlainText
-        elide: Text.ElideRight
-        maximumLineCount: 2
-        wrapMode: Text.WordWrap
-        color: root.fg
-        font.family: root.family
-        font.pixelSize: Style.space(21)
-        font.bold: root.hasTrack
+        height: titleGhost.implicitHeight
+        readonly property string full: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : "Nothing playing")
+        readonly property bool typing: root.live && !Style.reduceMotion && root.hasTrack
+        property real shown: full.length
+        onFullChanged: {
+          typeAnim.stop()
+          if (!typing || full.length === 0) { shown = full.length; return }
+          shown = 0
+          typeAnim.duration = full.length * Motion.typeMs
+          typeAnim.from = 0; typeAnim.to = full.length; typeAnim.start()
+        }
+        onTypingChanged: if (!typing) { typeAnim.stop(); shown = full.length }
+        NumberAnimation { id: typeAnim; target: titleBox; property: "shown"; easing.type: Easing.Linear }
+        Text {
+          id: titleGhost
+          width: parent.width
+          text: titleBox.full
+          opacity: 0
+          textFormat: Text.PlainText
+          maximumLineCount: 2
+          wrapMode: Text.WordWrap
+          font.family: root.family
+          font.pixelSize: Style.space(21)
+          font.bold: root.hasTrack
+        }
+        Text {
+          width: parent.width
+          text: titleBox.full.substring(0, Math.floor(titleBox.shown))
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          maximumLineCount: 2
+          wrapMode: Text.WordWrap
+          color: root.fg
+          font.family: root.family
+          font.pixelSize: Style.space(21)
+          font.bold: root.hasTrack
+        }
       }
       Text {
         width: parent.width
@@ -273,14 +307,6 @@ Column {
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Shuffle the queue (s)"
-        Rectangle {
-          z: -1
-          anchors.centerIn: parent
-          width: Math.min(parent.width, parent.height) * 0.95; height: width
-          radius: width / 2
-          color: Calm.wash
-        }
-
         onClicked: if (root.svc) root.svc.shuffle()
       }
       HitButton {
@@ -338,9 +364,10 @@ Column {
         Rectangle {
           z: -1
           anchors.centerIn: parent
-          width: Math.min(parent.width, parent.height) * 0.95; height: width
+          width: Style.space(38); height: width
           radius: width / 2
-          color: root.svc && root.svc.repeatMode !== "NONE" ? Util.alpha(Calm.accent, 0.22) : Calm.wash
+          color: Util.alpha(Calm.accent, 0.22)
+          visible: !!(root.svc && root.svc.repeatMode !== "NONE")
         }
 
         onClicked: if (root.svc) root.svc.cycleRepeat()
