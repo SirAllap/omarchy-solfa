@@ -169,7 +169,10 @@ class SettingsKeyboard(unittest.TestCase):
         self.assertEqual(self.mouse["band3AfterClick"], 12)
         self.assertEqual(self.mouse["presetAfterBand"], "custom")
         self.assertEqual(self.mouse["cursorAfterBand"], 3 + 2, "the clicked band takes the keyboard cursor")
-        self.assertEqual(self.mouse["preampDelta"], -1)
+        self.assertTrue(self.mouse["menuOpenedByClick"], "the preset pill opens its menu")
+        self.assertTrue(self.mouse["menuClosedAfterPick"])
+        self.assertLessEqual(self.mouse["preampAfterClick"], -9, "a click near the left of the Preamp slider lowers it a lot")
+        self.assertGreaterEqual(self.mouse["preampAfterClick"], -12)
 
     def test_a_row_with_a_wrapped_help_line_holds_its_title(self):
         # The row was a fixed 46 px with its text centred on it: a two-line
@@ -207,20 +210,22 @@ class SettingsSource(unittest.TestCase):
         out = []
         for i, start in enumerate(starts):
             seg = self.SRC[start:starts[i + 1] if i + 1 < len(starts) else len(self.SRC)]
-            out.append(re.split(r"\b(?:MiniToggle|StepValue|QuietButton) \{", seg)[0])
+            out.append(re.split(r"\b(?:MiniToggle|Dropdown|SliderRow|QuietButton) \{", seg)[0])
         return out
 
     def steppers(self):
-        return [line for line in self.SRC.splitlines() if re.search(r"(?<!component )\bStepValue \{", line)]
+        # A dropdown or slider and the few lines after it: its `row` comes first.
+        return [self.SRC[m.start():m.start() + 260]
+                for m in re.finditer(r"(?<!component )\b(?:Dropdown|SliderRow) \{", self.SRC)]
 
     def test_every_clickable_component_has_a_mouse_area(self):
-        for name in ("RowShell", "QuietButton", "StepValue", "Chip"):
+        for name in ("RowShell", "QuietButton", "Dropdown", "SliderRow"):
             self.assertIn("MouseArea", self.component(name), name)
 
     def test_every_row_and_stepper_says_which_row_it_is(self):
         rows, steps = self.rows(), self.steppers()
         self.assertGreaterEqual(len(rows), 20)
-        self.assertEqual(len(steps), 8)
+        self.assertEqual(len(steps), 9)
         for use in rows + steps:
             self.assertRegex(use, r"\brow: \d+", use[:80])
 

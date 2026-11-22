@@ -172,15 +172,19 @@ ShellRoot {
           var eqBefore = !!fakeSvc.setting("eqEnabled", false)
           win.click("eqRow")
           m.eqToggledByClick = !!fakeSvc.setting("eqEnabled", false) !== eqBefore
-          win.click("eqPreset_treble")
+          win.click("eqPresetDrop")
+          m.menuOpenedByClick = settingsView.menuSrc !== null
+          // The menu lays itself out on the next frame: click it after that.
+          settle.pending = function () {
+          win.click("menuItem_treble")
+          m.menuClosedAfterPick = settingsView.menuSrc === null
           m.presetAfterChip = fakeSvc.setting("eqPreset", "")
           win.click("eqBandTrack3", 0.5, 0)    // the top of the track: +12 dB
           m.band3AfterClick = Model.parseEqBands(fakeSvc.setting("eqBands", "[]"))[3]
           m.presetAfterBand = fakeSvc.setting("eqPreset", "")
           m.cursorAfterBand = settingsView.cursor
-          var preampBefore = fakeSvc.setting("eqPreamp", 0)
-          win.click("preampStep", 0.1)         // the left arrow: one dB down
-          m.preampDelta = fakeSvc.setting("eqPreamp", 0) - preampBefore
+          win.click("preampSlider", 0.1, 0.5)   // near the left end of the track: about -11 dB
+          m.preampAfterClick = fakeSvc.setting("eqPreamp", 0)
 
           inSection(4, function () {
             var row = win.find(stage, "globalKeysRow")
@@ -195,6 +199,8 @@ ShellRoot {
               Qt.quit()
             })
           })
+          }
+          settle.restart()
         })
       })
     }
