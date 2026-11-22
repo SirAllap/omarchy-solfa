@@ -80,6 +80,26 @@ test("search rows with no filter follow the reply's order and drop nothing", () 
   assert.equal(only.length, r.videos.length)
 })
 
+test("save picker rows: New playlist, then Recent and All playlists, the filter matches both", () => {
+  const pl = (id, title, recent) => ({ id, title, count: "3 songs", recent })
+  const pls = [pl("PL1", "Road trip", true), pl("PL3", "Studio Ghibli", true), pl("LM", "Liked Music", false), pl("PL2", "Study", false)]
+  const shape = (rows) => rows.map((r) => (r.create ? "+" : r.header ? "#" + r.header : r.playlist.title))
+  deep(shape(M.saveRows(pls, "")), ["+", "#Recent", "Road trip", "Studio Ghibli", "#All playlists", "Liked Music", "Study"])
+  deep(shape(M.saveRows(pls, "  STUD ")), ["+", "#Recent", "Studio Ghibli", "#All playlists", "Study"])
+  deep(shape(M.saveRows(pls, "liked")), ["+", "#All playlists", "Liked Music"])
+  deep(shape(M.saveRows(pls, "zzz")), ["+"])
+  deep(shape(M.saveRows(null, "")), ["+"])
+  const rows = M.saveRows(pls, "")
+  assert.equal(M.firstPlaylistRow(rows), 2)
+  assert.equal(M.firstPlaylistRow(M.saveRows(null, "")), 0)
+  assert.equal(M.moveCursor(rows, 0, 1), 2, "the cursor skips the headers")
+  assert.equal(M.moveCursor(rows, 3, 1), 5)
+  assert.equal(M.savedMessage("Study", false), "Saved to Study")
+  assert.equal(M.savedMessage("Study", true), "Already in Study · ↵ again to add anyway")
+  assert.equal(M.errorText("failed"), "YouTube Music did not save it")
+  assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "S"))
+})
+
 test("queue rows: queued, then autoplay under its own header", () => {
   const rows = M.queueRows({ items: [{ videoId: "A" }, { videoId: "B" }], automix: [{ videoId: "C" }], index: 1 })
   assert.equal(rows.length, 4)

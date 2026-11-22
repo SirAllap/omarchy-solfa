@@ -18,6 +18,9 @@ Column {
 
   spacing: Style.space(10)
 
+  // The save-to-playlist button was pressed (the panel opens the picker).
+  signal saveRequested()
+
   Row {
     width: parent.width
     spacing: Style.space(14)
@@ -286,6 +289,18 @@ Column {
         fontFamily: root.family
         tooltipText: Model.repeatLabel(root.svc ? root.svc.repeatMode : "NONE") + " (r)"
         onClicked: if (root.svc) root.svc.cycleRepeat()
+      }
+      HitButton {
+        objectName: "saveButton"
+        anchors.verticalCenter: parent.verticalCenter
+        minSize: controls.slot
+        visible: !!(root.svc && !root.svc.isAd)
+        iconText: Icons.savePlaylist
+        iconSize: controls.glyph
+        foreground: root.fg
+        fontFamily: root.family
+        tooltipText: root.svc && !root.svc.signedIn ? "Sign in to save to a playlist" : "Save to a playlist (S)"
+        onClicked: root.saveRequested()
       }
     }
 
