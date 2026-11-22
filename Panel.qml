@@ -338,6 +338,34 @@ Panel {
         keys.hostCard = p
       }
 
+      // Open: the content grows from just under full size as it fades in,
+      // the way the shell's own popups do (PopupCard.qml: scale .97 to 1,
+      // opacity, 180 ms, Style.easeOut, from the top). It only touches this
+      // item's own opacity and scale: never the host card, 'visible',
+      // 'active' or 'opened', so closing is exactly the host's. There is no
+      // reverse: on close the animation stops and the item is reset at once.
+      property real enter: 1
+      opacity: enter
+      scale: 0.97 + 0.03 * enter
+      transformOrigin: Item.Top
+      NumberAnimation {
+        id: enterAnim
+        target: keys
+        property: "enter"
+        to: 1
+        duration: Style.duration(180)
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
+      }
+      Connections {
+        target: root
+        function onOpenedChanged() {
+          enterAnim.stop()
+          keys.enter = 1
+          if (root.opened && !Style.reduceMotion) { keys.enter = 0; enterAnim.start() }
+        }
+      }
+
       Views.NowPlaying {
         id: hero
         objectName: "panelHero"
