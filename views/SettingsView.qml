@@ -795,7 +795,7 @@ Item {
         RowShell {
           label: "Volume at start"
           row: 2
-          StepValue { row: 2; value: root.svc && root.svc.setting("startVolume", "last") === "last" ? "Last used" : root.svc.setting("startVolume", "last") + "%" }
+          StepValue { row: 2; value: !root.svc || root.svc.setting("startVolume", "last") === "last" ? "Last used" : root.svc.setting("startVolume", "last") + "%" }
         }
         RowShell {
           label: "Start with the shell"
