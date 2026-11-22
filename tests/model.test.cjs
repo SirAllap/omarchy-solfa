@@ -58,6 +58,28 @@ test("search rows: groups with headers, capped, and a filter shows one group who
   assert.ok(only.every((x) => x.item))
 })
 
+test("search rows with no filter follow the reply's order and drop nothing", () => {
+  const P = require("../engine/parse.js")
+  const fixture = (n) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "innertube", n + ".json"), "utf8"))
+  const r = P.search(fixture("search-mixed"))
+  const rows = M.searchRows(r, "")
+  deep(rows.filter((x) => x.header).map((x) => x.header), ["Top result", "More results"])
+  const items = rows.filter((x) => x.item)
+  assert.equal(items.length, 1 + r.all.length)
+  assert.equal(items[0].item, r.top)
+  // Songs and videos side by side, in the reply's order; episodes and
+  // podcasts are there too.
+  deep(items.slice(1).map((x) => x.item.kind), r.all.map((x) => x.kind))
+  deep(items.slice(1).map((x) => x.label), ["Video", "Video", "Video", "Song", "Video", "Song", "Video", "", "Episode", ""])
+  assert.equal(M.labelled("Video", "Some Artist"), "Video · Some Artist")
+  assert.equal(M.labelled("Episode", ""), "Episode")
+  assert.equal(M.labelled("", "Album"), "Album")
+  // A filter still shows its own group whole.
+  const only = M.searchRows(r, "videos")
+  assert.ok(only.every((x) => x.item && x.item.kind === "video"))
+  assert.equal(only.length, r.videos.length)
+})
+
 test("queue rows: queued, then autoplay under its own header", () => {
   const rows = M.queueRows({ items: [{ videoId: "A" }, { videoId: "B" }], automix: [{ videoId: "C" }], index: 1 })
   assert.equal(rows.length, 4)
