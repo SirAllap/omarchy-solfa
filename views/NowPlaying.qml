@@ -21,7 +21,7 @@ Column {
   // Decoration moves only while the panel is open and a song plays.
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
-  spacing: Style.space(10)
+  spacing: Style.space(14)
   topPadding: topInset + (topInset > 0 ? Style.space(6) : 0)
 
   // The save-to-playlist button was pressed (the panel opens the picker).
@@ -29,13 +29,13 @@ Column {
 
   Row {
     width: parent.width
-    spacing: Style.space(14)
+    spacing: Style.space(20)
 
     RoundCover {
       id: cover
-      width: Style.space(92)
+      width: Style.space(104)
       height: width
-      cornerRadius: Style.space(20)
+      cornerRadius: Style.space(22)
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: Util.alpha(root.fg, 0.08)
@@ -60,8 +60,8 @@ Column {
         wrapMode: Text.WordWrap
         color: root.fg
         font.family: root.family
-        font.pixelSize: Math.round(Style.font.heading * 1.25)
-        font.bold: root.hasTrack
+        font.pixelSize: Style.space(24)
+        font.weight: root.hasTrack ? Font.DemiBold : Font.Normal
       }
       Text {
         width: parent.width
@@ -102,7 +102,7 @@ Column {
       HitButton {
         id: likeButton
         onPressedDown: function (it) { cover.lookAt(it) }
-        minSize: Style.space(40)
+        minSize: Style.space(38)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasTrack && !root.svc.isAd
@@ -116,7 +116,7 @@ Column {
           radius: width / 2
           color: root.svc && root.svc.like === "LIKE" ? Util.alpha(Calm.accent, 0.22) : Util.alpha(root.fg, 0.07)
         }
-        iconSize: Style.font.iconLarge
+        iconSize: Style.space(20)
         fontFamily: root.family
         tooltipText: root.svc && !root.svc.signedIn ? "Sign in to like songs" : (root.svc && root.svc.like === "LIKE" ? "Remove the like (f)" : "Like (f)")
         onClicked: if (root.svc) root.svc.toggleLike()
@@ -244,19 +244,20 @@ Column {
   }
 
   // ---- controls
-  // One centre line: every transport button is a 44 px square with the same
-  // glyph size; play/pause is a larger square on that line. The squares are
+  // One centre line: prev/next are 42 px, shuffle/repeat/save 38 px chips,
+  // play/pause 62 px, all on the mockup's 20 px glyph (26 px for play). The squares are
   // the hit boxes: hover and press fill them, not just the glyph.
   Item {
     id: controls
     width: parent.width
-    height: transport.height + Style.space(10) + volumeRow.height
+    height: transport.height + Style.space(12) + volumeRow.height
     visible: root.hasTrack
 
-    readonly property real slot: Style.space(44)
-    readonly property real playSlot: Style.space(48)
+    readonly property real slot: Style.space(42)
+    readonly property real sideSlot: Style.space(38)
+    readonly property real playSlot: Style.space(62)
     readonly property real volumeSlot: Style.space(36)
-    readonly property real glyph: Style.font.iconLarge
+    readonly property real glyph: Style.space(20)
 
     Row {
       id: transport
@@ -267,7 +268,7 @@ Column {
       HitButton {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
-        minSize: controls.slot
+        minSize: controls.sideSlot
         iconText: Icons.shuffle
         iconSize: controls.glyph
         foreground: root.fg
@@ -276,7 +277,7 @@ Column {
         Rectangle {
           z: -1
           anchors.centerIn: parent
-          width: Math.min(parent.width, parent.height) * 0.85; height: width
+          width: Math.min(parent.width, parent.height); height: width
           radius: width / 2
           color: Calm.wash
         }
@@ -299,7 +300,7 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.playSlot
         iconText: root.svc && root.svc.isPlaying ? Icons.pause : Icons.play
-        iconSize: Math.round(controls.glyph * 1.3)
+        iconSize: Style.space(26)
         // The one filled control: a calm accent disc with a dark glyph.
         foreground: playInk
         readonly property color playInk: (0.299 * Calm.accent.r + 0.587 * Calm.accent.g + 0.114 * Calm.accent.b) > 0.6 ? "#101010" : "#ffffff"
@@ -329,7 +330,7 @@ Column {
       HitButton {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
-        minSize: controls.slot
+        minSize: controls.sideSlot
         iconText: Icons.repeatIcon(root.svc ? root.svc.repeatMode : "NONE")
         iconSize: controls.glyph
         foreground: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg
@@ -338,7 +339,7 @@ Column {
         Rectangle {
           z: -1
           anchors.centerIn: parent
-          width: Math.min(parent.width, parent.height) * 0.85; height: width
+          width: Math.min(parent.width, parent.height); height: width
           radius: width / 2
           color: root.svc && root.svc.repeatMode !== "NONE" ? Util.alpha(Calm.accent, 0.22) : Calm.wash
         }
@@ -348,7 +349,7 @@ Column {
       HitButton {
         objectName: "saveButton"
         anchors.verticalCenter: parent.verticalCenter
-        minSize: controls.slot
+        minSize: controls.sideSlot
         visible: !!(root.svc && !root.svc.isAd)
         iconText: Icons.savePlaylist
         iconSize: controls.glyph
@@ -371,6 +372,7 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.volumeSlot
+        iconSize: Style.space(20)
         iconText: Icons.volumeIcon(root.svc ? root.svc.volume : 100, root.svc ? root.svc.muted : false)
         foreground: root.fg
         fontFamily: root.family
@@ -410,7 +412,7 @@ Column {
           id: sleepRow
           anchors.centerIn: parent
           spacing: Style.space(6)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.sleep; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.icon }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.sleep; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(15) }
           Text { anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
         }
         MouseArea {
@@ -432,7 +434,7 @@ Column {
           id: radioRow
           anchors.centerIn: parent
           spacing: Style.space(6)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.radio; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.icon }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.radio; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(15) }
           Text { anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
         }
         MouseArea {
