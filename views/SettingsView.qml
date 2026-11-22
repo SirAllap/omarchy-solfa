@@ -3,7 +3,6 @@ import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
-import "../lib/Icons.js" as Icons
 
 // The Settings view: replaces the panel body (Panel.qml puts it in `stage`,
 // same place as Queue/Search/Library/Lyrics). Left column = sections, right
@@ -27,17 +26,15 @@ Item {
   signal showAllKeys()
 
   readonly property var sections: [
-    { key: "account", label: "Account", icon: String.fromCodePoint(0xF0004) },
-    { key: "sound", label: "Sound", icon: Icons.volume },
-    { key: "playback", label: "Playback", icon: Icons.play },
-    { key: "bar", label: "Bar and alerts", icon: String.fromCodePoint(0xF0241) },
-    { key: "keys", label: "Keys", icon: String.fromCodePoint(0xF030C) },
-    { key: "advanced", label: "Advanced", icon: Icons.gear },
-    { key: "about", label: "About", icon: Icons.album }
+    { key: "account", label: "Account", icon: "user" },
+    { key: "sound", label: "Sound", icon: "volume" },
+    { key: "playback", label: "Playback", icon: "play" },
+    { key: "bar", label: "Bar and alerts", icon: "bolt" },
+    { key: "keys", label: "Keys", icon: "keyboard" },
+    { key: "advanced", label: "Advanced", icon: "gear" },
+    { key: "about", label: "About", icon: "album" }
   ]
   readonly property string sectionLabel: root.sections[root.navIndex].label
-  readonly property string glyphDown: String.fromCodePoint(0xF0140)
-  readonly property string glyphUp: String.fromCodePoint(0xF0143)
   // The one open dropdown (its pill), or null. The menu itself is drawn at
   // the bottom of this file, above everything, so no row's clip cuts it.
   property var menuSrc: null
@@ -416,7 +413,7 @@ Item {
       anchors.centerIn: parent
       spacing: Style.space(6)
       Text { text: dd.text; textFormat: Text.PlainText; color: dd.fg; font.family: root.family; font.pixelSize: Style.font.body }
-      Text { text: dd.opened ? root.glyphUp : root.glyphDown; textFormat: Text.PlainText; color: Util.alpha(dd.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
+      Icon { name: "chev"; size: Style.space(14); stroke: 1.9; color: Util.alpha(dd.fg, 0.6); rotation: dd.opened ? 180 : 0; anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea {
       anchors.fill: parent
@@ -563,11 +560,13 @@ Item {
     Text {
       id: backLabel
       objectName: "settingsBack"
-      text: "‹ Settings"
+      text: "Settings"
+      leftPadding: Style.space(18)
       textFormat: Text.PlainText
       color: root.fg
       font.family: root.family
       font.pixelSize: Style.font.title
+      Icon { name: "back"; size: Style.space(15); color: root.fg; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
       MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backRequested() }
     }
   }
@@ -611,13 +610,11 @@ Item {
               border.width: parent.current || parent.navFocused ? 1 : 0
               border.color: parent.current ? Calm.a(Calm.accent, 0.5) : Calm.hair
             }
-            Text {
+            Icon {
               anchors.centerIn: parent
-              text: modelData.icon
-              textFormat: Text.PlainText
+              name: modelData.icon
+              size: Style.space(20)
               color: parent.current ? Calm.accent : Util.alpha(root.fg, 0.6)
-              font.family: root.family
-              font.pixelSize: Style.font.title
             }
             MouseArea {
               anchors.fill: parent
@@ -1119,15 +1116,13 @@ Item {
               font.family: root.family
               font.pixelSize: Style.font.body
             }
-            Text {
+            Icon {
               visible: parent.chosen
               anchors.right: parent.right; anchors.rightMargin: Style.space(12)
               anchors.verticalCenter: parent.verticalCenter
-              text: Icons.check
-              textFormat: Text.PlainText
+              name: "check"
+              size: Style.space(16)
               color: Calm.accent
-              font.family: root.family
-              font.pixelSize: Style.font.body
             }
             MouseArea {
               anchors.fill: parent
