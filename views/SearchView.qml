@@ -203,6 +203,7 @@ Item {
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    panelOpen: !!(view.svc && view.svc.panelOpen)
     isPlaying: view.svc ? view.svc.isPlaying !== false : true
     actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
     emptyText: view.busy ? "Searching" : view.error !== "" ? view.error
