@@ -248,8 +248,20 @@ ShellRoot {
                         // Esc closes the picker.
                         win.key(Qt.Key_Escape, "")
                         st.escClosed = { open: panel.saveOpen, shown: win.shown("saveView") }
-                        // Signed out: said, nothing asked.
+                        // Settings opened over the picker closes the picker and gets the keys:
+                        // Tab switches its column, Esc closes Settings.
                         fakeSvc.failOps = ({})
+                        win.key(Qt.Key_S, "S")
+                        win.after(function () {
+                          var sv = win.find(stage, "settingsView")
+                          panel.toggleSettings()
+                          var closed = !panel.saveOpen
+                          var col = sv.column
+                          win.key(Qt.Key_Tab, "")
+                          var tabbed = sv.column
+                          win.key(Qt.Key_Escape, "")
+                          st.underSettings = { pickerClosed: closed, colBefore: col, colAfter: tabbed, afterEsc: { settings: panel.settingsOpen, picker: panel.saveOpen } }
+                        // Signed out: said, nothing asked.
                         fakeSvc.signedIn = false
                         fakeSvc.account = { signedIn: false, host: "music.youtube.com" }
                         var asked = win.count("playlist.options")
@@ -257,6 +269,7 @@ ShellRoot {
                         st.signedOut = { open: panel.saveOpen, flash: panel.flash, asked: win.count("playlist.options") - asked }
                         console.log("STATE " + JSON.stringify(st))
                         Qt.quit()
+                        })
                       })
                     })
                   })
