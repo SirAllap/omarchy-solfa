@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window
+import qs.Commons
 import "../lib/Icons.js" as Icons
 import "../lib/Motion.js" as Motion
 
@@ -16,6 +17,8 @@ Item {
   property string glyph: Icons.note
   property string fontFamily: ""
   property bool dim: false
+  // The calm vinyl motif (rings and a label dot) in place of the glyph.
+  property bool motif: false
   // Corner radius; below zero is a full circle (the bar's record cover).
   property real cornerRadius: -1
   readonly property real cr: cornerRadius >= 0 ? Math.min(cornerRadius, Math.min(width, height) / 2) : Math.min(width, height) / 2
@@ -71,7 +74,11 @@ Item {
     color: root.fill
     visible: img.status !== Image.Ready
 
+    Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.62; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: Util.alpha(root.foreground, 0.16) }
+    Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.34; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: Util.alpha(root.foreground, 0.2) }
+    Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.09; height: width; radius: width / 2; color: Util.alpha(root.foreground, 0.55) }
     Text {
+      visible: !root.motif
       anchors.centerIn: parent
       text: root.glyph
       textFormat: Text.PlainText
