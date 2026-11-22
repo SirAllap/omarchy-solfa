@@ -15,8 +15,8 @@ Item {
   // a multiple of four, so the ring is symmetric about both axes
   property int dots: 4 * Math.round(Math.max(24, Math.min(56, Math.min(width, height) * 1.4)) / 4)
 
-  // the dots sit on the outer edge, so a bigger dot never reaches toward the cover
-  readonly property real r: Math.max(1, Math.min(width, height) / 2 - dot / 2)
+  // (centring tests need this radius; a dot-sized inset shifted the ring's centre)
+  readonly property real r: Math.max(1, Math.min(width, height) / 2 - thickness / 2)
   readonly property real dot: Math.max(2, thickness * 1.5)
   readonly property real head: Math.max(0.01, Math.min(1, progress)) * dots
 
