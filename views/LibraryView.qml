@@ -60,19 +60,17 @@ Item {
 
   Row {
     id: chips
-    spacing: Style.space(4)
+    spacing: Style.space(6)
     visible: view.signedIn
     Repeater {
       model: view.sections
-      delegate: Button {
+      delegate: HitButton {
         required property var modelData
         text: modelData.label
         fontFamily: view.family
         fontSize: Style.font.caption
         selected: view.section === modelData.key
         foreground: view.fg
-        verticalPadding: Style.space(3)
-        horizontalPadding: Style.space(8)
         onClicked: view.setSection(modelData.key)
       }
     }

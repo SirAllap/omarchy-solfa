@@ -117,19 +117,17 @@ Item {
     }
 
     Row {
-      spacing: Style.space(4)
+      spacing: Style.space(6)
       visible: view.query.trim() !== ""
       Repeater {
         model: view.filters
-        delegate: Button {
+        delegate: HitButton {
           required property var modelData
           text: modelData.label
           fontFamily: view.family
           fontSize: Style.font.caption
           selected: view.filter === modelData.key
           foreground: view.fg
-          verticalPadding: Style.space(3)
-          horizontalPadding: Style.space(8)
           onClicked: view.setFilter(modelData.key)
         }
       }
