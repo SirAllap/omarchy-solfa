@@ -21,7 +21,7 @@ ListView {
   property var actionsFor: function (row) { return [] }
   property string emptyText: ""
   property color fg: Calm.fg
-  property string family: bar ? bar.fontFamily : Style.font.family
+  property string family: Calm.font
 
   signal activated(int index)
   signal action(string name, int index)

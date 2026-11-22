@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -111,7 +112,7 @@ Item {
 
   // ---- empty / loading / error: one calm centred state, no list behind it.
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
   readonly property bool loading: !!svc && queue === null && error === ""
   readonly property bool failed: rows.length === 0 && error !== ""
   readonly property bool empty: rows.length === 0 && !loading && !failed

@@ -13,7 +13,7 @@ Row {
 
   property var svc: null
   property color foreground: Calm.fg
-  property string fontFamily: Style.font.family
+  property string fontFamily: Calm.font
   property bool settingsOpen: false
   // The header is two instances: the name (left) and the buttons (right).
   property bool showLeft: true

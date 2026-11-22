@@ -10,7 +10,7 @@ Row {
   property string label: ""
   property QtObject bar: null
   readonly property color fg: Calm.fg
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
 
   spacing: Style.space(5)
 

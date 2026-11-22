@@ -1,4 +1,5 @@
 import QtQuick
+import "lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
@@ -67,7 +68,7 @@ BarWidget {
   readonly property bool showTitle: root.setting("showTitle", true) && (hasTrack || closed || signingIn) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
   readonly property color fg: bar ? bar.barForeground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
   readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
 

@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 
@@ -11,7 +12,7 @@ Column {
   property var svc: null
   property QtObject bar: null
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
   // gated: the engine sits on a page other than YouTube Music.
   readonly property bool waiting: svc ? svc.gated : false
   readonly property bool shown: svc && svc.engine ? !!svc.engine.shown : false

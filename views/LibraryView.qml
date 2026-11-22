@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -11,7 +12,7 @@ Item {
   property QtObject bar: null
   property var panel: null
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
 
   readonly property var sections: [
     { key: "playlists", label: "Playlists" }, { key: "songs", label: "Liked songs" },

@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -45,7 +46,7 @@ Item {
   // Signed in, loaded, and empty: a calm card instead of one grey line.
   readonly property bool nothingYet: signedIn && !busy && error === "" && !!info && rows.length === 0
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
 
   onSignedInChanged: { view.info = null; view.error = ""; if (signedIn && active) load() }
 

@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Icons.js" as Icons
@@ -12,7 +13,7 @@ Column {
   property var svc: null
   property QtObject bar: null
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
 
   spacing: Style.space(10)
 

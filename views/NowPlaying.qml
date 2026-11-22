@@ -12,7 +12,7 @@ Column {
   property var svc: null
   property QtObject bar: null
   readonly property color fg: Calm.fg
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
   readonly property bool hasTrack: svc ? svc.hasTrack : false
   // Width kept free at the top right (the panel puts Solfa's name there).
   property real reserveRight: 0

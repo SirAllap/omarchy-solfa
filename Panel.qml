@@ -19,7 +19,7 @@ Panel {
   property var svc: null
 
   readonly property color fg: Calm.fg
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
 
   readonly property var tabs: [
     { key: "queue", label: "Queue", icon: Icons.tabQueue }, { key: "search", label: "Search", icon: Icons.search },
