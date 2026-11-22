@@ -16,6 +16,7 @@ ListView {
   property int cursor: -1
   property QtObject bar: null
   property string playingId: ""
+  property bool isPlaying: true
   property var actionsFor: function (row) { return [] }
   property string emptyText: ""
   property color fg: bar ? bar.foreground : Color.foreground
@@ -146,14 +147,25 @@ ListView {
         width: rowContent.width - Style.space(32) - rowContent.spacing * 2 - trailing.width
         spacing: Style.space(2)
 
-        Text {
+        Row {
           width: parent.width
-          text: (cell.now ? Icons.play + " " : "") + (cell.item ? cell.item.title : "")
-          textFormat: Text.PlainText
-          elide: Text.ElideRight
-          color: cell.now ? Color.accent : list.fg
-          font.family: list.family
-          font.pixelSize: Style.font.body
+          spacing: Style.space(6)
+          Equalizer {
+            visible: cell.now
+            anchors.verticalCenter: parent.verticalCenter
+            playing: list.isPlaying
+            reduceMotion: Style.reduceMotion
+            color: Color.accent
+          }
+          Text {
+            width: parent.width - (cell.now ? 14 + parent.spacing : 0)
+            text: cell.item ? cell.item.title : ""
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
+            color: cell.now ? Color.accent : list.fg
+            font.family: list.family
+            font.pixelSize: Style.font.body
+          }
         }
         Text {
           width: parent.width

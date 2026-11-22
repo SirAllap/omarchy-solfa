@@ -100,6 +100,7 @@ Item {
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    isPlaying: view.svc ? view.svc.isPlaying !== false : true
     actionsFor: view.actionsFor
     emptyText: view.error !== "" ? view.error : "Nothing queued yet. Press / to find something."
     onActivated: function (i) { view.jump(view.rows[i]) }
