@@ -319,7 +319,8 @@ Panel {
         z: -2
         anchors.fill: parent
         anchors.margins: -Style.spacing.popupPadding
-        radius: Math.max(0, Style.cornerRadius - Math.max(1, Style.space(2)))
+        // The shell's real border width (zero in the test stand-in, which draws none).
+        radius: Math.max(0, Style.cornerRadius - Border.top(panel.borderSpec))
         color: Calm.surface
       }
 
