@@ -26,8 +26,8 @@ ListView {
   property color fg: Calm.fg
   property string family: Calm.font
 
-  // The panel's open clock (its content root's 'tms', 600 = settled).
-  property real openMs: 600
+  // The panel's open clock (its content root's 'tms', 350 = settled).
+  property real openMs: 350
   Component.onCompleted: {
     var p = list.parent
     while (p && !("tms" in p)) p = p.parent
@@ -74,8 +74,8 @@ ListView {
     // one of the row's own buttons, so they do not hide under it.
     readonly property bool showActions: selected || rowHover.hovered
 
-    // The first 8 rows cascade up from 8 px below, 25 ms apart, from 280 ms.
-    readonly property real rise: index < 8 ? Motion.effects(list.openMs, 280 + 25 * index, 140) : 1
+    // The first 8 rows cascade up from 8 px below, 15 ms apart, from 110 ms.
+    readonly property real rise: index < 8 ? Motion.effects(list.openMs, 110 + 15 * index, 130) : 1
     opacity: rise
     transform: Translate { y: Style.space(8) * (1 - cell.rise) }
 

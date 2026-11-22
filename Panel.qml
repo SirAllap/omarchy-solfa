@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Ui
 import qs.Commons
@@ -321,32 +320,6 @@ Panel {
       readonly property real fullH: parent.height - anchors.topMargin
       default property alias content: body.data
       Item { id: body; x: 0; y: 0; width: keys.width; height: keys.fullH }
-      // The reveal mask: a rounded rect that starts at the bar pill's size and
-      // x (top centre if the pill is unknown), widens first, then drops down to
-      // the full card shape (radius 26). Same card colour, content only.
-      readonly property var pillRect: {
-        var it = root.anchorItem
-        if (it && it.width > 0 && it.height > 0) {
-          var p = it.mapToItem(keys, 0, 0)
-          return { x: Math.max(0, Math.min(keys.width - it.width, p.x)), w: Math.min(keys.width, it.width), h: Math.min(it.height, Style.space(40)) }
-        }
-        var w = Math.min(keys.width, Style.space(180))
-        return { x: (keys.width - w) / 2, w: w, h: Style.space(40) }
-      }
-      readonly property real maskW: Motion.spatialClamped(tms, 0, 300)
-      readonly property real maskH: Motion.spatialClamped(tms, 40, 420)
-      Rectangle {
-        id: revealMask
-        layer.enabled: true
-        visible: false
-        x: keys.pillRect.x * (1 - keys.maskW)
-        y: 0
-        width: keys.pillRect.w + (keys.width - keys.pillRect.w) * keys.maskW
-        height: keys.pillRect.h + (keys.fullH - keys.pillRect.h) * keys.maskH
-        radius: Math.min(height / 2, Style.space(26)) 
-      }
-      layer.enabled: tms < 600
-      layer.effect: MultiEffect { maskEnabled: true; maskSource: revealMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1 }
       // The mockup's margins inside the card: 28 px at the sides, 24 px at the top.
       anchors.leftMargin: Math.max(0, Style.space(28) - Style.spacing.popupPadding)
       anchors.rightMargin: anchors.leftMargin
@@ -379,7 +352,7 @@ Panel {
           readonly property real pillBottom: panel.barThickness - Style.space(2)
           readonly property real ov: Style.space(3)          // overlap into the pill and the card: no dark line
           readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
-          readonly property real p: Motion.spatial(keys.tms, 0, 450)
+          readonly property real p: Motion.spatial(keys.tms, 0, 250)
           readonly property real q: Math.max(0, Math.min(1, p))
           readonly property real a: pillW * 0.35 * q          // half-width at the pill: 70% of it
           readonly property real b: pillW * 0.8 * q           // half-width at the card: 1.6x the pill
@@ -432,35 +405,36 @@ Panel {
           bridgeComp.createObject(p.parent, { card: p })
       }
 
-      // Open: one timeline, 'tms', runs 0 to 600 ms and everything below
-      // reads it, so nothing can stick half-way. The content comes
-      // out of the bar pill through a rounded mask that starts at the pill's
-      // size and x, widens, then drops to the full card (420 ms, spatial); the
-      // header, cover, title, seek bar, transport, volume row, tab pill and
+      // Open: one timeline, 'tms', runs 0 to 350 ms and everything below
+      // reads it, so nothing can stick half-way. The card frame is never
+      // masked or clipped; the content fades in and drops 8 px while the liquid
+      // bridge stretches (250 ms); the header, cover, title, seek bar, transport, volume row, tab pill and
       // first list rows follow with their own delays (NowPlaying, RowList
       // and the pill read 'tms'). The feel (not the code) follows
       // caelestia-dots/shell (GPL-3.0; Material 3 expressive tokens): the
       // spatial curve 0.38 1.21 0.22 1 and the effects curve 0.34 0.8 0.34 1
       // (Motion.js). Only this item's own geometry, opacity and scale move:
       // never the host card, 'visible', 'active' or 'opened'. Closing, reduce
-      // motion or a new open jump to the end state (600) at once.
-      property real tms: 600
-      readonly property real reveal: Motion.spatialClamped(tms, 0, 420)
-      opacity: Motion.effects(tms, 0, 120)
+      // motion or a new open jump to the end state (350) at once.
+      property real tms: 350
+      // Only what is inside the frame moves: the card (outline, corners) is
+      // drawn from frame 1; the content fades in and drops 8 px.
+      opacity: Motion.effects(tms, 0, 160)
+      transform: Translate { y: -Style.space(8) * (1 - Motion.effects(tms, 0, 200)) }
       NumberAnimation {
         id: enterAnim
         target: keys
         property: "tms"
         from: 0
-        to: 600
-        duration: Style.duration(600)
+        to: 350
+        duration: Style.duration(350)
         easing.type: Easing.Linear
       }
       Connections {
         target: root
         function onOpenedChanged() {
           enterAnim.stop()
-          keys.tms = 600
+          keys.tms = 350
           if (root.opened && !Style.reduceMotion) { keys.tms = 0; enterAnim.start() }
         }
       }
@@ -494,8 +468,8 @@ Panel {
         fontFamily: root.family
         settingsOpen: root.settingsOpen
         showLeft: false
-        opacity: Motion.effects(keys.tms, 0, 240)
-        transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 240)) }
+        opacity: Motion.effects(keys.tms, 0, 180)
+        transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 180)) }
         // Settings has its own header: "‹ Settings" and "esc close".
         visible: !root.settingsOpen
         onGearClicked: root.toggleSettings()
@@ -504,8 +478,8 @@ Panel {
       // The name, top left (Settings puts its own back row there).
       Views.BrandCorner {
         objectName: "panelBrandLeft"
-        opacity: Motion.effects(keys.tms, 0, 240)
-        transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 240)) }
+        opacity: Motion.effects(keys.tms, 0, 180)
+        transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 180)) }
         anchors.top: parent.top
         anchors.left: parent.left
         visible: !root.settingsOpen
@@ -556,8 +530,8 @@ Panel {
       Rectangle {
         id: tabPill
         visible: tabRow.visible && root.pages.length === 0
-        x: tabRow.x + tabRow.pillX - Style.space(60) * (1 - Motion.spatial(keys.tms, 260, 260)); y: tabRow.y
-        opacity: Motion.effects(keys.tms, 260, 200)
+        x: tabRow.x + tabRow.pillX - Style.space(60) * (1 - Motion.spatial(keys.tms, 110, 200)); y: tabRow.y
+        opacity: Motion.effects(keys.tms, 110, 160)
         width: tabRow.pillW; height: tabRow.height
         radius: height / 2
         color: Util.alpha(Calm.accent, 0.2)

@@ -20,8 +20,8 @@ Column {
   // Room for the header row (name, buttons) the panel draws over the top.
   property real topInset: 0
   // Decoration moves only while the panel is open and a song plays.
-  // The panel's open clock, 0 to 600 ms (600 = settled; also reduce-motion).
-  property real openMs: 600
+  // The panel's open clock, 0 to 350 ms (settled; also reduce-motion).
+  property real openMs: 350
   function eff(delay, dur) { return Motion.effects(openMs, delay, dur) }
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
@@ -51,10 +51,9 @@ Column {
       breathe: root.hasTrack
       live: root.live
       reduceMotion: Style.reduceMotion
-      // pops .8 to 1 with a 6 degree turn that settles, 60 ms in
-      scale: 0.8 + 0.2 * Motion.spatial(root.openMs, 60, 340)
-      rotation: 6 * (1 - root.eff(60, 340))
-      opacity: root.eff(60, 220)
+      // pops .8 to 1 and fades in (no turn), 20 ms in
+      scale: 0.8 + 0.2 * Motion.spatial(root.openMs, 20, 200)
+      opacity: root.eff(20, 160)
     }
 
     Column {
@@ -62,8 +61,8 @@ Column {
       anchors.verticalCenter: cover.verticalCenter
       spacing: Style.space(3)
       // title and artist slide in from the left, 100 ms in
-      opacity: root.eff(100, 260)
-      transform: Translate { x: -Style.space(12) * (1 - root.eff(100, 260)) }
+      opacity: root.eff(40, 200)
+      transform: Translate { x: -Style.space(12) * (1 - root.eff(40, 200)) }
 
       // A new title writes itself (30 ms a letter) only while the panel is
       // open and a song plays, and never under reduce-motion. The invisible
@@ -186,7 +185,7 @@ Column {
       minimum: 0
       maximum: root.svc && root.svc.isAd ? Math.max(1, root.svc.adDuration) : (root.svc && root.svc.duration > 0 ? root.svc.duration : 1)
       // the fill grows from 0 to the real position, 140 ms in
-      value: (root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0) * root.eff(140, 300)
+      value: (root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0) * root.eff(60, 220)
       step: 1
       enabled: root.svc && root.svc.duration > 0 && !root.svc.isAd
       fillColor: root.svc && root.svc.isAd ? Color.urgent : Calm.accent
@@ -315,8 +314,8 @@ Column {
       anchors.horizontalCenter: parent.horizontalCenter
 
       HitButton {
-        opacity: root.eff(160, 220)
-        transform: Translate { y: Style.space(10) * (1 - root.eff(160, 220)) }
+        opacity: root.eff(70, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(70, 180)) }
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
@@ -328,8 +327,8 @@ Column {
         onClicked: if (root.svc) root.svc.shuffle()
       }
       HitButton {
-        opacity: root.eff(190, 220)
-        transform: Translate { y: Style.space(10) * (1 - root.eff(190, 220)) }
+        opacity: root.eff(85, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(85, 180)) }
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
@@ -342,10 +341,10 @@ Column {
       }
       HitButton {
         // the play disc comes last, with a soft scale overshoot
-        opacity: root.eff(310, 260)
+        opacity: root.eff(145, 200)
         transform: [
-          Translate { y: Style.space(10) * (1 - root.eff(310, 260)) },
-          Scale { origin.x: width / 2; origin.y: height / 2; xScale: 0.7 + 0.3 * Motion.spatial(root.openMs, 310, 260); yScale: xScale }
+          Translate { y: Style.space(10) * (1 - root.eff(145, 200)) },
+          Scale { origin.x: width / 2; origin.y: height / 2; xScale: 0.7 + 0.3 * Motion.spatial(root.openMs, 145, 200); yScale: xScale }
         ]
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
@@ -368,8 +367,8 @@ Column {
         onClicked: if (root.svc) root.svc.togglePlaying()
       }
       HitButton {
-        opacity: root.eff(220, 220)
-        transform: Translate { y: Style.space(10) * (1 - root.eff(220, 220)) }
+        opacity: root.eff(100, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(100, 180)) }
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
@@ -381,8 +380,8 @@ Column {
         onClicked: if (root.svc) root.svc.next()
       }
       HitButton {
-        opacity: root.eff(250, 220)
-        transform: Translate { y: Style.space(10) * (1 - root.eff(250, 220)) }
+        opacity: root.eff(115, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(115, 180)) }
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
@@ -403,8 +402,8 @@ Column {
         onClicked: if (root.svc) root.svc.cycleRepeat()
       }
       HitButton {
-        opacity: root.eff(280, 220)
-        transform: Translate { y: Style.space(10) * (1 - root.eff(280, 220)) }
+        opacity: root.eff(130, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(130, 180)) }
         objectName: "saveButton"
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
@@ -422,8 +421,8 @@ Column {
     Row {
       id: volumeRow
       // volume and chips fade and slide up, 220 ms in
-      opacity: root.eff(220, 260)
-      transform: Translate { y: Style.space(8) * (1 - root.eff(220, 260)) }
+      opacity: root.eff(100, 200)
+      transform: Translate { y: Style.space(8) * (1 - root.eff(100, 200)) }
       // Labels give way before the slider does: below this slider width the
       // Sleep and Radio chips show only their icons.
       readonly property real fullChips: 2 * (Style.space(24) + Style.space(20) + Style.space(6)) + sleepMetrics.advanceWidth + radioMetrics.advanceWidth
