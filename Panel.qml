@@ -334,6 +334,7 @@ Panel {
       // above us at runtime and restyle it to the same shape: one frame, one
       // radius. If it cannot be found the card below is still ours.
       property Item hostCard: null
+      property Item bridgeItem: null
       // Two drops, the pill's and the card's, stretch toward each other,
       // touch and merge: one card-coloured shape with a concave neck
       // (cubic curves). The panel window is full-screen and above the bar,
@@ -401,8 +402,15 @@ Panel {
         p.color = Calm.surface
         keys.hostCard = p
         // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
-        if (p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel))
-          bridgeComp.createObject(p.parent, { card: p })
+        // One bridge per card: the content is reloaded on every open.
+        if (keys.bridgeItem) { keys.bridgeItem.destroy(); keys.bridgeItem = null }
+        var canBridge = !!p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel)
+        if (canBridge) keys.bridgeItem = bridgeComp.createObject(p.parent, { card: p })
+        // One line per open, so a live log says why the bridge shows or not.
+        console.info("solfa bridge: made=" + !!keys.bridgeItem
+          + " cardY=" + p.y + " barThickness=" + (canBridge ? panel.barThickness : "n/a")
+          + " pillX=" + (canBridge ? panel.anchorScreenPos.x : "n/a") + " pillW=" + (canBridge ? panel.anchorW : "n/a")
+          + " window=" + (p.parent ? p.parent.width + "x" + p.parent.height : "n/a"))
       }
 
       // Open: one timeline, 'tms', runs 0 to 350 ms and everything below
@@ -420,7 +428,7 @@ Panel {
       // Only what is inside the frame moves: the card (outline, corners) is
       // drawn from frame 1; the content fades in and drops 8 px.
       opacity: Motion.effects(tms, 0, 160)
-      transform: Translate { y: -Style.space(8) * (1 - Motion.effects(tms, 0, 200)) }
+      transform: Translate { y: -Style.space(8) * (1 - Motion.effects(keys.tms, 0, 200)) }
       NumberAnimation {
         id: enterAnim
         target: keys
