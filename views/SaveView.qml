@@ -223,6 +223,16 @@ Rectangle {
           width: ListView.view ? ListView.view.width : 0
           height: isHeader ? Style.space(28) : Style.space(40)
 
+          // Rows arrive one after another, a short stagger; none under reduce-motion.
+          opacity: 1
+          Component.onCompleted: if (!Style.reduceMotion && view.item) arrive.start()
+          SequentialAnimation {
+            id: arrive
+            PropertyAction { target: cell; property: "opacity"; value: 0 }
+            PauseAnimation { duration: Math.min(cell.index, 10) * 22 }
+            NumberAnimation { target: cell; property: "opacity"; to: 1; duration: 180; easing.type: Easing.OutCubic }
+          }
+
           Text {
             visible: cell.isHeader
             anchors.left: parent.left
@@ -267,9 +277,12 @@ Rectangle {
               anchors.verticalCenter: parent.verticalCenter
               width: Style.space(22)
               horizontalAlignment: Text.AlignHCenter
-              text: cell.modelData.create ? Icons.plus : ""
+              verticalAlignment: Text.AlignVCenter
+              height: Style.space(22)
+              text: cell.modelData.create ? Icons.plus : Icons.album
+              opacity: cell.modelData.create ? 1 : 0.45
               textFormat: Text.PlainText
-              color: view.fg
+              color: cell.modelData.create ? Color.accent : view.fg
               font.family: view.family
               font.pixelSize: Style.font.icon
             }
@@ -282,6 +295,8 @@ Rectangle {
               color: view.fg
               font.family: view.family
               font.pixelSize: Style.font.body
+              verticalAlignment: Text.AlignVCenter
+              height: Style.space(22)
               font.bold: !!cell.modelData.create
             }
             Text {

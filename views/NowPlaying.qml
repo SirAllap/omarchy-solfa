@@ -38,6 +38,7 @@ Column {
       dim: root.hasTrack && !root.svc.isPlaying
       breathe: root.hasTrack
       live: root.live
+      reduceMotion: Style.reduceMotion
     }
 
     Column {

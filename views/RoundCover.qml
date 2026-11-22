@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window
-import qs.Commons
 import "../lib/Icons.js" as Icons
 import "../lib/Motion.js" as Motion
 
@@ -22,14 +21,17 @@ Item {
   // never jumps). All of it stops with the system's reduce-motion setting.
   property bool breathe: false
   property bool live: false
-  readonly property bool moving: !Style.reduceMotion
+  property bool reduceMotion: false   // the owner of the cover passes Style.reduceMotion
+  readonly property bool moving: !reduceMotion
   property real gx: 0
   property real gy: 0
   property real pulse: 0
   Behavior on gx { enabled: root.moving; SpringAnimation { spring: 4.5; damping: 1; epsilon: 0.01 } }
   Behavior on gy { enabled: root.moving; SpringAnimation { spring: 4.5; damping: 1; epsilon: 0.01 } }
-  scale: 1 + 0.03 * pulse
-  transform: Translate { x: root.gx; y: root.gy }
+  // Only a cover that breathes gets a transform: a plain one stays on the pixel grid.
+  scale: breathe ? 1 + 0.03 * pulse : 1
+  transform: breathe ? [moveBy] : []
+  Translate { id: moveBy; x: root.gx; y: root.gy }
   SequentialAnimation on pulse {
     running: root.breathe && root.live && root.moving
     loops: Animation.Infinite
