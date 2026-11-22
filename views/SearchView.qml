@@ -3,6 +3,7 @@ import "../lib/Calm.js" as Calm
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
+import "../lib/Icons.js" as Icons
 
 // Search: a field, filter chips, and one list of results. With an empty
 // field it shows YouTube Music's home shelves, so there is always
@@ -106,15 +107,74 @@ Item {
     width: parent.width
     spacing: Style.space(10)  // mockup: 10 px field-to-chips
 
-    TextField {
-      id: field
+    // The calm mockup's field: a 46 px pill, accent ring while it has focus.
+    Rectangle {
+      id: fieldBox
       width: parent.width
-      placeholderText: "Search songs, albums, artists and playlists"
-      font.family: view.family
-      onTextEdited: { view.query = text; debounce.restart() }
-      onAccepted: view.acceptField()
-      Keys.onEscapePressed: function (e) { view.clearField(); e.accepted = true }
-      Keys.onDownPressed: function (e) { view.panel.focusKeys(); if (view.cursor < 0) view.move(1); e.accepted = true }
+      height: Style.space(46)
+      radius: height / 2
+      color: field.activeFocus ? Calm.a(Calm.fg, 0.07) : Calm.wash
+      border.width: field.activeFocus ? 1.5 : 1
+      border.color: field.activeFocus ? Calm.a(Calm.accent, 0.85) : Calm.hair
+      Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 200 } }
+      Behavior on border.color { enabled: !Style.reduceMotion; ColorAnimation { duration: 200 } }
+
+      Text {
+        x: Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        text: Icons.search
+        color: field.activeFocus ? Calm.accent : Calm.a(Calm.fg, 0.64)
+        font.pixelSize: Style.space(19)
+      }
+      Text {
+        x: Style.space(46)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: field.text === ""
+        text: "Search songs, albums, artists and playlists"
+        color: Calm.a(Calm.fg, 0.36)
+        font.family: view.family
+        font.pixelSize: Style.space(14)
+      }
+      TextInput {
+        id: field
+        anchors.left: parent.left
+        anchors.leftMargin: Style.space(46)
+        anchors.right: clearButton.left
+        anchors.rightMargin: Style.space(6)
+        anchors.verticalCenter: parent.verticalCenter
+        clip: true
+        color: Calm.fg
+        selectionColor: Calm.a(Calm.accent, 0.5)
+        selectedTextColor: Calm.fg
+        font.family: view.family
+        font.pixelSize: Style.space(15)
+        onTextEdited: { view.query = text; debounce.restart() }
+        onAccepted: view.acceptField()
+        Keys.onEscapePressed: function (e) { view.clearField(); e.accepted = true }
+        Keys.onDownPressed: function (e) { view.panel.focusKeys(); if (view.cursor < 0) view.move(1); e.accepted = true }
+      }
+      Item {
+        id: clearButton
+        anchors.right: parent.right
+        anchors.rightMargin: Style.space(6)
+        anchors.verticalCenter: parent.verticalCenter
+        width: field.text !== "" ? Style.space(30) : 0
+        height: Style.space(30)
+        visible: field.text !== ""
+        Text {
+          anchors.centerIn: parent
+          text: Icons.close
+          color: clearMouse.containsMouse ? Calm.fg : Calm.a(Calm.fg, 0.64)
+          font.pixelSize: Style.space(14)
+        }
+        MouseArea {
+          id: clearMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: { field.text = ""; view.query = ""; view.result = null; field.forceActiveFocus() }
+        }
+      }
     }
 
     Row {
@@ -122,13 +182,11 @@ Item {
       visible: view.query.trim() !== ""
       Repeater {
         model: view.filters
-        delegate: HitButton {
+        delegate: PillChip {
           required property var modelData
           text: modelData.label
-          fontFamily: view.family
-          fontSize: Style.font.caption
-          selected: view.filter === modelData.key
-          foreground: view.fg
+          family: view.family
+          on: view.filter === modelData.key
           onClicked: view.setFilter(modelData.key)
         }
       }
