@@ -46,10 +46,10 @@ Column {
     Rectangle {
       z: -1
       anchors.fill: parent
-      radius: Style.space(18)
-      color: Util.alpha(card.fg, 0.06)
+      radius: Style.space(20)
+      color: Calm.a(Color.accent, 0.16)
       border.width: 1
-      border.color: Util.alpha(card.fg, 0.14)
+      border.color: Calm.a(Color.accent, 0.45)
     }
     // Drawn once as a smooth texture, so scaling does not shimmer.
     layer.enabled: true
