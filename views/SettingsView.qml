@@ -85,6 +85,11 @@ Item {
   property string cacheNote: ""
   property string eraseNote: ""
   property string engineVersionText: ""
+  // "Chrome/155.0.8059.84" -> "Chromium 155"; anything else shows as it came.
+  function engineLabel(s) {
+    var m = /Chrome\/(\d+)/.exec(s || "")
+    return m ? "Chromium " + m[1] : s
+  }
 
   function rebuildHandlers() {
     root.cursor = 0
@@ -569,6 +574,8 @@ Item {
       Icon { name: "back"; size: Style.space(15); color: root.fg; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
       MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backRequested() }
     }
+    // Clear of the brand corner's gear and power, which stay at the top right.
+    KeyHint { anchors.right: parent.right; anchors.rightMargin: Style.space(76); anchors.verticalCenter: parent.verticalCenter; keys: "esc"; label: "close" }
   }
 
   // ---- body: left section list + right rows -----------------------------
@@ -1054,9 +1061,10 @@ Item {
           Column {
             id: aboutCol
             anchors.centerIn: parent
-            spacing: Style.space(6)
+            spacing: Style.space(8)
+            Logo { anchors.horizontalCenter: parent.horizontalCenter; size: Style.space(50); rim: root.fg }
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.subtitle; font.bold: true }
-            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineVersionText; textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineLabel(root.engineVersionText); textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption }
           }
         }
         Text {
@@ -1067,6 +1075,33 @@ Item {
           color: Util.alpha(root.fg, 0.6)
           font.family: root.family
           font.pixelSize: Style.font.caption
+        }
+        Row {
+          spacing: Style.space(8)
+          Repeater {
+            model: [
+              { label: "Changelog", icon: "globe", url: "https://github.com/SirAllap/omarchy-solfa/releases", obj: "aboutChangelog" },
+              { label: "Report an issue", icon: "warn", url: "https://github.com/SirAllap/omarchy-solfa/issues/new", obj: "aboutReport" }
+            ]
+            delegate: Rectangle {
+              required property var modelData
+              objectName: modelData.obj
+              width: pillRow.implicitWidth + Style.space(32)
+              height: Style.space(36)
+              radius: height / 2
+              color: pillMa.containsMouse ? Util.alpha(root.fg, 0.1) : Util.alpha(root.fg, 0.06)
+              border.width: 1
+              border.color: Calm.hair
+              Row {
+                id: pillRow
+                anchors.centerIn: parent
+                spacing: Style.space(8)
+                Icon { name: modelData.icon; size: Style.space(16); color: root.fg; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: modelData.label; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+              }
+              MouseArea { id: pillMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Qt.openUrlExternally(modelData.url) }
+            }
+          }
         }
       }
     }
