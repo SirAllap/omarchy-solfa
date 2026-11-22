@@ -104,7 +104,7 @@ Item {
   Column {
     id: head
     width: parent.width
-    spacing: Style.space(8)
+    spacing: Style.space(10)  // mockup: 10 px field-to-chips
 
     TextField {
       id: field
@@ -138,7 +138,7 @@ Item {
   RowList {
     id: list
     anchors.top: head.bottom
-    anchors.topMargin: Style.space(8)
+    anchors.topMargin: Style.space(12)  // mockup: list 12 px under the chips
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
