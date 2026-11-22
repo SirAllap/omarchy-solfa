@@ -74,6 +74,9 @@ BarWidget {
   visible: hasTrack || root.setting("showWhenIdle", true)
   implicitWidth: visible ? body.implicitWidth + Style.space(10) : 0
   implicitHeight: barSize
+  // The open-panel underline follows what the widget paints; without this
+  // hint the bar draws it at 55% of the slot and it cuts the title short.
+  readonly property real openPanelIndicatorWidth: body.implicitWidth
 
   Row {
     id: body
