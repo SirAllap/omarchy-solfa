@@ -96,9 +96,53 @@ Item {
     function onQueueChanged() { if (view.active) reload.restart() }
   }
 
+  // "UP NEXT  8 songs · 29 min": what is still to play (from the song now).
+  readonly property var upNext: {
+    var items = queue && queue.items ? queue.items : []
+    var from = queue && queue.index >= 0 ? queue.index : 0
+    var n = 0, secs = 0
+    for (var i = from; i < items.length; i++) { n++; secs += Number(items[i].duration) || 0 }
+    return { n: n, min: Math.round(secs / 60) }
+  }
+  Item {
+    id: qHead
+    visible: view.upNext.n > 0
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    height: visible ? Style.space(28) : 0
+    Row {
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(10)
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "UP NEXT"
+        textFormat: Text.PlainText
+        color: Util.alpha(Calm.fg, 0.55)
+        font.family: Calm.font
+        font.pixelSize: Style.font.caption
+        font.weight: Font.Bold
+        font.letterSpacing: 1.2
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: view.upNext.n + (view.upNext.n === 1 ? " song" : " songs") + (view.upNext.min > 0 ? " · " + view.upNext.min + " min" : "")
+        textFormat: Text.PlainText
+        color: Util.alpha(Calm.fg, 0.5)
+        font.family: Calm.font
+        font.pixelSize: Style.font.caption
+      }
+    }
+  }
+
   RowList {
     id: list
-    anchors.fill: parent
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: qHead.bottom
+    anchors.bottom: parent.bottom
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
