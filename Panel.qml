@@ -295,6 +295,10 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keys
+    // The shell lets a plugin set the border (KeyboardPanel.qml:69): a hairline
+    // in place of the theme's lilac frame. Its radius (:517) and background
+    // (:514) are fixed there; the fill below follows that radius.
+    borderSpec: Border.flat(Calm.hair, 1)
     contentWidth: panel.fittedContentWidth(Style.space(460))
     // Gated or off, the card is all there is: no empty stage under it.
     contentHeight: root.svc && root.svc.gated && !root.settingsOpen
