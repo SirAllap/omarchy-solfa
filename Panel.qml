@@ -6,6 +6,7 @@ import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
 import "lib/Calm.js" as Calm
 import "views" as Views
+import QtQuick.Controls as QC
 
 // The panel: now playing at the top, then Queue, Search, Library, Lyrics
 // and History, and pages (album, artist, playlist) opened from any list.
@@ -557,6 +558,9 @@ Panel {
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               onClicked: root.showTab(tabBtn.modelData.key)
+              QC.ToolTip.visible: containsMouse
+              QC.ToolTip.delay: 400
+              QC.ToolTip.text: String(tabBtn.index + 1)
             }
           }
         }
