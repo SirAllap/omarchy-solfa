@@ -314,12 +314,12 @@ Panel {
     Item {
       id: keys
       anchors.fill: parent
-      // The reveal shortens this box from the bottom; the content lives in
-      // 'body', always full height, so it is cut, never squeezed.
+      // The content lives in 'body', always full height; the clip on this
+      // box cuts it while it slides.
       readonly property real fullH: parent.height - anchors.topMargin
-      anchors.bottomMargin: fullH * (1 - reveal)
       default property alias content: body.data
-      Item { id: body; x: 0; y: 0; width: keys.width; height: keys.fullH }
+      // It slides down from behind the top bar: y runs -fullH to 0 under the clip.
+      Item { id: body; x: 0; y: -keys.fullH * (1 - keys.reveal); width: keys.width; height: keys.fullH }
       // The mockup's margins inside the card: 28 px at the sides, 24 px at the top.
       anchors.leftMargin: Math.max(0, Style.space(28) - Style.spacing.popupPadding)
       anchors.rightMargin: anchors.leftMargin
@@ -341,13 +341,15 @@ Panel {
         if (!p) return
         p.borderSpec = Border.none()
         p.radius = Qt.binding(function () { return keys.frameRadius })
+        // Attached to the bar: the top edge is flush and square (bottom stays round).
+        if ("topLeftRadius" in p) { p.topLeftRadius = 0; p.topRightRadius = 0 }
         p.color = Calm.surface
         keys.hostCard = p
       }
 
       // Open: one timeline, 'tms', runs 0 to 600 ms and everything below
-      // reads it, so nothing can stick half-way. A clip mask unfolds the
-      // content from the top edge (380 ms) while it grows .94 to 1; the
+      // reads it, so nothing can stick half-way. The content slides down
+      // from behind the top bar under a clip (420 ms, spatial curve); the
       // header, cover, title, seek bar, transport, volume row, tab pill and
       // first list rows follow with their own delays (NowPlaying, RowList
       // and the pill read 'tms'). The feel (not the code) follows
@@ -357,10 +359,8 @@ Panel {
       // never the host card, 'visible', 'active' or 'opened'. Closing, reduce
       // motion or a new open jump to the end state (600) at once.
       property real tms: 600
-      readonly property real reveal: Motion.spatialClamped(tms, 0, 380)
-      opacity: Motion.effects(tms, 0, 200)
-      scale: 0.94 + 0.06 * Motion.spatial(tms, 0, 380)
-      transformOrigin: Item.Top
+      readonly property real reveal: Motion.spatialClamped(tms, 0, 420)
+      opacity: Motion.effects(tms, 0, 120)
       clip: tms < 600
       NumberAnimation {
         id: enterAnim
