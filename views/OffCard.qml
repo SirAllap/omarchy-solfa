@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Ui
 import qs.Commons
+import "../lib/Icons.js" as Icons
 
 // Solfa is off (the engine closed on purpose, or after it kept crashing):
 // nothing below would work, so under the header ("Solfa is off") the panel
@@ -15,23 +16,63 @@ Column {
 
   spacing: Style.space(10)
 
-  Button {
-    objectName: "offTurnOn"
+  // A round power tile, quiet: an accent ring on a faint fill.
+  Rectangle {
     anchors.horizontalCenter: parent.horizontalCenter
-    text: "Turn on"
-    fontFamily: card.family
-    foreground: Color.accent
-    bordered: true
-    onClicked: if (card.svc) card.svc.startEngine()
+    width: Style.space(64)
+    height: width
+    radius: width / 2
+    color: Util.alpha(card.fg, 0.06)
+    border.width: 1
+    border.color: Util.alpha(card.fg, 0.18)
+    Text {
+      anchors.centerIn: parent
+      text: Icons.power
+      textFormat: Text.PlainText
+      color: Color.accent
+      font.family: card.family
+      font.pixelSize: Style.font.iconLarge
+    }
   }
 
   Text {
     width: parent.width
-    text: "or press Enter"
+    text: "Turn Solfa on"
     textFormat: Text.PlainText
     horizontalAlignment: Text.AlignHCenter
-    color: Util.alpha(card.fg, 0.5)
+    color: card.fg
     font.family: card.family
-    font.pixelSize: Style.font.caption
+    font.pixelSize: Style.font.title
+    font.bold: true
+  }
+
+  Text {
+    width: parent.width
+    text: "It starts YouTube Music in the background. Nothing plays until you do."
+    textFormat: Text.PlainText
+    wrapMode: Text.WordWrap
+    horizontalAlignment: Text.AlignHCenter
+    color: Util.alpha(card.fg, 0.6)
+    font.family: card.family
+    font.pixelSize: Style.font.body
+  }
+
+  HitButton {
+    objectName: "offTurnOn"
+    anchors.horizontalCenter: parent.horizontalCenter
+    text: "Turn on"
+    iconText: Icons.power
+    fontFamily: card.family
+    foreground: Color.background
+    background: Color.accent
+    radius: height / 2
+    onClicked: if (card.svc) card.svc.startEngine()
+  }
+
+  KeyHint {
+    anchors.horizontalCenter: parent.horizontalCenter
+    keys: "↵"
+    label: "or press Enter"
+    bar: card.bar
   }
 }
