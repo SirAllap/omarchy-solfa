@@ -461,8 +461,8 @@ Panel {
             required property int index
             font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
             text: modelData.label
-            onWidthChanged: tabRow.setLabelW(index, width)
-            Component.onCompleted: tabRow.setLabelW(index, width)
+            onWidthChanged: if (tabRow) tabRow.setLabelW(index, width)
+            Component.onCompleted: if (tabRow) tabRow.setLabelW(index, width)
           }
         }
 
