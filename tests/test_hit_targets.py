@@ -206,7 +206,7 @@ class PanelUsesHitButtons(unittest.TestCase):
         # tab): a plain Item that fills its whole cell, 38 px high, is the hit box.
         self.assertRegex(src, r"delegate: Item \{\s*id: tabBtn")
         # Read the height inside the tab delegate, not anywhere in the file (the toast has its own).
-        self.assertRegex(src, r"id: tabBtn.*?height: Style\.space\(38\)")
+        self.assertRegex(src, r"id: tabBtn[\s\S]*?height: Style\.space\(38\)")
         self.assertRegex(src, r"id: tabMouse\s*anchors\.fill: parent")
         self.assertRegex(src, r"Views\.HitButton \{\s*iconText: Icons\.back")
         self.assertRegex(src, r"Views\.HitButton \{\s*id: allKeysButton")
