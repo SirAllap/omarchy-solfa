@@ -484,13 +484,19 @@ Panel {
 
         Repeater {
           model: root.tabs
-          delegate: TextMetrics {
+          // An Item wrapper: a Repeater delegate must be an Item, or it is
+          // dropped after its first run and later width changes never arrive.
+          delegate: Item {
+            id: metricsHost
             required property var modelData
             required property int index
-            font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
-            text: modelData.label
-            onWidthChanged: if (tabRow) tabRow.setLabelW(index, width)
-            Component.onCompleted: if (tabRow) tabRow.setLabelW(index, width)
+            TextMetrics {
+              id: metrics
+              font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold
+              text: metricsHost.modelData.label
+              onWidthChanged: if (tabRow) tabRow.setLabelW(metricsHost.index, width)
+              Component.onCompleted: if (tabRow) tabRow.setLabelW(metricsHost.index, width)
+            }
           }
         }
 
