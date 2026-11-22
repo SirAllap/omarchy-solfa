@@ -19,6 +19,8 @@ Row {
   property bool showLeft: true
   property bool showRight: true
 
+  // Both instances build every child; only the one that shows a child names it,
+  // so a lookup by objectName finds exactly one.
   signal gearClicked()
 
   readonly property bool closed: svc ? svc.closed === true : false
@@ -34,7 +36,7 @@ Row {
 
   Logo {
     visible: root.showLeft
-    objectName: "brandLogo"
+    objectName: root.showLeft ? "brandLogo" : ""
     anchors.verticalCenter: parent.verticalCenter
     size: Style.font.body + Style.space(4)
     rim: root.foreground
@@ -52,7 +54,7 @@ Row {
   }
   Rectangle {
     id: premium
-    objectName: "premiumBadge"
+    objectName: root.showLeft ? "premiumBadge" : ""
     anchors.verticalCenter: parent.verticalCenter
     visible: root.showLeft && root.showPremium
     width: premiumText.implicitWidth + Style.space(12)
@@ -73,7 +75,7 @@ Row {
   }
   HitButton {
     id: signIn
-    objectName: "signInButton"
+    objectName: root.showRight ? "signInButton" : ""
     anchors.verticalCenter: parent.verticalCenter
     minSize: Style.space(28)
     text: "Sign in"
@@ -86,7 +88,7 @@ Row {
   }
   HitButton {
     id: gear
-    objectName: "gearButton"
+    objectName: root.showRight ? "gearButton" : ""
     anchors.verticalCenter: parent.verticalCenter
     minSize: Style.space(28)
     iconText: Icons.gear
@@ -101,7 +103,7 @@ Row {
   }
   HitButton {
     id: power
-    objectName: "powerButton"
+    objectName: root.showRight ? "powerButton" : ""
     anchors.verticalCenter: parent.verticalCenter
     minSize: Style.space(28)
     iconText: Icons.power
