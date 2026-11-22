@@ -659,10 +659,10 @@ Item {
         y: content.sectionTop
         spacing: Style.space(14)
 
-        // The mockup's card: avatar, who, and the account buttons.
+        // The mockup's card: a round avatar, who, and the account pills.
         Rectangle {
           width: parent.width
-          height: acctRow.implicitHeight + Style.space(28)
+          height: acctRow.implicitHeight + Style.space(32)
           radius: Style.space(18)
           color: Util.alpha(root.fg, 0.05)
           border.width: 1
@@ -671,22 +671,27 @@ Item {
             id: acctRow
             anchors.left: parent.left; anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.margins: Style.space(14)
-            spacing: Style.space(14)
+            anchors.margins: Style.space(18)
+            spacing: Style.space(16)
 
-            // Centred on the row (never on the name column: a taller avatar
-            // would then start above the row and be cut flat by the clip).
-            RoundCover {
+            // The real picture when there is one, else a person on the accent
+            // disc. Centred on the row, never cut by the clip.
+            Item {
               id: avatar
               objectName: "accountAvatar"
-              width: Style.space(52)
+              width: Style.space(48)
               height: width
               anchors.verticalCenter: parent.verticalCenter
-              source: root.signedIn && root.svc && root.svc.accountDetails.avatar ? root.svc.accountDetails.avatar : ""
-              fill: root.signedIn ? Calm.a(Calm.accent, 0.5) : Util.alpha(root.fg, 0.12)
-              foreground: root.fg
-              glyph: root.signedIn && root.svc ? root.initialsFor(root.svc.accountDetails.name) : "?"
-              fontFamily: root.family
+              readonly property url pic: root.signedIn && root.svc && root.svc.accountDetails.avatar ? root.svc.accountDetails.avatar : ""
+              RoundCover {
+                anchors.fill: parent
+                source: avatar.pic
+                fill: Calm.accent
+                foreground: root.fg
+                glyph: ""
+                fontFamily: root.family
+              }
+              Icon { visible: avatar.pic == ""; anchors.centerIn: parent; name: "user"; size: Style.space(24); color: "#15161a" }
             }
 
             Column {
@@ -695,34 +700,30 @@ Item {
               width: parent.width - avatar.width - parent.spacing
               spacing: Style.space(4)
               Text {
-                visible: root.signedIn
-                text: root.svc ? (root.svc.accountDetails.name || "Signed in") : ""
+                objectName: "accountHelp"
+                width: parent.width
+                text: root.signedIn ? "Signed in to YouTube Music" : "Signed out"
                 textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
                 color: root.fg
                 font.family: root.family
-                font.pixelSize: Style.font.subtitle
-                font.bold: true
+                font.pixelSize: Style.space(17)
+                font.weight: Font.DemiBold
               }
               Text {
-                visible: root.signedIn && root.svc && root.svc.accountDetails.email !== ""
-                text: root.svc ? root.svc.accountDetails.email : ""
+                visible: root.signedIn && text !== ""
+                width: parent.width
+                elide: Text.ElideRight
+                text: !root.svc ? "" : (root.svc.accountDetails.name || "") + (root.svc.accountDetails.name && root.svc.accountDetails.email ? " · " : "") + (root.svc.accountDetails.email || "")
                 textFormat: Text.PlainText
                 color: Util.alpha(root.fg, 0.6)
                 font.family: root.family
-                font.pixelSize: Style.font.caption
-              }
-              Text {
-                objectName: "accountHelp"
-                text: root.signedIn ? "Signed in to YouTube Music" : "Signed out"
-                textFormat: Text.PlainText
-                color: root.signedIn ? Util.alpha(root.fg, 0.5) : root.fg
-                font.family: root.family
-                font.pixelSize: root.signedIn ? Style.font.caption : Style.font.subtitle
-                font.bold: !root.signedIn
+                font.pixelSize: Style.space(14)
               }
               Flow {
                 width: parent.width
                 spacing: Style.space(8)
+                topPadding: Style.space(4)
                 QuietButton {
                   visible: !root.signedIn
                   objectName: "accountSignIn"
@@ -758,7 +759,7 @@ Item {
           width: parent.width
           color: Util.alpha(root.fg, 0.5)
           font.family: root.family
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.space(12)
         }
         Text {
           visible: root.accountNote !== ""
