@@ -565,6 +565,31 @@ Panel {
         }
       }
 
+      // The toast: what just happened, a calm pill over the foot of the list.
+      Rectangle {
+        id: toast
+        z: 5
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: footer.top
+        anchors.bottomMargin: Style.space(10)
+        width: toastRow.implicitWidth + Style.space(32)
+        height: Style.space(36)
+        radius: height / 2
+        color: Calm.raised
+        border.width: 1
+        border.color: Calm.hair
+        opacity: root.flash !== "" ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 160 } }
+        Row {
+          id: toastRow
+          anchors.centerIn: parent
+          spacing: Style.space(8)
+          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.check; textFormat: Text.PlainText; color: Calm.accent; font.family: Style.font.family; font.pixelSize: Style.font.icon }
+          Text { anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, keys.width - Style.space(100)); elide: Text.ElideRight; text: root.flash; textFormat: Text.PlainText; color: Calm.fg; font.family: Calm.font; font.pixelSize: Style.font.body; font.weight: Font.DemiBold }
+        }
+      }
+
       Item {
         id: footer
         anchors.left: parent.left
@@ -575,7 +600,7 @@ Panel {
         Text {
           anchors.verticalCenter: parent.verticalCenter
           width: parent.width - allKeysButton.width - Style.space(4)
-          visible: root.flash !== ""
+          visible: false   // the toast pill below shows it
           text: root.flash
           textFormat: Text.PlainText
           elide: Text.ElideRight
@@ -588,7 +613,7 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           width: parent.width - (root.settingsOpen ? 0 : allKeysButton.width + Style.space(4))
           clip: true
-          visible: root.flash === "" && !keys.blocked && !root.settingsOpen && !root.saveOpen
+          visible: !keys.blocked && !root.settingsOpen && !root.saveOpen
           spacing: Style.space(12)
           Repeater {
             model: Model.footerHints(root.view ? root.view.hints : null,
@@ -602,7 +627,7 @@ Panel {
         Row {
           objectName: "saveHints"
           anchors.verticalCenter: parent.verticalCenter
-          visible: root.saveOpen && !root.settingsOpen && root.flash === ""
+          visible: root.saveOpen && !root.settingsOpen
           spacing: Style.space(12)
           Repeater {
             model: saveView.creating ? [["↵", "create"], ["esc", "back"]] : saveView.dupCurrent ? [["↵", "add anyway"], ["↑↓", "move"], ["esc", "back"]] : [["↑↓", "move"], ["↵", "choose"], ["esc", "back"]]
