@@ -87,70 +87,118 @@ Item {
     svc.request("play", args)
   }
 
-  Row {
+  // The mockup's pill button: 36 px, the primary one filled with the accent.
+  component Pill: Rectangle {
+    id: pill
+    property string text: ""
+    property string glyph: ""
+    property bool primary: false
+    signal clicked()
+    height: Style.space(36)
+    width: pillRow.width + Style.space(30)
+    radius: height / 2
+    color: primary ? Calm.accent : pillMouse.containsMouse ? Calm.a(Calm.fg, 0.12) : Calm.wash
+    border.width: primary ? 0 : 1
+    border.color: Calm.hair
+    Row {
+      id: pillRow
+      anchors.centerIn: parent
+      spacing: Style.space(7)
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: pill.glyph
+        color: pill.primary ? "#14101f" : Calm.fg
+        font.pixelSize: Style.space(15)
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: pill.text
+        color: pill.primary ? "#14101f" : Calm.fg
+        font.family: view.family
+        font.pixelSize: Style.space(13)
+        font.weight: Font.DemiBold
+      }
+    }
+    MouseArea {
+      id: pillMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: pill.clicked()
+    }
+  }
+
+  Item {
     id: head
     width: parent.width
-    spacing: Style.space(20)  // mockup DetailView: 20 px between cover and text
+    height: cover.height
 
     RoundCover {
       id: cover
-      width: Style.space(56)
+      width: Style.space(118)
       height: width
+      cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(20)
       source: view.info ? (view.info.thumb || "") : ""
-      foreground: view.fg
-      fill: Util.alpha(view.fg, 0.08)
-      fontFamily: view.family
+      foreground: Calm.fg
+      fill: Calm.a(Calm.fg, 0.08)
+      fontFamily: ""
       glyph: view.info && view.info.kind === "artist" ? Icons.artist : Icons.album
     }
 
     Column {
-      width: parent.width - cover.width - actions.width - parent.spacing * 2
+      x: cover.width + Style.space(20)  // mockup DetailView: 20 px between cover and text
+      width: parent.width - x
       anchors.verticalCenter: cover.verticalCenter
-      spacing: Style.space(2)
+      spacing: Style.space(4)
+      Text {
+        visible: !!view.info
+        text: view.info ? (view.info.kind === "artist" ? "ARTIST" : view.info.kind === "playlist" ? "PLAYLIST" : "ALBUM") : ""
+        color: Calm.accent
+        font.family: view.family
+        font.pixelSize: Style.space(11)
+        font.weight: Font.Bold
+        font.letterSpacing: 1.4
+      }
       Text {
         width: parent.width
         text: view.info && view.info.title ? view.info.title : (view.page ? view.page.title : "")
         textFormat: Text.PlainText
         elide: Text.ElideRight
-        color: view.fg
+        color: Calm.fg
         font.family: view.family
-        font.pixelSize: Style.font.title
-        font.bold: true
+        font.pixelSize: Style.space(24)
+        font.weight: Font.Bold
+        font.letterSpacing: -0.5
       }
       Text {
         width: parent.width
         text: !view.info ? (view.busy ? "Loading" : view.error)
-          : view.info.kind === "album" ? [Model.artistsText(view.info.artists), view.info.subtitle].filter(Boolean).join(" — ")
-          : view.info.kind === "playlist" ? [view.info.author, view.info.subtitle].filter(Boolean).join(" — ")
+          : view.info.kind === "album" ? [Model.artistsText(view.info.artists), view.info.subtitle].filter(Boolean).join(" · ")
+          : view.info.kind === "playlist" ? [view.info.author, view.info.subtitle].filter(Boolean).join(" · ")
           : (view.info.subtitle || "")
         textFormat: Text.PlainText
         elide: Text.ElideRight
-        color: Util.alpha(view.fg, 0.64)
+        color: Calm.a(Calm.fg, 0.64)
         font.family: view.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.space(12)
       }
-    }
-
-    Row {
-      id: actions
-      anchors.verticalCenter: cover.verticalCenter
-      spacing: Style.space(4)
-      HitButton {
-        visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
-        iconText: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
-        text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
-        fontFamily: view.family
-        foreground: view.fg
-        bordered: true
-        onClicked: view.playAll(false)
-      }
-      HitButton {
-        visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
-        iconText: Icons.shuffle
-        tooltipText: "Shuffle"
-        fontFamily: view.family
-        foreground: view.fg
-        onClicked: view.playAll(true)
+      Row {
+        id: actions
+        topPadding: Style.space(8)
+        spacing: Style.space(8)
+        Pill {
+          visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
+          primary: true
+          glyph: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
+          text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
+          onClicked: view.playAll(false)
+        }
+        Pill {
+          visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
+          glyph: Icons.shuffle
+          text: "Shuffle"
+          onClicked: view.playAll(true)
+        }
       }
     }
   }
@@ -158,7 +206,7 @@ Item {
   RowList {
     id: list
     anchors.top: head.bottom
-    anchors.topMargin: Style.space(10)
+    anchors.topMargin: Style.space(20)  // mockup: list 20 px under the cover
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
