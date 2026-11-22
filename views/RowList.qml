@@ -32,7 +32,7 @@ ListView {
   boundsBehavior: Flickable.StopAtBounds
   reuseItems: true
   cacheBuffer: 200
-  spacing: 0
+  spacing: Style.space(8)
 
   onCursorChanged: if (cursor >= 0 && cursor < count) positionViewAtIndex(cursor, ListView.Contain)
   onRowsChanged: if (cursor >= rows.length) cursor = Model.firstRow(rows)
