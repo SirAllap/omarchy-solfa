@@ -52,6 +52,8 @@ Item {
   property bool switchArmed: false
   property bool signOutArmed: false
   property bool eraseArmed: false
+  // A setting read that survives a null service (load and teardown).
+  function settingOr(key, fallback) { return root.svc ? root.svc.setting(key, fallback) : fallback }
   readonly property int armTimeoutMs: 5000
   readonly property bool armTimerRunning: armTimer.running
   function disarm() {
@@ -694,7 +696,7 @@ Item {
                 required property string modelData
                 objectName: "eqPreset_" + modelData
                 label: Model.EQ_PRESET_LABELS[modelData]
-                active: root.svc && root.svc.setting("eqPreset", "flat") === modelData
+                active: root.settingOr("eqPreset", "flat") === modelData
                 onClicked: { root.pointAt(1); root.setEqPreset(modelData) }
               }
             }
@@ -809,12 +811,12 @@ Item {
         RowShell {
           label: "When Solfa starts"
           row: 1
-          StepValue { row: 1; value: root.svc && root.svc.setting("startPaused", false) ? "Resume paused" : "Resume playing" }
+          StepValue { row: 1; value: root.settingOr("startPaused", false) ? "Resume paused" : "Resume playing" }
         }
         RowShell {
           label: "Volume at start"
           row: 2
-          StepValue { row: 2; value: !root.svc || root.svc.setting("startVolume", "last") === "last" ? "Last used" : root.svc.setting("startVolume", "last") + "%" }
+          StepValue { row: 2; value: root.settingOr("startVolume", "last") === "last" ? "Last used" : root.settingOr("startVolume", "last") + "%" }
         }
         RowShell {
           label: "Start with the shell"
