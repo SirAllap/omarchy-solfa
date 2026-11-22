@@ -211,7 +211,7 @@ ListView {
             opacity: cell.showActions ? 1 : 0
             enabled: cell.showActions
             iconText: modelData.icon
-            iconSize: Style.space(18)
+            iconSize: Style.space(15)
             foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
             tooltipText: modelData.tip
