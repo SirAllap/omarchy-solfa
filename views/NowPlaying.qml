@@ -15,6 +15,8 @@ Column {
   readonly property bool hasTrack: svc ? svc.hasTrack : false
   // Width kept free at the top right (the panel puts Solfa's name there).
   property real reserveRight: 0
+  // Decoration moves only while the panel is open and a song plays.
+  readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
   spacing: Style.space(10)
 
@@ -31,6 +33,8 @@ Column {
       fill: Util.alpha(root.fg, 0.08)
       fontFamily: root.family
       dim: root.hasTrack && !root.svc.isPlaying
+      breathe: root.hasTrack
+      live: root.live
     }
 
     Column {
@@ -81,8 +85,14 @@ Column {
       width: Math.max(likeButton.width, root.reserveRight)
       height: cover.height
 
+      EventGlow { id: likeGlow; objectName: "likeGlow"; anchors.centerIn: likeButton; size: Style.space(150) }
+      Connections {
+        target: root.svc
+        function onLikeChanged() { if (root.svc.like === "LIKE" && root.live) likeGlow.fire("like") }
+      }
       HitButton {
         id: likeButton
+        onPressedDown: function (it) { cover.lookAt(it) }
         minSize: Style.space(40)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -237,6 +247,7 @@ Column {
       anchors.verticalCenter: parent.verticalCenter
 
       HitButton {
+        onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: Icons.shuffle
@@ -247,6 +258,7 @@ Column {
         onClicked: if (root.svc) root.svc.shuffle()
       }
       HitButton {
+        onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: Icons.previous
@@ -257,6 +269,7 @@ Column {
         onClicked: if (root.svc) root.svc.previous()
       }
       HitButton {
+        onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.playSlot
         iconText: root.svc && root.svc.isPlaying ? Icons.pause : Icons.play
@@ -268,6 +281,7 @@ Column {
         onClicked: if (root.svc) root.svc.togglePlaying()
       }
       HitButton {
+        onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: Icons.next
@@ -278,6 +292,7 @@ Column {
         onClicked: if (root.svc) root.svc.next()
       }
       HitButton {
+        onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         iconText: Icons.repeatIcon(root.svc ? root.svc.repeatMode : "NONE")
@@ -296,6 +311,7 @@ Column {
       spacing: Style.space(4)
 
       HitButton {
+        onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.volumeSlot
         iconText: Icons.volumeIcon(root.svc ? root.svc.volume : 100, root.svc ? root.svc.muted : false)

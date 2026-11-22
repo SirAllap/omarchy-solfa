@@ -19,6 +19,9 @@ Button {
   horizontalPadding: iconOnly ? 0 : Math.max(Style.spacing.controlPaddingX, Style.space(12))
   verticalPadding: 0
 
+  // A pointer press, with the button itself, so a cover can look toward it.
+  signal pressedDown(var item)
+
   // Pressed: shrink a little, straight away, and let go just as fast.
   // Only a pointer press moves it; a key never does.
   scale: press.active ? 0.94 : 1
@@ -27,6 +30,9 @@ Button {
   // Above the kit's MouseArea: watches the press without taking it.
   Item {
     anchors.fill: parent
-    PointHandler { id: press; acceptedButtons: Qt.LeftButton; enabled: root.enabled }
+    PointHandler {
+      id: press; acceptedButtons: Qt.LeftButton; enabled: root.enabled
+      onActiveChanged: if (active) root.pressedDown(root)
+    }
   }
 }

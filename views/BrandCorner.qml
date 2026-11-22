@@ -60,14 +60,11 @@ Row {
       font.pixelSize: Style.font.caption
     }
   }
-  Text {
+  Logo {
+    objectName: "brandLogo"
     anchors.verticalCenter: parent.verticalCenter
-    opacity: 0.4
-    text: Icons.album
-    textFormat: Text.PlainText
-    color: root.foreground
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.caption
+    size: Style.font.body + Style.space(4)
+    rim: root.foreground
   }
   Text {
     anchors.verticalCenter: parent.verticalCenter

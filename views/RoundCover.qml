@@ -2,7 +2,9 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window
+import qs.Commons
 import "../lib/Icons.js" as Icons
+import "../lib/Motion.js" as Motion
 
 // A cover cut to a circle (the record motif of Solfa), with a glyph while
 // there is no picture. `dim` greys it out, for a paused song.
@@ -15,6 +17,45 @@ Item {
   property string glyph: Icons.note
   property string fontFamily: ""
   property bool dim: false
+  // Life: while the panel is open and a song plays the cover breathes, and
+  // it can look toward a control (a critically damped spring, so a new look
+  // never jumps). All of it stops with the system's reduce-motion setting.
+  property bool breathe: false
+  property bool live: false
+  readonly property bool moving: !Style.reduceMotion
+  property real gx: 0
+  property real gy: 0
+  property real pulse: 0
+  Behavior on gx { enabled: root.moving; SpringAnimation { spring: 4.5; damping: 1; epsilon: 0.01 } }
+  Behavior on gy { enabled: root.moving; SpringAnimation { spring: 4.5; damping: 1; epsilon: 0.01 } }
+  scale: 1 + 0.03 * pulse
+  transform: Translate { x: root.gx; y: root.gy }
+  SequentialAnimation on pulse {
+    running: root.breathe && root.live && root.moving
+    loops: Animation.Infinite
+    NumberAnimation { to: 1; duration: 2100; easing.type: Easing.InOutSine }
+    NumberAnimation { to: 0; duration: 2100; easing.type: Easing.InOutSine }
+  }
+  Timer { id: back; interval: 520; onTriggered: { root.gx = 0; root.gy = 0 } }
+  // Look toward `item` (any item in the same window), then settle back.
+  function lookAt(item) {
+    if (!root.moving || !root.live || !item) return
+    var p = item.mapToItem(root, item.width / 2, item.height / 2)
+    var g = Motion.gaze(p.x - width / 2, p.y - height / 2, Math.max(2, width * 0.09))
+    root.gx = g.x; root.gy = g.y
+    back.restart()
+  }
+  // After a quiet spell it glances elsewhere (a seeded direction), then rests.
+  property int glances: 0
+  Timer {
+    interval: Motion.idleMs; running: root.breathe && root.live && root.moving; repeat: true
+    onTriggered: {
+      root.glances += 1
+      var a = Motion.rand(root.glances + 40) * 6.283
+      root.gx = Math.cos(a) * root.width * 0.08; root.gy = Math.sin(a) * root.width * 0.08
+      back.restart()
+    }
+  }
 
   implicitWidth: 32
   implicitHeight: 32
