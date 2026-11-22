@@ -140,7 +140,8 @@ Column {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasTrack && !root.svc.isAd
-        iconText: root.svc && root.svc.like === "LIKE" ? Icons.heart : Icons.heartOutline
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: "heart"; size: Style.space(20); filled: !!(root.svc && root.svc.like === "LIKE"); color: root.svc && root.svc.like === "LIKE" ? Calm.accent : root.fg; stroke: 1.7 }
         foreground: root.svc && root.svc.like === "LIKE" ? Calm.accent : root.fg
         // a round chip behind the heart, tinted once it is liked
         Rectangle {
@@ -302,8 +303,8 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
-        iconText: Icons.shuffle
-        iconSize: controls.glyph
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: "shuffle"; size: controls.glyph; color: root.fg; stroke: 1.7 }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Shuffle the queue (s)"
@@ -313,8 +314,8 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
-        iconText: Icons.previous
-        iconSize: controls.glyph
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: "prev"; size: controls.glyph; filled: true; color: root.fg }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Previous (p)"
@@ -324,8 +325,8 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.playSlot
-        iconText: root.svc && root.svc.isPlaying ? Icons.pause : Icons.play
-        iconSize: Math.round(controls.glyph * 1.3)
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: root.svc && root.svc.isPlaying ? "pause" : "play"; size: Style.space(26); filled: true; color: parent.playInk }
         // The one filled control: a calm accent disc with a dark glyph.
         foreground: playInk
         readonly property color playInk: (0.299 * Calm.accent.r + 0.587 * Calm.accent.g + 0.114 * Calm.accent.b) > 0.6 ? "#101010" : "#ffffff"
@@ -345,8 +346,8 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
-        iconText: Icons.next
-        iconSize: controls.glyph
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: "next"; size: controls.glyph; filled: true; color: root.fg }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Next (n)"
@@ -356,8 +357,8 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
-        iconText: Icons.repeatIcon(root.svc ? root.svc.repeatMode : "NONE")
-        iconSize: controls.glyph
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: root.svc && root.svc.repeatMode === "ONE" ? "repeatOnce" : "repeat"; size: controls.glyph; color: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg; stroke: 1.7 }
         foreground: root.svc && root.svc.repeatMode !== "NONE" ? Calm.accent : root.fg
         fontFamily: root.family
         tooltipText: Model.repeatLabel(root.svc ? root.svc.repeatMode : "NONE") + " (r)"
@@ -377,8 +378,8 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.slot
         visible: !!(root.svc && !root.svc.isAd)
-        iconText: Icons.savePlaylist
-        iconSize: controls.glyph
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: "queue"; size: controls.glyph; color: root.fg; stroke: 1.7 }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: root.svc && !root.svc.signedIn ? "Sign in to save to a playlist" : "Save to a playlist (S)"
@@ -398,7 +399,8 @@ Column {
         onPressedDown: function (it) { cover.lookAt(it) }
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.volumeSlot
-        iconText: Icons.volumeIcon(root.svc ? root.svc.volume : 100, root.svc ? root.svc.muted : false)
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: root.svc && (root.svc.muted || root.svc.volume === 0) ? "mute" : "volume"; size: Style.space(18); color: Util.alpha(root.fg, 0.75); stroke: 1.7 }
         foreground: root.fg
         fontFamily: root.family
         tooltipText: root.svc && root.svc.muted ? "Unmute (m)" : "Mute (m)"
@@ -437,7 +439,7 @@ Column {
           id: sleepRow
           anchors.centerIn: parent
           spacing: Style.space(6)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.sleep; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.icon }
+          VIcon { anchors.verticalCenter: parent.verticalCenter; name: "moon"; size: Style.space(16); color: root.fg; stroke: 1.8 }
           Text { anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
         }
         MouseArea {
@@ -459,7 +461,7 @@ Column {
           id: radioRow
           anchors.centerIn: parent
           spacing: Style.space(6)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.radio; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.icon }
+          VIcon { anchors.verticalCenter: parent.verticalCenter; name: "radio"; size: Style.space(16); color: root.fg; stroke: 1.8 }
           Text { anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.caption; font.weight: Font.DemiBold }
         }
         MouseArea {
