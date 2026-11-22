@@ -64,7 +64,7 @@ ListView {
     readonly property bool showActions: selected || rowHover.hovered
 
     width: ListView.view ? ListView.view.width : 0
-    height: isHeader ? Style.space(30) : Style.space(46)
+    height: isHeader ? Style.space(30) : Style.space(58)
 
     // ---- section header
     Row {
@@ -146,9 +146,9 @@ ListView {
       spacing: Style.space(10)
 
       RoundCover {
-        width: Style.space(36)
+        width: Style.space(42)
         height: width
-        cornerRadius: Style.space(9)
+        cornerRadius: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         source: cell.item ? (cell.item.thumb || "") : ""
         foreground: list.fg
@@ -159,7 +159,7 @@ ListView {
 
       Column {
         anchors.verticalCenter: parent.verticalCenter
-        width: rowContent.width - Style.space(32) - rowContent.spacing * 2 - trailing.width
+        width: rowContent.width - Style.space(42) - rowContent.spacing * 2 - trailing.width
         spacing: Style.space(2)
 
         Row {

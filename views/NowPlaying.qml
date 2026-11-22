@@ -21,7 +21,7 @@ Column {
   // Decoration moves only while the panel is open and a song plays.
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
-  spacing: Style.space(10)
+  spacing: Style.space(14)
   topPadding: topInset + (topInset > 0 ? Style.space(6) : 0)
 
   // The save-to-playlist button was pressed (the panel opens the picker).
@@ -33,9 +33,9 @@ Column {
 
     RoundCover {
       id: cover
-      width: Style.space(92)
+      width: Style.space(104)
       height: width
-      cornerRadius: Style.space(20)
+      cornerRadius: Style.space(22)
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: Util.alpha(root.fg, 0.08)
@@ -60,7 +60,7 @@ Column {
         wrapMode: Text.WordWrap
         color: root.fg
         font.family: root.family
-        font.pixelSize: Math.round(Style.font.heading * 1.25)
+        font.pixelSize: Style.space(21)
         font.bold: root.hasTrack
       }
       Text {
@@ -72,7 +72,7 @@ Column {
         elide: Text.ElideRight
         color: Util.alpha(root.fg, 0.75)
         font.family: root.family
-        font.pixelSize: Style.font.body
+        font.pixelSize: Style.space(13)
         visible: text !== ""
       }
       Text {
@@ -102,7 +102,7 @@ Column {
       HitButton {
         id: likeButton
         onPressedDown: function (it) { cover.lookAt(it) }
-        minSize: Style.space(40)
+        minSize: Style.space(36)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasTrack && !root.svc.isAd
@@ -254,9 +254,9 @@ Column {
     visible: root.hasTrack
 
     readonly property real slot: Style.space(44)
-    readonly property real playSlot: Style.space(48)
+    readonly property real playSlot: Style.space(62)
     readonly property real volumeSlot: Style.space(36)
-    readonly property real glyph: Style.font.iconLarge
+    readonly property real glyph: Style.space(20)
 
     Row {
       id: transport
@@ -276,7 +276,7 @@ Column {
         Rectangle {
           z: -1
           anchors.centerIn: parent
-          width: Math.min(parent.width, parent.height) * 0.85; height: width
+          width: Math.min(parent.width, parent.height) * 0.95; height: width
           radius: width / 2
           color: Calm.wash
         }
@@ -338,7 +338,7 @@ Column {
         Rectangle {
           z: -1
           anchors.centerIn: parent
-          width: Math.min(parent.width, parent.height) * 0.85; height: width
+          width: Math.min(parent.width, parent.height) * 0.95; height: width
           radius: width / 2
           color: root.svc && root.svc.repeatMode !== "NONE" ? Util.alpha(Calm.accent, 0.22) : Calm.wash
         }

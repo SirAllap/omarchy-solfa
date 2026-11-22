@@ -295,13 +295,13 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keys
-    contentWidth: panel.fittedContentWidth(Style.space(560))
+    contentWidth: panel.fittedContentWidth(Style.space(460))
     // Gated or off, the card is all there is: no empty stage under it.
     contentHeight: root.svc && root.svc.gated && !root.settingsOpen
       ? panel.fittedContentHeight(hero.implicitHeight + gate.implicitHeight + Style.space(20))
       : root.svc && root.svc.closed && !root.settingsOpen
       ? panel.fittedContentHeight(hero.implicitHeight + offCard.implicitHeight + Style.space(28))
-      : panel.cappedContentHeight(Style.space(660))
+      : panel.cappedContentHeight(Style.space(780))
 
     // A plain Item, not a FocusScope: a scope hands focus back to the child
     // that had it, so the search field would keep the keys after Enter.
@@ -422,7 +422,7 @@ Panel {
         objectName: "panelTabs"
         visible: !keys.blocked && !root.settingsOpen
         anchors.top: gate.visible ? gate.bottom : hero.bottom
-        anchors.topMargin: Style.space(18)
+        anchors.topMargin: Style.space(22)
         anchors.left: parent.left
         anchors.leftMargin: Style.space(4)
         width: parent.width - Style.space(8)
@@ -449,7 +449,7 @@ Panel {
             required property int index
             readonly property bool open: tabRow.hasActive && root.tab === modelData.key
             width: open ? tabRow.activeW : tabRow.restW
-            height: Style.space(36)
+            height: Style.space(38)
             Rectangle {
               anchors.fill: parent
               radius: height / 2
@@ -466,7 +466,7 @@ Panel {
                 textFormat: Text.PlainText
                 color: tabBtn.open ? Calm.accent : Util.alpha(root.fg, tabMouse.containsMouse ? 1 : 0.7)
                 font.family: root.family
-                font.pixelSize: Style.font.iconLarge
+                font.pixelSize: Style.space(20)
               }
               Text {
                 anchors.verticalCenter: parent.verticalCenter
