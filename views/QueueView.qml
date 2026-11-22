@@ -110,19 +110,19 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.top: parent.top
-    height: visible ? Style.space(28) : 0
+    height: visible ? 28 : 0
     Row {
       anchors.left: parent.left
-      anchors.leftMargin: Style.space(8)
+      anchors.leftMargin: 8
       anchors.verticalCenter: parent.verticalCenter
-      spacing: Style.space(10)
+      spacing: 10
       Text {
         anchors.verticalCenter: parent.verticalCenter
         text: "UP NEXT"
         textFormat: Text.PlainText
         color: Util.alpha(Calm.fg, 0.55)
         font.family: Calm.font
-        font.pixelSize: Style.font.caption
+        font.pixelSize: 11
         font.weight: Font.Bold
         font.letterSpacing: 1.2
       }
@@ -132,7 +132,7 @@ Item {
         textFormat: Text.PlainText
         color: Util.alpha(Calm.fg, 0.5)
         font.family: Calm.font
-        font.pixelSize: Style.font.caption
+        font.pixelSize: 11
       }
     }
   }
@@ -155,7 +155,9 @@ Item {
   }
 
   // ---- empty / loading / error: one calm centred state, no list behind it.
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: bar ? bar.foreground : Calm.fg
+  // The calm error tone of the mockup (Theme.err).
+  readonly property color err: Qt.rgba(0.725, 0.439, 0.486, 1)
   readonly property string family: Calm.font
   readonly property bool loading: !!svc && queue === null && error === ""
   readonly property bool failed: rows.length === 0 && error !== ""
@@ -168,8 +170,8 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.top: parent.top
-    anchors.margins: Style.space(8)
-    spacing: Style.space(10)
+    anchors.margins: 8
+    spacing: 10
     opacity: 0.6
     SequentialAnimation on opacity {
       running: view.loading && view.visible
@@ -182,13 +184,13 @@ Item {
       delegate: Row {
         id: sk
         required property real modelData
-        spacing: Style.space(12)
-        Rectangle { width: Style.space(40); height: width; radius: Style.space(8); color: Util.alpha(view.fg, 0.08) }
+        spacing: 12
+        Rectangle { width: 40; height: width; radius: 8; color: Util.alpha(view.fg, 0.08) }
         Column {
           anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(6)
-          Rectangle { width: (view.width - Style.space(80)) * sk.modelData; height: Style.space(9); radius: height / 2; color: Util.alpha(view.fg, 0.1) }
-          Rectangle { width: (view.width - Style.space(80)) * sk.modelData * 0.6; height: Style.space(7); radius: height / 2; color: Util.alpha(view.fg, 0.06) }
+          spacing: 6
+          Rectangle { width: (view.width - 80) * sk.modelData; height: 9; radius: height / 2; color: Util.alpha(view.fg, 0.1) }
+          Rectangle { width: (view.width - 80) * sk.modelData * 0.6; height: 7; radius: height / 2; color: Util.alpha(view.fg, 0.06) }
         }
       }
     }
@@ -198,24 +200,24 @@ Item {
     objectName: "queueState"
     visible: view.empty || view.failed
     anchors.centerIn: parent
-    width: parent.width - Style.space(40)
-    spacing: Style.space(10)
+    width: parent.width - 40
+    spacing: 10
 
     Rectangle {
       anchors.horizontalCenter: parent.horizontalCenter
-      width: Style.space(56)
+      width: 56
       height: width
-      radius: Style.space(16)
-      color: view.failed ? Util.alpha(Color.urgent, 0.14) : Util.alpha(view.fg, 0.06)
+      radius: 16
+      color: view.failed ? Util.alpha(view.err, 0.14) : Util.alpha(view.fg, 0.06)
       border.width: 1
-      border.color: view.failed ? Util.alpha(Color.urgent, 0.5) : Util.alpha(view.fg, 0.14)
+      border.color: view.failed ? Util.alpha(view.err, 0.5) : Util.alpha(view.fg, 0.14)
       Text {
         anchors.centerIn: parent
         text: view.failed ? "!" : Icons.playNext
         textFormat: Text.PlainText
-        color: view.failed ? Color.urgent : Color.accent
+        color: view.failed ? view.err : Calm.accent
         font.family: view.family
-        font.pixelSize: Style.font.iconLarge
+        font.pixelSize: 28
         font.bold: view.failed
       }
     }
@@ -226,7 +228,7 @@ Item {
       horizontalAlignment: Text.AlignHCenter
       color: view.fg
       font.family: view.family
-      font.pixelSize: Style.font.title
+      font.pixelSize: 16
       font.bold: true
     }
     Text {
@@ -237,7 +239,7 @@ Item {
       horizontalAlignment: Text.AlignHCenter
       color: Util.alpha(view.fg, 0.6)
       font.family: view.family
-      font.pixelSize: Style.font.body
+      font.pixelSize: 13
     }
     HitButton {
       objectName: view.failed ? "queueRetry" : "queueSearch"
@@ -245,8 +247,8 @@ Item {
       text: view.failed ? "Try again" : "Search for music"
       iconText: view.failed ? Icons.repeat : Icons.search
       fontFamily: view.family
-      foreground: view.failed ? view.fg : Color.background
-      background: view.failed ? Util.alpha(view.fg, 0.08) : Color.accent
+      foreground: view.failed ? view.fg : Calm.bg
+      background: view.failed ? Util.alpha(view.fg, 0.08) : Calm.accent
       radius: height / 2
       onClicked: if (view.failed) view.load(true); else if (view.panel) view.panel.showTab("search")
     }
