@@ -574,8 +574,7 @@ Item {
       Icon { name: "back"; size: Style.space(15); color: root.fg; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
       MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backRequested() }
     }
-    // Clear of the brand corner's gear and power, which stay at the top right.
-    KeyHint { anchors.right: parent.right; anchors.rightMargin: Style.space(76); anchors.verticalCenter: parent.verticalCenter; keys: "esc"; label: "close" }
+    KeyHint { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; keys: "esc"; label: "close" }
   }
 
   // ---- body: left section list + right rows -----------------------------

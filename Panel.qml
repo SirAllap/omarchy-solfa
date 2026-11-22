@@ -389,6 +389,8 @@ Panel {
         fontFamily: root.family
         settingsOpen: root.settingsOpen
         showLeft: false
+        // Settings has its own header: "‹ Settings" and "esc close".
+        visible: !root.settingsOpen
         onGearClicked: root.toggleSettings()
       }
 
@@ -697,7 +699,8 @@ Panel {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: Style.space(32)
+        // Settings has no key-hint footer.
+        height: root.settingsOpen ? 0 : Style.space(32)
 
         Text {
           anchors.verticalCenter: parent.verticalCenter
@@ -733,17 +736,6 @@ Panel {
           spacing: Style.space(12)
           Repeater {
             model: saveView.creating ? [["↵", "create"], ["esc", "back"]] : saveView.dupCurrent ? [["↵", "add anyway"], ["↑↓", "move"], ["esc", "back"]] : [["↑↓", "move"], ["↵", "choose"], ["esc", "back"]]
-            delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar }
-          }
-        }
-
-        // Settings has its own, fixed hints: movement, not song controls.
-        Row {
-          anchors.verticalCenter: parent.verticalCenter
-          visible: root.settingsOpen && root.flash === ""
-          spacing: Style.space(12)
-          Repeater {
-            model: [["↑↓", "move"], ["←→", "change"], ["Tab", "sections"], ["Esc", "back"]]
             delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar }
           }
         }
