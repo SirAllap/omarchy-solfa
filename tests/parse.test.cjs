@@ -53,6 +53,30 @@ test("filtered searches keep to their kind", () => {
   assert.ok(P.search(F("search-playlists"), { filter: "playlists" }).playlists.length >= 5)
 })
 
+test("search keeps the reply's own order, videos among the songs", () => {
+  // Captured from a flat search whose top result is a video (see tests/make-fixtures.py).
+  const s = P.search(F("search-mixed"))
+  assert.equal(s.top.kind, "video")
+  assert.match(s.top.videoId, ID)
+  const kinds = s.all.map((x) => x.kind)
+  assert.deepEqual(kinds, ["video", "video", "video", "song", "video", "song", "video", "artist", "episode", "podcast"])
+  // Every item is in its group and in `all`, once: nothing falls out.
+  const grouped = ["songs", "videos", "albums", "artists", "playlists", "other"].reduce((n, g) => n + s[g].length, 0)
+  assert.equal(s.all.length, grouped)
+  for (const it of s.all) if (it.videoId) assert.match(it.videoId, ID, "every playable result has a video id")
+  assert.equal(s.other.length, 2)
+  assert.deepEqual(s.other.map((x) => x.kind), ["episode", "podcast"])
+})
+
+test("search: a top result that is an album, then songs and videos as ranked", () => {
+  const s = P.search(F("search-album-card"))
+  assert.equal(s.top.kind, "album")
+  assert.deepEqual(s.all.map((x) => x.kind), ["song", "song", "video", "video", "artist", "album", "playlist"])
+  const v = P.search(F("search-videos-first"))
+  assert.equal(v.top.kind, "video")
+  assert.deepEqual(v.all.map((x) => x.kind), ["video", "video", "video", "artist", "song", "video", "video", "album"])
+})
+
 test("filter params decode to the filter they name", () => {
   const field = (p) => Buffer.from(decodeURIComponent(p), "base64")
   assert.equal(field(P.SEARCH_FILTERS.songs)[5], 0x08)
