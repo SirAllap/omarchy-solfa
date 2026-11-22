@@ -27,6 +27,8 @@ Column {
 
   // The save-to-playlist button was pressed (the panel opens the picker).
   signal saveRequested()
+  // The Radio chip was pressed (the panel starts it and says "Radio from <title>", as key R does).
+  signal radioRequested()
 
   Row {
     width: parent.width
@@ -392,6 +394,13 @@ Column {
     // volume, its number, Sleep and Radio: one line under the transport
     Row {
       id: volumeRow
+      // Labels give way before the slider does: below this slider width the
+      // Sleep and Radio chips show only their icons.
+      readonly property real fullChips: 2 * (Style.space(24) + Style.space(20) + Style.space(6)) + sleepMetrics.advanceWidth + radioMetrics.advanceWidth
+      readonly property bool tight: width - controls.volumeSlot - volText.width - spacing * 4 - fullChips < Style.space(72)
+      TextMetrics { id: sleepMetrics; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold
+        text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep" }
+      TextMetrics { id: radioMetrics; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold; text: "Radio" }
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
@@ -410,7 +419,7 @@ Column {
       }
       PanelSlider {
         anchors.verticalCenter: parent.verticalCenter
-        width: parent.width - controls.volumeSlot - volText.width - sleepChip.width - radioChip.width - parent.spacing * 4
+        width: Math.max(Style.space(48), parent.width - controls.volumeSlot - volText.width - sleepChip.width - radioChip.width - parent.spacing * 4)
         bar: root.bar
         minimum: 0
         maximum: 100
@@ -440,9 +449,9 @@ Column {
         Row {
           id: sleepRow
           anchors.centerIn: parent
-          spacing: Style.space(6)
+          spacing: volumeRow.tight ? 0 : Style.space(6)
           VIcon { anchors.verticalCenter: parent.verticalCenter; name: "moon"; size: Style.space(20); color: root.fg; stroke: 1.8 }
-          Text { anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold }
+          Text { visible: !volumeRow.tight; anchors.verticalCenter: parent.verticalCenter; text: root.svc && root.svc.sleepMode !== "off" ? Model.sleepLabel(root.svc.sleepMode) : "Sleep"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold }
         }
         MouseArea {
           id: sleepMouse
@@ -462,14 +471,14 @@ Column {
         Row {
           id: radioRow
           anchors.centerIn: parent
-          spacing: Style.space(6)
+          spacing: volumeRow.tight ? 0 : Style.space(6)
           VIcon { anchors.verticalCenter: parent.verticalCenter; name: "radio"; size: Style.space(20); color: root.fg; stroke: 1.8 }
-          Text { anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold }
+          Text { visible: !volumeRow.tight; anchors.verticalCenter: parent.verticalCenter; text: "Radio"; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.weight: Font.DemiBold }
         }
         MouseArea {
           id: radioMouse
           anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-          onClicked: if (root.svc && root.svc.hasTrack) root.svc.radioFor(root.svc.player)
+          onClicked: if (root.svc && root.svc.hasTrack) root.radioRequested()
         }
       }
     }

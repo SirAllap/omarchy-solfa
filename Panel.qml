@@ -347,6 +347,7 @@ Panel {
         bar: root.bar
         topInset: brand.height
         onSaveRequested: root.saveRow(null)
+        onRadioRequested: { if (root.svc && root.svc.hasTrack) { root.svc.radioFor(root.svc.player); root.say("Radio from " + root.svc.title) } }
       }
 
       // Solfa's name and the power button, top right: far from play.
