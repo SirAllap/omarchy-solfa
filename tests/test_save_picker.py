@@ -138,6 +138,12 @@ class SavePicker(unittest.TestCase):
     def test_esc_closes_the_picker(self):
         self.assertEqual(self.state["escClosed"], {"open": False, "shown": False})
 
+    def test_settings_opened_over_the_picker_gets_the_keys(self):
+        u = self.state["underSettings"]
+        self.assertNotEqual(u["colBefore"], u["colAfter"], "Tab reaches Settings, not the hidden picker")
+        self.assertTrue(u["pickerClosed"], "opening Settings closes the picker")
+        self.assertEqual(u["afterEsc"], {"settings": False, "picker": False}, "Esc closes Settings")
+
     def test_signed_out_says_to_sign_in_and_asks_nothing(self):
         s = self.state["signedOut"]
         self.assertFalse(s["open"])
