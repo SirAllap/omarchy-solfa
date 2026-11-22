@@ -382,8 +382,8 @@ Panel {
         objectName: "panelBrand"
         anchors.top: parent.top
         anchors.right: parent.right
-        // The power button's box reaches into the card's padding, like "?".
-        anchors.rightMargin: -Math.min(Style.space(8), Math.max(0, Style.spacing.popupPadding - Style.space(2)))
+        // The power button's 36 px box ends 21 px from the card's edge: its 22 px icon ends 28 px in.
+        anchors.rightMargin: Style.space(4) - Style.spacing.popupPadding
         svc: root.svc
         foreground: root.fg
         fontFamily: root.family

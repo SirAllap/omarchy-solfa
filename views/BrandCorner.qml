@@ -32,14 +32,20 @@ Row {
   readonly property bool showSignIn: svc ? svc.ready && !svc.signedIn && !svc.signingIn : false
   readonly property bool showPremium: svc ? svc.ready && svc.premium : false
 
-  spacing: Style.space(4)
+  // One muted tone for the mark, the name's pill text and the icons.
+  readonly property color muted: Calm.accent
+
+  // 14 px between the name's parts; the right-hand icons sit 36 px apart (their box).
+  spacing: showLeft ? Style.space(14) : 0
+  height: Style.space(36)
 
   Logo {
     visible: root.showLeft
     objectName: root.showLeft ? "brandLogo" : ""
     anchors.verticalCenter: parent.verticalCenter
-    size: Style.space(32)
-    rim: root.foreground
+    size: Style.space(36)
+    plain: true
+    rim: Util.alpha(root.foreground, 0.55)
   }
   Text {
     visible: root.showLeft
@@ -49,27 +55,28 @@ Row {
     color: root.foreground
     font.family: root.fontFamily
     font.pixelSize: Style.space(22)
-    font.weight: Font.DemiBold
+    font.weight: Font.Bold
   }
   Rectangle {
     id: premium
     objectName: root.showLeft ? "premiumBadge" : ""
     anchors.verticalCenter: parent.verticalCenter
     visible: root.showLeft && root.showPremium
-    width: premiumText.implicitWidth + Style.space(12)
+    width: premiumText.implicitWidth + Style.space(20)
     height: premiumText.implicitHeight + Style.space(4)
     radius: height / 2
-    color: Util.alpha(Calm.accent, 0.16)
+    color: Calm.surface
     border.width: 1
-    border.color: Util.alpha(Calm.accent, 0.4)
+    border.color: Calm.hair
     Text {
       id: premiumText
       anchors.centerIn: parent
       text: "Premium"
       textFormat: Text.PlainText
-      color: Calm.accent
+      color: root.muted
       font.family: root.fontFamily
-      font.pixelSize: Style.space(14)
+      font.pixelSize: Style.space(12)
+      font.weight: Font.Medium
     }
   }
   HitButton {
@@ -89,13 +96,13 @@ Row {
     id: gear
     objectName: root.showRight ? "gearButton" : ""
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(32)
+    minSize: Style.space(36)
     iconText: ""
-    VIcon { anchors.centerIn: parent; name: "gear"; size: Style.space(22); stroke: 1.6; color: gear.foreground }
-    foreground: root.settingsOpen ? Calm.accent : root.foreground
+    VIcon { anchors.centerIn: parent; name: "gear"; size: Style.space(22); stroke: 1.4; color: gear.foreground }
+    foreground: root.muted
     selected: root.settingsOpen
     visible: root.showRight && root.reachable
-    opacity: root.settingsOpen || hot ? 1 : 0.45
+    opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: "Settings"
     onClicked: root.gearClicked()
@@ -104,13 +111,13 @@ Row {
     id: power
     objectName: root.showRight ? "powerButton" : ""
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(32)
+    minSize: Style.space(36)
     iconText: ""
-    VIcon { anchors.centerIn: parent; name: "power"; size: Style.space(22); stroke: 1.6; color: power.foreground }
-    foreground: root.closed ? Calm.accent : root.foreground
+    VIcon { anchors.centerIn: parent; name: "power"; size: Style.space(22); stroke: 1.4; color: power.foreground }
+    foreground: root.closed ? Calm.fg : root.muted
     selected: root.closed
     visible: root.showRight && root.reachable
-    opacity: root.closed || hot ? 1 : 0.45
+    opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: root.closed ? "Turn Solfa on" : "Turn Solfa off — the music stops"
     onClicked: if (root.svc) root.svc.toggleEngine()
