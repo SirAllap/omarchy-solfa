@@ -44,6 +44,9 @@ Item {
   // "nav" (left column has the cursor) or "content" (right column does).
   property string column: "content"
   property int cursor: 0
+  // True once the keyboard has moved (arrow, Tab): only then is the row under
+  // the cursor filled. Opening Settings, or a click, leaves every row flat.
+  property bool kbd: false
   // Handlers for the current section's rows, in the same order they are
   // drawn: { change(dir), act(), toggle() } — a row supplies whichever it
   // needs; move()/change()/act() below call through them.
@@ -81,7 +84,7 @@ Item {
   }
   onCursorChanged: root.disarm()
   onColumnChanged: root.disarm()
-  onVisibleChanged: if (!root.visible) root.disarm()
+  onVisibleChanged: { root.kbd = false; if (!root.visible) root.disarm() }
   property string cacheNote: ""
   property string eraseNote: ""
   property string engineVersionText: ""
@@ -92,6 +95,7 @@ Item {
   }
 
   function rebuildHandlers() {
+    root.kbd = false
     root.cursor = 0
     root.handlers = root.buildHandlers(root.section)
   }
@@ -132,6 +136,7 @@ Item {
   // ---- keyboard API, called by Panel.qml ---------------------------------
 
   function move(dir) {
+    root.kbd = true
     if (root.column === "nav") {
       root.navIndex = (root.navIndex + dir + root.sections.length) % root.sections.length
     } else if (root.handlers.length > 0) {
@@ -146,21 +151,21 @@ Item {
     else if (h.change) h.change(dir)
   }
   function act() {
-    if (root.column === "nav") { root.column = "content"; root.cursor = 0; return }
+    if (root.column === "nav") { root.kbd = true; root.column = "content"; root.cursor = 0; return }
     var h = root.handlers[root.cursor]
     if (!h) return
     if (h.act) h.act()
     else if (h.toggle) h.toggle()
     else if (h.change) h.change(1)
   }
-  function switchColumn() { root.column = root.column === "nav" ? "content" : "nav" }
+  function switchColumn() { root.kbd = true; root.column = root.column === "nav" ? "content" : "nav" }
 
   // ---- pointer API: a click is the keyboard's cursor move plus its key ----
   // Every row routes its click through the same handlers the keyboard uses,
   // so a click and an Enter can never disagree (the two-step confirms
   // included: a second click on an armed row runs it, like a second Enter).
 
-  function pointAt(i) { root.column = "content"; root.cursor = i }
+  function pointAt(i) { root.kbd = false; root.column = "content"; root.cursor = i }
   function clickRow(i) { root.pointAt(i); root.act() }
   function stepRow(i, dir) { root.pointAt(i); root.change(dir) }
 
@@ -297,26 +302,24 @@ Item {
     // The row's index in its section's handlers: the keyboard cursor lands
     // on it, and a click anywhere on the row runs it.
     property int row: -1
-    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
     width: parent ? parent.width : 0
     // Grows with a wrapped help line. A fixed height with the text centred
     // on it pushed a two-line help's title above the row's top, where the
     // content's clip cut it off.
-    height: Math.max(Style.space(46), rowText.implicitHeight + Style.space(12))
+    height: Math.max(Style.space(50), rowText.implicitHeight + Style.space(12))
     default property alias controlChildren: controlSlot.children
 
     // Hairline between rows (calm list, no boxes).
     Rectangle {
       anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-      anchors.leftMargin: Style.space(6); anchors.rightMargin: Style.space(6)
       height: 1
       color: Util.alpha(rowShell.fg, 0.08)
     }
     Rectangle {
       anchors.fill: parent
       radius: Style.space(10)
-      color: rowShell.focused ? Calm.a(Calm.accent, 0.12)
-                              : (rowHover.containsMouse ? Util.alpha(rowShell.fg, 0.05) : "transparent")
+      color: rowShell.focused ? Calm.a(Calm.accent, 0.12) : "transparent"
     }
 
     // Below the controls, so a control with its own pointer handling (a
@@ -334,7 +337,6 @@ Item {
       id: rowText
       objectName: "rowText"
       anchors.left: parent.left
-      anchors.leftMargin: Style.space(6)
       anchors.right: controlSlot.left
       anchors.rightMargin: Style.space(12)
       anchors.verticalCenter: parent.verticalCenter
@@ -346,7 +348,7 @@ Item {
         textFormat: Text.PlainText
         color: rowShell.fg
         font.family: rowShell.family
-        font.pixelSize: Style.font.body
+        font.pixelSize: Style.space(15)
       }
       Text {
         visible: rowShell.help !== ""
@@ -356,14 +358,13 @@ Item {
         wrapMode: Text.WordWrap
         color: Util.alpha(rowShell.fg, 0.5)
         font.family: rowShell.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.space(12.5)
       }
     }
 
     Row {
       id: controlSlot
       anchors.right: parent.right
-      anchors.rightMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(8)
     }
@@ -404,7 +405,7 @@ Item {
     property string current: ""       // the key of the chosen entry
     property int row: -1
     signal picked(string key)
-    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
     readonly property bool opened: root.menuSrc === dd
     implicitWidth: ddRow.implicitWidth + Style.space(28)
     width: implicitWidth
@@ -443,7 +444,7 @@ Item {
     property real value: 0
     property string suffix: ""
     signal moved(real v)
-    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
     readonly property real frac: to > from ? Math.max(0, Math.min(1, (value - from) / (to - from))) : 0
     implicitWidth: Style.space(200)
     implicitHeight: Style.space(32)
@@ -514,7 +515,7 @@ Item {
     // A button with its own onClicked (not a row's click) sets this.
     property bool standalone: false
     signal clicked()
-    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
     width: qbtnText.implicitWidth + Style.space(28)
     height: Style.space(32)
     radius: height / 2
@@ -637,7 +638,7 @@ Item {
       width: parent.width - nav.width - parent.spacing
       height: parent.height
       clip: true
-      readonly property real sectionTop: sectionTitle.height + Style.space(14)
+      readonly property real sectionTop: sectionTitle.height + Style.space(8)
 
       // The section's name, big, like the mockup.
       Text {
@@ -805,7 +806,7 @@ Item {
               id: bandCell
               required property int index
               readonly property real db: root.section === "sound" ? Model.eqBandDb(root.currentBands(), index) : 0
-              readonly property bool bandFocused: root.column === "content" && root.cursor === index + 2
+              readonly property bool bandFocused: root.kbd && root.column === "content" && root.cursor === index + 2
               width: bandRow.cellW
               height: bandCol.implicitHeight + Style.space(8)
 
