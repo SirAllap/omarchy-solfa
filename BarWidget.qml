@@ -73,7 +73,10 @@ BarWidget {
   readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
 
   visible: hasTrack || root.setting("showWhenIdle", true)
-  implicitWidth: visible ? body.implicitWidth + Style.space(10) : 0
+  // Even padding: the pill's side padding equals the gap above and below the cover.
+  readonly property real pillHeight: Math.min(height, barSize) - Style.space(4)
+  readonly property real pillPad: Math.max(Style.space(2), Math.round((pillHeight - coverSlot.height) / 2))
+  implicitWidth: visible ? body.implicitWidth + 2 * pillPad : 0
   implicitHeight: barSize
   // The open-panel underline follows what the widget paints; without this
   // hint the bar draws it at 55% of the slot and it cuts the title short.
@@ -84,8 +87,8 @@ BarWidget {
   Rectangle {
     readonly property bool hot: barMouse.containsMouse || root.opened
     anchors.centerIn: parent
-    width: body.implicitWidth + Style.space(10)
-    height: Math.min(parent.height, root.barSize) - Style.space(4)
+    width: body.implicitWidth + 2 * root.pillPad
+    height: root.pillHeight
     radius: height / 2
     visible: !root.closed
     // One shape: a soft fill, no outline (the shell draws the open-panel mark).
@@ -176,7 +179,7 @@ BarWidget {
     id: barMouse
     x: body.x
     y: 0
-    width: coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + Style.space(5)
+    width: coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + root.pillPad
     height: parent.height
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
