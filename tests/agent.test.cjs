@@ -44,6 +44,7 @@ function makeStore(queue) {
       case "CLEAR": q.items = []; q.automixItems = []; q.nextQueueItemId = a.payload ? Math.max(...a.payload) + 1 : 0; break
       case "RESET_ITEMS": q.items = a.payload || []; break
       case "REPLACE_AUTOMIX_ITEMS": q.automixItems = a.payload.automixItems; break
+      case "ADD_AUTOMIX_ITEMS": q.automixItems = q.automixItems.concat(a.payload.automixItems); q.nextQueueItemId += a.payload.automixItems.length; break
       case "SET_VOLUME": return Object.assign({}, s, { player: Object.assign({}, s.player, { volume: a.payload }) })
       case "SET_MUTED": return Object.assign({}, s, { player: Object.assign({}, s.player, { muted: a.payload }) })
       case "SET_VIDEO_LIKE_STATUS": return Object.assign({}, s, { likeStatus: { videos: Object.assign({}, s.likeStatus.videos, { [a.payload.id]: a.payload.status }), playlists: {} } })
@@ -457,6 +458,13 @@ test("session: a song still buffering after 15 s is waited for, then seeked and 
   assert.equal(fresh.player.getPlayerState(), 2, "paused")
 })
 
+// A long list's songs, invented: S0000000000, S0000000001, ...
+const songs = (from, n) => Array.from({ length: n }, (_, i) => entry("S" + String(from + i).padStart(10, "0"), "Song " + (from + i)))
+const ids = (list) => list.map((e) => e.playlistPanelVideoRenderer.videoId)
+const plain = (x) => JSON.parse(JSON.stringify(x))
+const nextPage = (from, n, token) => ({ continuationContents: { playlistPanelContinuation: {
+  contents: songs(from, n), continuations: token ? [{ nextContinuationData: { continuation: token } }] : undefined } } })
+
 test("armed: the next song is paused the moment it is selected, a queue edit is not a new song", async () => {
   const p = makePage()
   await p.settle()
@@ -490,6 +498,83 @@ test("queue jump uses the app's own selection", async () => {
   assert.equal(p.player.current, "CCCCCCCCCCC")
   await p.call("queue.jump", { index: 0, automix: true })
   assert.equal(p.player.current, "DDDDDDDDDDD")
+})
+
+test("queue.more: the next page goes at the end with the app's own token, the playing song stays selected", async () => {
+  const p = makePage({ items: songs(0, 50), replies: { next: () => nextPage(50, 49, "fixture-page-3") } })
+  await p.settle()
+  p.store.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: [] } })
+  p.store.dispatch({ type: "SET_INDEX", payload: 3 })
+  p.app.queue.continuation = "fixture-page-2"
+  p.app.queue.pendingFetchItemsRequest = null
+  assert.equal((await p.call("queue")).more, true)
+  assert.deepEqual(plain(await p.call("queue.more")), { added: 49, more: true })
+  const asked = p.requests.filter((x) => x.endpoint === "next")
+  assert.equal(asked.length, 1)
+  assert.equal(asked[0].body.continuation, "fixture-page-2")
+  const q = p.store.getState().queue
+  assert.equal(q.items.length, 99)
+  assert.deepEqual(ids(q.items).slice(49, 51), ["S0000000049", "S0000000050"])
+  assert.equal(q.selectedItemIndex, 3)
+  const add = p.store.log.find((a) => a.type === "ADD_ITEMS")
+  assert.equal(add.payload.index, 50)
+  assert.equal(add.payload.shouldAssignIds, true)
+  assert.equal(p.app.queue.continuation, "fixture-page-3")
+  assert.equal(p.app.queue.pendingFetchItemsRequest, null, "nothing left in flight")
+})
+
+test("queue.more: the last page leaves no token, and then there is nothing to ask", async () => {
+  const p = makePage({ items: songs(0, 50), replies: { next: () => nextPage(50, 10, "") } })
+  await p.settle()
+  p.store.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: [] } })
+  p.app.queue.continuation = "fixture-page-2"
+  assert.deepEqual(plain(await p.call("queue.more")), { added: 10, more: false })
+  assert.equal(p.app.queue.continuation, undefined)
+  assert.equal((await p.call("queue")).more, false)
+  assert.deepEqual(plain(await p.call("queue.more")), { added: 0, more: false })
+  assert.equal(p.requests.filter((x) => x.endpoint === "next").length, 1, "no request without a token")
+})
+
+test("queue.more: the app's own request for that page is not doubled, and ours holds the app's back", async () => {
+  let seen = null
+  const p = makePage({ items: songs(0, 50), replies: { next: () => { seen = p.app.queue.pendingFetchItemsRequest; return nextPage(50, 49, "fixture-page-3") } } })
+  await p.settle()
+  p.store.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: [] } })
+  p.app.queue.continuation = "fixture-page-2"
+  p.app.queue.pendingFetchItemsRequest = { cancel() {} }   // the app is at it already
+  assert.deepEqual(plain(await p.call("queue.more")), { added: 0, more: true })
+  assert.equal(p.requests.filter((x) => x.endpoint === "next").length, 0)
+  p.app.queue.pendingFetchItemsRequest = null
+  await p.call("queue.more")
+  // What the app looks at before asking, and what a skip past the last song waits on.
+  assert.ok(seen && typeof seen.cancel === "function" && typeof seen.then === "function")
+})
+
+test("queue.more: a new list started while the page is out cancels it, and nothing is added", async () => {
+  const p = makePage({ items: songs(0, 50), replies: { next: () => {
+    // As the app does when another list starts: cancel the request in flight, drop the token, new items.
+    p.app.queue.pendingFetchItemsRequest.cancel("Extending queue for different endpoint")
+    p.app.queue.pendingFetchItemsRequest = null
+    p.app.queue.continuation = undefined
+    p.store.dispatch({ type: "RESET_ITEMS", payload: songs(500, 3) })
+    return nextPage(50, 49, "fixture-page-3")
+  } } })
+  await p.settle()
+  p.store.dispatch({ type: "REPLACE_AUTOMIX_ITEMS", payload: { automixItems: [] } })
+  p.app.queue.continuation = "fixture-page-2"
+  assert.deepEqual(plain(await p.call("queue.more")), { added: 0, more: false })
+  assert.deepEqual(ids(p.store.getState().queue.items), ["S0000000500", "S0000000501", "S0000000502"])
+  assert.equal(p.app.queue.continuation, undefined)
+})
+
+test("queue.more: once the list has become the autoplay list, the page goes there", async () => {
+  const p = makePage({ items: songs(0, 3), replies: { next: () => nextPage(100, 20, "fixture-auto-3") } })
+  await p.settle()
+  p.app.queue.continuation = "fixture-auto-2"
+  assert.deepEqual(plain(await p.call("queue.more")), { added: 20, more: true })
+  const q = p.store.getState().queue
+  assert.equal(q.items.length, 3)
+  assert.deepEqual(ids(q.automixItems), ["DDDDDDDDDDD"].concat(ids(songs(100, 20))))
 })
 
 test("play changes the song inside the app, with a page load only as a fallback", async () => {

@@ -439,7 +439,7 @@
   // ---------------------------------------------------------------- push
 
   var queueVersion = 0
-  var lastItems = null, lastAutomix = null, lastSelected = null
+  var lastItems = null, lastAutomix = null, lastSelected = null, lastMore = null
   var lastKey = ""
   var lastSignedIn = null
   var flushTimer = null
@@ -472,10 +472,12 @@
     }
     var st = appState()
     var q = st && st.queue
-    if (q && (q.items !== lastItems || q.automixItems !== lastAutomix || q.selectedItemIndex !== lastSelected)) {
+    var more = continuationOf(app()) !== ""
+    if (q && (q.items !== lastItems || q.automixItems !== lastAutomix || q.selectedItemIndex !== lastSelected || more !== lastMore)) {
       lastItems = q.items
       lastAutomix = q.automixItems
       lastSelected = q.selectedItemIndex
+      lastMore = more
       queueVersion++
       emit("queue", { version: queueVersion })
     }
@@ -563,7 +565,7 @@
   function queueModel() {
     var st = appState()
     var q = st && st.queue
-    if (!q) return { items: [], automix: [], index: -1, version: queueVersion }
+    if (!q) return { items: [], automix: [], index: -1, more: false, version: queueVersion }
     var map = function (list, offset) {
       var out = []
       for (var i = 0; i < (list || []).length; i++) {
@@ -572,7 +574,8 @@
       }
       return out
     }
-    return { items: map(q.items, 0), automix: map(q.automixItems, 0), index: q.selectedItemIndex, version: queueVersion }
+    return { items: map(q.items, 0), automix: map(q.automixItems, 0), index: q.selectedItemIndex,
+      more: continuationOf(app()) !== "", version: queueVersion }
   }
 
   // After MOVE_ITEM or REMOVE_ITEM the selection index points at whatever
@@ -663,6 +666,58 @@
       navigate({ watchEndpoint: { videoId: t.videoId, playlistId: t.playlistId || undefined } })
     }
     return { jumped: true }
+  }
+
+  // ---------------------------------------------------------------- queue pages
+
+  // A long list (a playlist, shuffled or not, or a radio) reaches the queue
+  // one page at a time, about 50 songs. The token for the next page is kept
+  // by the app's queue service, not in the store, and the app asks for that
+  // page by itself only when the selection comes within 5 songs of the end.
+  function continuationOf(a) {
+    var c = a && a.queue ? a.queue.continuation : ""
+    return typeof c === "string" ? c : ""
+  }
+
+  // One more page, asked with the app's own token and added the way the app
+  // adds the pages it asks for: at the end of the queue, or of the autoplay
+  // list once that is what the list has become. While it is out, the app
+  // sees a request of its own in flight (pendingFetchItemsRequest, a promise
+  // with cancel() like its own): it does not ask for the same page again, a
+  // skip to the next song waits for it as it waits for its own, and a new
+  // list started meanwhile cancels it.
+  async function queueMore() {
+    var s = needStore()
+    var a = app()
+    var svc = a && a.queue
+    if (!svc) fail("no-queue")
+    var token = continuationOf(a)
+    if (!token) return { added: 0, more: false }
+    if (svc.pendingFetchItemsRequest) return { added: 0, more: true }   // that page is on its way already
+    var cancelled = false
+    var done = null
+    var pending = new Promise(function (r) { done = r })
+    pending.cancel = function () { cancelled = true }
+    svc.pendingFetchItemsRequest = pending
+    try {
+      var res = await innertube("next", { continuation: token, enablePersistentPlaylistPanel: true, isAudioOnly: true })
+      var page = P ? P.queuePage(res) : { entries: [], continuation: "" }
+      if (cancelled || continuationOf(a) !== token) return { added: 0, more: continuationOf(a) !== "" }
+      var q = s.getState().queue
+      svc.continuation = page.continuation || undefined
+      if (page.entries.length) {
+        if ((q.automixItems || []).length || q.hasShownAutoplay === true) {
+          s.dispatch({ type: "ADD_AUTOMIX_ITEMS", payload: { automixItems: page.entries, nextQueueItemId: q.nextQueueItemId, shouldAssignIds: true } })
+        } else {
+          s.dispatch({ type: "ADD_ITEMS", payload: { items: page.entries, index: q.items.length, nextQueueItemId: q.nextQueueItemId, shouldAssignIds: true } })
+        }
+      }
+      schedule(false)
+      return { added: page.entries.length, more: page.continuation !== "" }
+    } finally {
+      if (svc.pendingFetchItemsRequest === pending) svc.pendingFetchItemsRequest = null
+      done()
+    }
   }
 
   // ---------------------------------------------------------------- recycle
@@ -992,6 +1047,7 @@
     "queue.move": queueMove,
     "queue.remove": queueRemove,
     "queue.jump": queueJump,
+    "queue.more": queueMore,
 
     like: async function (args) {
       needSignIn()

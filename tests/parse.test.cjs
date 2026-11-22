@@ -188,6 +188,22 @@ test("a song/video twin in the queue plays its primary", () => {
   assert.equal(P.panelVideo(wrapped).videoId, P.panelVideo(inner).videoId)
 })
 
+test("a queue page asked with a continuation: its playable entries and the next token", () => {
+  const [a, b] = P.queueEntries(F("queue"))
+  const unplayable = JSON.parse(JSON.stringify(a))
+  unplayable.playlistPanelVideoRenderer.unplayableText = { runs: [{ text: "Video unavailable" }] }
+  const twin = { playlistPanelVideoWrapperRenderer: { primaryRenderer: b, counterpart: [{ counterpartRenderer: a }] } }
+  const page = (contents, continuations) => ({ continuationContents: { playlistPanelContinuation: { contents, continuations } } })
+  const p = P.queuePage(page([a, unplayable, { automixPreviewVideoRenderer: {} }, twin],
+    [{ nextContinuationData: { continuation: "fixture-page-3" } }]))
+  assert.deepEqual(p.entries, [a, twin], "the unplayable song and the non-entry are left out")
+  assert.equal(p.continuation, "fixture-page-3")
+  // A radio names its token differently; the last page has none.
+  assert.equal(P.queuePage(page([a], [{ nextRadioContinuationData: { continuation: "fixture-radio-2" } }])).continuation, "fixture-radio-2")
+  assert.deepEqual(P.queuePage(page([b])), { entries: [b], continuation: "" })
+  assert.deepEqual(P.queuePage({}), { entries: [], continuation: "" })
+})
+
 test("suggestions are plain queries", () => {
   const s = P.suggestions(F("suggest"))
   assert.ok(s.length >= 3 && s.every((x) => typeof x === "string" && x.length))
