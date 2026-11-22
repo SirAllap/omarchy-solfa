@@ -176,7 +176,7 @@ Column {
       EventGlow { id: likeGlow; objectName: "likeGlow"; anchors.centerIn: likeButton; size: Style.space(150) }
       Connections {
         target: root.svc
-        function onLikeChanged() { if (root.svc.like === "LIKE" && root.live) likeGlow.fire("like") }
+        function onLikeChanged() { if (root.svc.like === "LIKE" && root.live) { likeGlow.fire("like"); if (!Style.reduceMotion) likePop.restart() } }
       }
       HitButton {
         id: likeButton
@@ -186,8 +186,27 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasTrack && !root.svc.isAd
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: "heart"; size: Style.space(20); filled: !!(root.svc && root.svc.like === "LIKE"); color: root.svc && root.svc.like === "LIKE" ? Calm.accent : root.fg; stroke: 1.7 }
+        // ring burst behind the heart, once per like
+        Rectangle { id: likeRing; z: -1; anchors.centerIn: parent; width: Style.space(20); height: width; radius: width / 2
+          color: "transparent"; border.width: 1.5; border.color: Calm.accent; opacity: 0; scale: 1 }
+        VIcon { id: heartIcon; anchors.centerIn: parent; name: "heart"; size: Style.space(20); filled: !!(root.svc && root.svc.like === "LIKE"); color: root.svc && root.svc.like === "LIKE" ? Calm.accent : root.fg; stroke: 1.7 }
         foreground: root.svc && root.svc.like === "LIKE" ? Calm.accent : root.fg
+        // pops 1 to 1.25 to 1; the ring grows and fades. Runs once, then stops.
+        ParallelAnimation {
+          id: likePop
+          SequentialAnimation {
+            NumberAnimation { target: heartIcon; property: "scale"; to: 1.25; duration: 110; easing.type: Easing.OutCubic }
+            NumberAnimation { target: heartIcon; property: "scale"; to: 1; duration: 190; easing.type: Easing.OutBack }
+          }
+          SequentialAnimation {
+            PropertyAction { target: likeRing; property: "scale"; value: 0.9 }
+            PropertyAction { target: likeRing; property: "opacity"; value: 0.7 }
+            ParallelAnimation {
+              NumberAnimation { target: likeRing; property: "scale"; to: 1.9; duration: 380; easing.type: Easing.OutCubic }
+              NumberAnimation { target: likeRing; property: "opacity"; to: 0; duration: 380; easing.type: Easing.OutCubic }
+            }
+          }
+        }
         // a round chip behind the heart, tinted once it is liked
         Rectangle {
           z: -1
