@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import QtQuick.Shapes
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
@@ -360,6 +361,60 @@ Panel {
       // above us at runtime and restyle it to the same shape: one frame, one
       // radius. If it cannot be found the card below is still ours.
       property Item hostCard: null
+      // Two drops, the pill's and the card's, stretch toward each other,
+      // touch and merge: one card-coloured shape with a concave neck
+      // (cubic curves). The panel window is full-screen and above the bar,
+      // so the whole bridge is drawn here; the bar's own window ends at the
+      // pill's bottom (about 2 px below it), so BarWidget cannot draw into
+      // the gap. It stretches on open (0 to 450 ms, a small spring wobble at
+      // the snap) and is static under reduce-motion. Closing: the host hides
+      // the card at once, so it goes with it.
+      Component {
+        id: bridgeComp
+        Shape {
+          id: bridge
+          property Item card: null
+          readonly property real cx: panel.anchorScreenPos.x + panel.anchorW / 2
+          readonly property real pillBottom: panel.barThickness - Style.space(2)
+          readonly property real ov: Style.space(2)
+          readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
+          readonly property real p: Motion.spatial(keys.tms, 0, 450)
+          readonly property real q: Math.max(0, Math.min(1, p))
+          readonly property real a: Style.space(34) * q       // half-width at the pill
+          readonly property real b: Style.space(40) * q       // half-width at the card
+          readonly property real n: Style.space(12) * Math.max(0, p)  // neck half-width (wobbles)
+          visible: !!card && card.visible && root.opened && gapH > 0.5 && q > 0.01
+          opacity: card ? card.opacity : 0
+          x: cx - Math.max(a, b)
+          y: pillBottom - ov
+          z: card ? card.z - 0.5 : 0
+          width: 2 * Math.max(a, b)
+          height: gapH + ov + Style.space(4)
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            id: sp
+            fillColor: bridge.card ? bridge.card.color : "transparent"
+            strokeWidth: -1
+            readonly property real m: bridge.width / 2
+            readonly property real h: bridge.height
+            startX: m - bridge.a; startY: 0
+            PathLine { x: sp.m + bridge.a; y: 0 }
+            PathCubic { x: sp.m + bridge.n; y: sp.h / 2
+              control1X: sp.m + bridge.n; control1Y: sp.h * 0.12
+              control2X: sp.m + bridge.n; control2Y: sp.h * 0.35 }
+            PathCubic { x: sp.m + bridge.b; y: sp.h
+              control1X: sp.m + bridge.n; control1Y: sp.h * 0.65
+              control2X: sp.m + bridge.n; control2Y: sp.h * 0.88 }
+            PathLine { x: sp.m - bridge.b; y: sp.h }
+            PathCubic { x: sp.m - bridge.n; y: sp.h / 2
+              control1X: sp.m - bridge.n; control1Y: sp.h * 0.88
+              control2X: sp.m - bridge.n; control2Y: sp.h * 0.65 }
+            PathCubic { x: sp.m - bridge.a; y: 0
+              control1X: sp.m - bridge.n; control1Y: sp.h * 0.35
+              control2X: sp.m - bridge.n; control2Y: sp.h * 0.12 }
+          }
+        }
+      }
       readonly property real frameRadius: Style.space(26)
       Component.onCompleted: {
         var p = keys.parent
@@ -368,6 +423,9 @@ Panel {
         p.borderSpec = Border.none()
         p.radius = Qt.binding(function () { return keys.frameRadius })
         keys.hostCard = p
+        // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
+        if (p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel))
+          bridgeComp.createObject(p.parent, { card: p })
       }
 
       // Open: one timeline, 'tms', runs 0 to 600 ms and everything below
