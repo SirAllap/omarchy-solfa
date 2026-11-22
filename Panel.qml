@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Shapes
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
@@ -298,9 +297,6 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keys
-    // Attached to the top bar: no gap, so the card reads as part of it
-    // (set only where the shell's panel has the property).
-    Component.onCompleted: if ("gap" in panel) panel.gap = 0
     // The shell's card is restyled in keys below (no border, mockup radius);
     // this is the border it starts with, until that runs.
     borderSpec: Border.none()
@@ -338,34 +334,6 @@ Panel {
       // above us at runtime and restyle it to the same shape: one frame, one
       // radius. If it cannot be found the card below is still ours.
       property Item hostCard: null
-      Component {
-        id: filletComp
-        Shape {
-          id: fillet
-          property Item card: null
-          property bool onRight: false
-          readonly property real r: Style.space(20)
-          visible: !!card && card.visible && root.opened
-          opacity: card ? card.opacity : 0
-          x: card ? (onRight ? card.x + card.width : card.x - r) : 0
-          y: card ? card.y : 0
-          z: card ? card.z : 0
-          width: r; height: r
-          preferredRendererType: Shape.CurveRenderer
-          ShapePath {
-            fillColor: fillet.card ? fillet.card.color : "transparent"
-            strokeWidth: -1
-            // Left: the corner square minus a quarter circle centred at its bottom-left.
-            startX: fillet.onRight ? 0 : fillet.r; startY: 0
-            PathLine { x: fillet.onRight ? 0 : fillet.r; y: fillet.r }
-            PathArc {
-              x: fillet.onRight ? fillet.r : 0; y: 0
-              radiusX: fillet.r; radiusY: fillet.r
-              direction: fillet.onRight ? PathArc.Clockwise : PathArc.Counterclockwise
-            }
-          }
-        }
-      }
       readonly property real frameRadius: Style.space(26)
       Component.onCompleted: {
         var p = keys.parent
@@ -373,15 +341,6 @@ Panel {
         if (!p) return
         p.borderSpec = Border.none()
         p.radius = Qt.binding(function () { return keys.frameRadius })
-        // Attached to the bar: the top edge is flush and square (bottom stays round).
-        if ("topLeftRadius" in p) { p.topLeftRadius = 0; p.topRightRadius = 0 }
-        // Concave fillets where the card meets the bar, drawn just outside
-        // its top corners in the card's colour (beside it, never inside it).
-        if (p.parent && (!("barPos" in panel) || panel.barPos === "top")) {
-          filletComp.createObject(p.parent, { card: p, onRight: false })
-          filletComp.createObject(p.parent, { card: p, onRight: true })
-        }
-        p.color = Calm.surface
         keys.hostCard = p
       }
 
