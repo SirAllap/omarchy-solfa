@@ -537,8 +537,17 @@ Column {
         id: sleepChip
         anchors.verticalCenter: parent.verticalCenter
         width: sleepRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
+        readonly property bool active: !!(root.svc && root.svc.sleepMode !== "off")
         color: sleepMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
-        border.width: 1; border.color: Calm.hair
+        border.width: 1; border.color: active ? Calm.a(Calm.accent, 0.55) : Calm.hair
+        Behavior on border.color { enabled: !Style.reduceMotion; ColorAnimation { duration: 160 } }
+        // the active fill slides in from the left, 220 ms
+        Rectangle {
+          z: -1; anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+          radius: parent.radius; color: Calm.a(Calm.accent, 0.2)
+          width: sleepChip.active ? parent.width : 0
+          Behavior on width { enabled: !Style.reduceMotion; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        }
         Row {
           id: sleepRow
           anchors.centerIn: parent
@@ -559,8 +568,15 @@ Column {
         id: radioChip
         anchors.verticalCenter: parent.verticalCenter
         width: radioRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
-        color: radioMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
+        color: Calm.wash
         border.width: 1; border.color: Calm.hair
+        // the hover fill slides in from the left, 220 ms
+        Rectangle {
+          z: -1; anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+          radius: parent.radius; color: Calm.a(Calm.fg, 0.1)
+          width: radioMouse.containsMouse ? parent.width : 0
+          Behavior on width { enabled: !Style.reduceMotion; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        }
         Row {
           id: radioRow
           anchors.centerIn: parent
