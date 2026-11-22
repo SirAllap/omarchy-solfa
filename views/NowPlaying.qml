@@ -53,7 +53,38 @@ Column {
       reduceMotion: Style.reduceMotion
       // pops .8 to 1 and fades in (no turn), 20 ms in
       scale: 0.8 + 0.2 * Motion.spatial(root.openMs, 20, 200)
-      opacity: root.eff(20, 160)
+      opacity: root.eff(20, 160) * coverMix
+      // prev/next: the old cover slides out, the new one slides in (24 px, crossfade)
+      property real coverShift: 0
+      property real coverMix: 1
+      property int dir: 1
+      transform: Translate { x: cover.coverShift }
+      function leave(d) {
+        if (Style.reduceMotion || !root.live) return
+        dir = d; inAnim.stop(); outAnim.restart(); restoreTimer.restart()
+      }
+      ParallelAnimation {
+        id: outAnim
+        NumberAnimation { target: cover; property: "coverShift"; to: -24 * cover.dir; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { target: cover; property: "coverMix"; to: 0; duration: 120; easing.type: Easing.InCubic }
+      }
+      SequentialAnimation {
+        id: inAnim
+        PropertyAction { target: cover; property: "coverShift"; value: 24 * cover.dir }
+        ParallelAnimation {
+          NumberAnimation { target: cover; property: "coverShift"; to: 0; duration: 260; easing.type: Easing.OutCubic }
+          NumberAnimation { target: cover; property: "coverMix"; to: 1; duration: 220; easing.type: Easing.OutCubic }
+        }
+      }
+      // no new cover came (same picture, or the end of the queue): come back
+      Timer { id: restoreTimer; interval: 1400; onTriggered: { outAnim.stop(); cover.dir = -cover.dir; inAnim.restart() } }
+      Connections {
+        target: root.svc
+        function onThumbChanged() {
+          if (Style.reduceMotion || !root.live || !outAnim.running && cover.coverMix === 1) return
+          restoreTimer.stop(); outAnim.stop(); inAnim.restart()
+        }
+      }
     }
 
     Column {
@@ -74,7 +105,10 @@ Column {
         readonly property string full: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : "Nothing playing")
         readonly property bool typing: root.live && !Style.reduceMotion && root.hasTrack
         property real shown: full.length
+        // the title crossfades as it changes (the letters then write in)
+        NumberAnimation on opacity { id: titleFade; running: false; from: 0.25; to: 1; duration: 240; easing.type: Easing.OutCubic }
         onFullChanged: {
+          if (typing) titleFade.restart()
           typeAnim.stop()
           if (!typing || full.length === 0) { shown = full.length; return }
           shown = 0
@@ -337,7 +371,7 @@ Column {
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Previous (p)"
-        onClicked: if (root.svc) root.svc.previous()
+        onClicked: if (root.svc) { cover.leave(-1); root.svc.previous() }
       }
       HitButton {
         // the play disc comes last, with a soft scale overshoot
@@ -377,7 +411,7 @@ Column {
         foreground: root.fg
         fontFamily: root.family
         tooltipText: "Next (n)"
-        onClicked: if (root.svc) root.svc.next()
+        onClicked: if (root.svc) { cover.leave(1); root.svc.next() }
       }
       HitButton {
         opacity: root.eff(115, 180)
