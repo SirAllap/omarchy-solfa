@@ -109,7 +109,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       text: view.timed ? "follows the song · j k scroll" : "j k scroll"
       textFormat: Text.PlainText
-      color: Util.alpha(view.fg, 0.45)
+      color: Util.alpha(view.fg, 0.36)
       font.family: view.family
       font.pixelSize: Style.font.caption
     }
@@ -179,7 +179,7 @@ Item {
     text: view.lyrics ? (view.lyrics.source || "") : ""
     textFormat: Text.PlainText
     elide: Text.ElideRight
-    color: Util.alpha(view.fg, 0.45)
+    color: Util.alpha(view.fg, 0.36)
     font.family: view.family
     font.pixelSize: Style.font.caption
   }
