@@ -37,7 +37,10 @@ Panel {
   // "Save to playlist": the song being saved ({ videoId, title }), or null.
   property var saveItem: null
   readonly property bool saveOpen: saveItem !== null
-  function toggleSettings() { root.settingsOpen = !root.settingsOpen }
+  function toggleSettings() {
+    if (!root.settingsOpen) root.saveItem = null
+    root.settingsOpen = !root.settingsOpen
+  }
   function closeSettings() { root.settingsOpen = false }
 
   onOpenedChanged: {
