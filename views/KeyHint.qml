@@ -9,6 +9,9 @@ Row {
   property string keys: ""
   property string label: ""
   property QtObject bar: null
+  // Sizes: the footer's by default; Settings passes smaller ones.
+  property real keyPx: Style.space(14)
+  property real labelPx: Style.font.caption
   readonly property color fg: Calm.fg
   readonly property string family: Calm.font
 
@@ -29,7 +32,7 @@ Row {
       textFormat: Text.PlainText
       color: Util.alpha(hint.fg, 0.85)
       font.family: hint.family
-      font.pixelSize: Style.space(14)
+      font.pixelSize: hint.keyPx
     }
   }
 
@@ -39,6 +42,6 @@ Row {
     textFormat: Text.PlainText
     color: Util.alpha(hint.fg, 0.62)
     font.family: hint.family
-    font.pixelSize: Style.font.caption
+    font.pixelSize: hint.labelPx
   }
 }

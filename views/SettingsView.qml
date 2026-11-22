@@ -21,6 +21,8 @@ Item {
   property var svc: null
   property color fg: Color.foreground
   property string family: Style.font.family
+  // A calm, muted red for what destroys data (not the shell's loud urgent red).
+  readonly property color dangerColor: "#c4727f"
 
   signal backRequested()
   signal showAllKeys()
@@ -193,11 +195,11 @@ Item {
           .concat(bandHandlers)
           .concat([
             { change: function (dir) { svc.saveSetting("eqPreamp", Model.stepNumber(svc.setting("eqPreamp", 0), dir, -12, 0)) } },
-            { toggle: function () { svc.saveSetting("eqLoudness", !svc.setting("eqLoudness", false)) } }
+            { toggle: function () { svc.saveSetting("eqLoudness", !svc.setting("eqLoudness", false)) } },
+            { change: function (dir) { svc.nudgeSleepMode(dir) }, act: function () { svc.nudgeSleepMode(1) } }
           ])
       }
       case "playback": return [
-        { change: function (dir) { svc.nudgeSleepMode(dir) }, act: function () { svc.nudgeSleepMode(1) } },
         { toggle: function () { svc.saveSetting("startPaused", !svc.setting("startPaused", false)) } },
         { change: function (dir) { svc.saveSetting("startVolume", Model.cycleList(["last", "25", "50", "75", "100"], String(svc.setting("startVolume", "last")), dir)) } },
         { toggle: function () { svc.saveSetting("autostart", !svc.setting("autostart", true)) } },
@@ -219,6 +221,7 @@ Item {
       case "advanced": return [
         { change: function (dir) { svc.saveSetting("recycleHeapMb", Model.stepNumber(Model.recycleHeapMbFor(svc.setting("recycleHeapMb", 400)), dir * 50, Model.RECYCLE_HEAP_MB_RANGE[0], Model.RECYCLE_HEAP_MB_RANGE[1])) } },
         { change: function (dir) { svc.saveSetting("recycleHours", Model.stepNumber(Model.recycleHoursFor(svc.setting("recycleHours", 12)), dir, Model.RECYCLE_HOURS_RANGE[0], Model.RECYCLE_HOURS_RANGE[1])) } },
+        { toggle: function () { svc.saveSetting("reduceMotion", !svc.setting("reduceMotion", false)) } },
         { act: function () { root.cacheNote = "Clearing…"; svc.clearCache(function (r) { root.cacheNote = r.ok ? "Cleared" : "Could not clear the cache" }) } },
         { act: function () { svc.resetSettings() } },
         { act: function () { root.actErase() } }
@@ -299,6 +302,7 @@ Item {
     property string family: root.family
     property string label: ""
     property string help: ""
+    property color labelColor: fg
     // The row's index in its section's handlers: the keyboard cursor lands
     // on it, and a click anywhere on the row runs it.
     property int row: -1
@@ -346,9 +350,9 @@ Item {
         wrapMode: Text.WordWrap
         text: rowShell.label
         textFormat: Text.PlainText
-        color: rowShell.fg
+        color: rowShell.labelColor
         font.family: rowShell.family
-        font.pixelSize: Style.space(15)
+        font.pixelSize: Style.space(14)
       }
       Text {
         visible: rowShell.help !== ""
@@ -358,13 +362,14 @@ Item {
         wrapMode: Text.WordWrap
         color: Util.alpha(rowShell.fg, 0.5)
         font.family: rowShell.family
-        font.pixelSize: Style.space(12.5)
+        font.pixelSize: Style.space(12)
       }
     }
 
     Row {
       id: controlSlot
       anchors.right: parent.right
+      anchors.rightMargin: 1
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(8)
     }
@@ -443,10 +448,12 @@ Item {
     property real step: 1
     property real value: 0
     property string suffix: ""
+    property real barW: Style.space(130)
+    property real valueW: Style.space(56)
     signal moved(real v)
     readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
     readonly property real frac: to > from ? Math.max(0, Math.min(1, (value - from) / (to - from))) : 0
-    implicitWidth: Style.space(200)
+    implicitWidth: barW + Style.space(14) + valueW
     implicitHeight: Style.space(32)
     width: implicitWidth
     height: implicitHeight
@@ -455,7 +462,7 @@ Item {
       objectName: "sliderBar"
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(130)
+      width: sl.barW
       height: Style.space(20)
       Rectangle {
         anchors.verticalCenter: parent.verticalCenter
@@ -494,13 +501,13 @@ Item {
     Text {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(56)
+      width: sl.valueW
       horizontalAlignment: Text.AlignRight
       text: (sl.from < 0 && sl.value > 0 ? "+" : "") + sl.value + sl.suffix
       textFormat: Text.PlainText
       color: Util.alpha(root.fg, 0.6)
       font.family: root.family
-      font.pixelSize: Style.font.body
+      font.pixelSize: Style.space(15)
     }
   }
 
@@ -509,6 +516,7 @@ Item {
     property color fg: root.fg
     property string label: ""
     property bool danger: false
+    property string icon: ""
     // Standalone (Account) buttons carry their own row; inside a RowShell
     // they leave it at -1 and the row takes the click.
     property int row: -1
@@ -516,21 +524,27 @@ Item {
     property bool standalone: false
     signal clicked()
     readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
-    width: qbtnText.implicitWidth + Style.space(28)
+    width: qbtnRow.implicitWidth + Style.space(28)
     height: Style.space(32)
     radius: height / 2
-    color: focused ? Calm.a(Calm.accent, 0.12) : Calm.wash
+    color: danger ? Calm.a(root.dangerColor, 0.1) : (focused ? Calm.a(Calm.accent, 0.12) : Calm.wash)
     border.width: 1
-    border.color: danger ? Calm.a(Color.urgent, 0.45) : (focused ? Calm.accent : Calm.hair)
-    Text {
-      id: qbtnText
+    border.color: danger ? Calm.a(root.dangerColor, 0.55) : (focused ? Calm.accent : Calm.hair)
+    Row {
+      id: qbtnRow
       anchors.centerIn: parent
-      text: qbtn.label
-      textFormat: Text.PlainText
-      color: qbtn.danger ? Color.urgent : (qbtn.focused ? Calm.accent : qbtn.fg)
-      font.family: root.family
-      font.pixelSize: Style.font.body
-      font.bold: true
+      spacing: Style.space(7)
+      Icon { visible: qbtn.icon !== ""; name: qbtn.icon; size: Style.space(16); color: qbtnText.color; anchors.verticalCenter: parent.verticalCenter }
+      Text {
+        id: qbtnText
+        anchors.verticalCenter: parent.verticalCenter
+        text: qbtn.label
+        textFormat: Text.PlainText
+        color: qbtn.danger ? root.dangerColor : (qbtn.focused ? Calm.accent : qbtn.fg)
+        font.family: root.family
+        font.pixelSize: Style.space(15)
+        font.bold: true
+      }
     }
     MouseArea {
       // 32 px tall at least, like every other hit box in the panel.
@@ -575,7 +589,7 @@ Item {
       Icon { name: "back"; size: Style.space(15); color: root.fg; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
       MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backRequested() }
     }
-    KeyHint { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; keys: "esc"; label: "close" }
+    KeyHint { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; keys: "esc"; label: "close"; keyPx: Style.space(11); labelPx: Style.space(12) }
   }
 
   // ---- body: left section list + right rows -----------------------------
@@ -583,7 +597,7 @@ Item {
   Row {
     id: body
     anchors.top: backRow.bottom
-    anchors.topMargin: Style.space(14)
+    anchors.topMargin: Style.space(26)
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
@@ -638,7 +652,7 @@ Item {
       width: parent.width - nav.width - parent.spacing
       height: parent.height
       clip: true
-      readonly property real sectionTop: sectionTitle.height + Style.space(8)
+      readonly property real sectionTop: sectionTitle.height + Style.space(15)
 
       // The section's name, big, like the mockup.
       Text {
@@ -707,7 +721,7 @@ Item {
                 wrapMode: Text.WordWrap
                 color: root.fg
                 font.family: root.family
-                font.pixelSize: Style.space(17)
+                font.pixelSize: Style.space(15)
                 font.weight: Font.DemiBold
               }
               Text {
@@ -718,7 +732,7 @@ Item {
                 textFormat: Text.PlainText
                 color: Util.alpha(root.fg, 0.6)
                 font.family: root.family
-                font.pixelSize: Style.space(14)
+                font.pixelSize: Style.space(12.5)
               }
               Flow {
                 width: parent.width
@@ -893,9 +907,22 @@ Item {
         }
         RowShell {
           label: "Even out loudness"
-          help: "A compressor: quiet songs come up, loud ones do not clip"
+          help: "Quiet and loud songs sound alike"
           row: 13
           MiniToggle { active: root.svc ? !!root.svc.setting("eqLoudness", false) : false }
+        }
+        RowShell {
+          label: "Sleep timer"
+          row: 14
+          Dropdown {
+            row: 14
+            text: root.svc ? Model.sleepLabel(root.svc.sleepMode) : "Off"
+            options: Model.SLEEP_OPTIONS.map(function (k) { return { key: k, label: Model.sleepLabel(k) } })
+            onPicked: function (key) {
+              // The service only steps through its options; walk to the one asked for.
+              for (var n = 0; n < Model.SLEEP_OPTIONS.length && root.svc.sleepMode !== key; n++) root.svc.nudgeSleepMode(1)
+            }
+          }
         }
       }
 
@@ -907,24 +934,10 @@ Item {
         spacing: 0
 
         RowShell {
-          label: "Sleep timer"
-          help: "Fades the volume over 10 s, then pauses"
+          label: "When Solfa starts"
           row: 0
           Dropdown {
             row: 0
-            text: root.svc ? Model.sleepLabel(root.svc.sleepMode) : "Off"
-            options: Model.SLEEP_OPTIONS.map(function (k) { return { key: k, label: Model.sleepLabel(k) } })
-            onPicked: function (key) {
-              // The service only steps through its options; walk to the one asked for.
-              for (var n = 0; n < Model.SLEEP_OPTIONS.length && root.svc.sleepMode !== key; n++) root.svc.nudgeSleepMode(1)
-            }
-          }
-        }
-        RowShell {
-          label: "When Solfa starts"
-          row: 1
-          Dropdown {
-            row: 1
             text: root.settingOr("startPaused", false) ? "Resume paused" : "Resume playing"
             options: [{ key: "play", label: "Resume playing" }, { key: "paused", label: "Resume paused" }]
             onPicked: function (key) { root.svc.saveSetting("startPaused", key === "paused") }
@@ -932,9 +945,9 @@ Item {
         }
         RowShell {
           label: "Volume at start"
-          row: 2
+          row: 1
           Dropdown {
-            row: 2
+            row: 1
             text: root.settingOr("startVolume", "last") === "last" ? "Last used" : root.settingOr("startVolume", "last") + "%"
             options: ["last", "25", "50", "75", "100"].map(function (k) { return { key: k, label: k === "last" ? "Last used" : k + "%" } })
             onPicked: function (key) { root.svc.saveSetting("startVolume", key) }
@@ -942,15 +955,15 @@ Item {
         }
         RowShell {
           label: "Start with the shell"
-          row: 3
+          help: "Turns YouTube Music on at login"
+          row: 2
           MiniToggle { active: root.svc ? !!root.svc.setting("autostart", true) : true }
         }
         RowShell {
           label: "Browser for the engine"
-          help: "An absolute path to a Chromium-family browser (never a bare command)"
-          row: 4
+          row: 3
           Dropdown {
-            row: 4
+            row: 3
             text: Model.browserLabel(root.svc ? root.svc.setting("browser", "") : "")
             options: root.svc ? Model.browserChoices(root.svc.browsers, root.svc.setting("browser", "")).map(function (k) { return { key: k, label: Model.browserLabel(k) } }) : []
             onPicked: function (key) { root.svc.saveSetting("browser", key) }
@@ -960,7 +973,7 @@ Item {
           visible: root.braveEngine
           label: "Brave's ad blocker"
           help: "Lets Brave fetch its filter lists, so it can block adverts. Off keeps the engine from any background updates"
-          row: 5
+          row: 4
           MiniToggle { active: root.svc ? !!root.svc.setting("braveAdBlock", false) : false }
         }
       }
@@ -979,6 +992,8 @@ Item {
         RowShell { label: "Title width in the bar"; row: 2
           SliderRow {
             objectName: "titleWidthSlider"
+            barW: Style.space(100)
+            valueW: Style.space(36)
             row: 2
             from: 80; to: 400; step: 20
             value: root.settingOr("maxLabelWidth", 160)
@@ -986,7 +1001,7 @@ Item {
           } }
         RowShell { label: "Show in the bar when nothing is loaded"; row: 3
           MiniToggle { active: root.svc ? !!root.svc.setting("showWhenIdle", true) : true } }
-        RowShell { label: "Notify when the song changes"; row: 4
+        RowShell { label: "Notify when the song changes"; help: "A small card with the cover"; row: 4
           MiniToggle { active: root.svc ? !!root.svc.setting("notify", true) : true } }
       }
 
@@ -1007,7 +1022,24 @@ Item {
         RowShell {
           label: "Every key"
           row: 1
-          QuietButton { label: "All keys" }
+          QuietButton { label: "All keys"; icon: "keyboard" }
+        }
+        // The keys that work in the panel, two columns (the real bindings).
+        Grid {
+          objectName: "keyGrid"
+          width: parent.width
+          topPadding: Style.space(12)
+          columns: 2
+          rowSpacing: Style.space(10)
+          readonly property var keyList: [
+            ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
+            ["f", "like"], ["/", "search"], ["tab", "next tab"], ["e", "play next"],
+            ["a", "add to queue"], ["R", "start radio"], ["[ ]", "section"], ["esc", "back"]
+          ]
+          Repeater {
+            model: parent.keyList
+            delegate: KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; keyPx: Style.space(11); labelPx: Style.space(12); width: content.width / 2 }
+          }
         }
       }
 
@@ -1032,16 +1064,19 @@ Item {
             options: [1, 2, 4, 6, 12, 24, 48, 72].map(function (k) { return { key: String(k), label: k + " hours" } })
             onPicked: function (key) { root.svc.saveSetting("recycleHours", Number(key)) }
           } }
-        RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 2
+        RowShell { label: "Reduce motion"; help: "Stops springs, glows, comets and typing"; row: 2
+          MiniToggle { active: root.settingOr("reduceMotion", false) } }
+        RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 3
           QuietButton { label: "Clear" } }
-        RowShell { label: "Reset settings"; row: 3
+        RowShell { label: "Reset settings"; row: 4
           QuietButton { label: "Reset" } }
         RowShell {
           label: "Erase engine data"
           help: root.eraseArmed ? "Press again to erase. This signs you out." : (root.eraseNote !== "" ? root.eraseNote : "Deletes the profile; signs you out")
-          row: 4
+          row: 5
+          labelColor: root.dangerColor
           QuietButton { visible: root.eraseArmed; standalone: true; label: "Keep"; onClicked: root.disarm() }
-          QuietButton { label: root.eraseArmed ? "Yes, erase" : "Erase"; danger: true }
+          QuietButton { label: root.eraseArmed ? "Yes, erase" : "Erase"; icon: "trash"; danger: true }
         }
       }
 
@@ -1054,7 +1089,7 @@ Item {
 
         Rectangle {
           width: parent.width
-          height: aboutCol.implicitHeight + Style.space(32)
+          height: aboutCol.implicitHeight + Style.space(44)
           radius: Style.space(18)
           color: Util.alpha(root.fg, 0.05)
           border.width: 1
@@ -1062,10 +1097,10 @@ Item {
           Column {
             id: aboutCol
             anchors.centerIn: parent
-            spacing: Style.space(8)
-            Logo { anchors.horizontalCenter: parent.horizontalCenter; size: Style.space(50); rim: root.fg }
-            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.subtitle; font.bold: true }
-            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineLabel(root.engineVersionText); textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption }
+            spacing: Style.space(10)
+            Logo { anchors.horizontalCenter: parent.horizontalCenter; size: Style.space(52); rim: root.fg; label: Calm.accent }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.bold: true }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineLabel(root.engineVersionText); textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.space(12) }
           }
         }
         Text {
@@ -1075,7 +1110,7 @@ Item {
           wrapMode: Text.WordWrap
           color: Util.alpha(root.fg, 0.6)
           font.family: root.family
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.space(12.5)
         }
         Row {
           spacing: Style.space(8)

@@ -251,13 +251,15 @@ ShellRoot {
           settingsView.change(1)          // bass[0] + 1 dB, preset -> custom
           var bandsAfterEdit = Model.parseEqBands(fakeSvc.setting("eqBands", "[]"))
           var presetAfterEdit = fakeSvc.setting("eqPreset", "")
+          // Sleep timer sits at the end of Sound (row 14), as in the mockup.
+          settingsView.move(12)
+          settingsView.change(1)
+          var sleepAfter = fakeSvc.sleepMode
 
           // Playback: a clean frame of the section, then the sleep timer stepper.
           settingsView.switchColumn(); settingsView.move(1); settingsView.act()  // sound(1) -> playback(2)
 
           win.grab(Quickshell.env("SOLFA_SCENE_OUT3"), function () {
-            settingsView.change(1)
-            var sleepAfter = fakeSvc.sleepMode
 
             // Keys: "All keys" button.
             settingsView.switchColumn(); settingsView.move(2); settingsView.act()  // playback(2) -> keys(4)
@@ -269,7 +271,7 @@ ShellRoot {
             settingsView.switchColumn(); settingsView.move(1); settingsView.act()  // keys(4) -> advanced(5)
 
             win.grab(Quickshell.env("SOLFA_SCENE_OUT4"), function () {
-              settingsView.move(2)
+              settingsView.move(3)
               settingsView.act()  // Clear cache
               var cacheNoteAfter = settingsView.cacheNote
               settingsView.move(2)
