@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
 import "../lib/Icons.js" as Icons
@@ -102,8 +103,107 @@ Item {
     playingId: view.svc ? view.svc.videoId : ""
     isPlaying: view.svc ? view.svc.isPlaying !== false : true
     actionsFor: view.actionsFor
-    emptyText: view.error !== "" ? view.error : "Nothing queued yet. Press / to find something."
+    // The empty, loading and error states are drawn by `state` below.
+    emptyText: ""
     onActivated: function (i) { view.jump(view.rows[i]) }
     onAction: function (name, i) { view.runAction(name, view.rows[i]) }
+  }
+
+  // ---- empty / loading / error: one calm centred state, no list behind it.
+  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property bool loading: !!svc && queue === null && error === ""
+  readonly property bool failed: rows.length === 0 && error !== ""
+  readonly property bool empty: rows.length === 0 && !loading && !failed
+
+  // Loading: five faint rows, breathing slowly.
+  Column {
+    objectName: "queueLoading"
+    visible: view.loading
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.margins: Style.space(8)
+    spacing: Style.space(10)
+    opacity: 0.6
+    SequentialAnimation on opacity {
+      running: view.loading && view.visible
+      loops: Animation.Infinite
+      NumberAnimation { from: 0.45; to: 0.9; duration: 1100; easing.type: Easing.InOutSine }
+      NumberAnimation { from: 0.9; to: 0.45; duration: 1100; easing.type: Easing.InOutSine }
+    }
+    Repeater {
+      model: [0.55, 0.7, 0.85, 0.6, 0.75]
+      delegate: Row {
+        id: sk
+        required property real modelData
+        spacing: Style.space(12)
+        Rectangle { width: Style.space(40); height: width; radius: Style.space(8); color: Util.alpha(view.fg, 0.08) }
+        Column {
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(6)
+          Rectangle { width: (view.width - Style.space(80)) * sk.modelData; height: Style.space(9); radius: height / 2; color: Util.alpha(view.fg, 0.1) }
+          Rectangle { width: (view.width - Style.space(80)) * sk.modelData * 0.6; height: Style.space(7); radius: height / 2; color: Util.alpha(view.fg, 0.06) }
+        }
+      }
+    }
+  }
+
+  Column {
+    objectName: "queueState"
+    visible: view.empty || view.failed
+    anchors.centerIn: parent
+    width: parent.width - Style.space(40)
+    spacing: Style.space(10)
+
+    Rectangle {
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: Style.space(56)
+      height: width
+      radius: Style.space(16)
+      color: view.failed ? Util.alpha(Color.urgent, 0.14) : Util.alpha(view.fg, 0.06)
+      border.width: 1
+      border.color: view.failed ? Util.alpha(Color.urgent, 0.5) : Util.alpha(view.fg, 0.14)
+      Text {
+        anchors.centerIn: parent
+        text: view.failed ? "!" : Icons.playNext
+        textFormat: Text.PlainText
+        color: view.failed ? Color.urgent : Color.accent
+        font.family: view.family
+        font.pixelSize: Style.font.iconLarge
+        font.bold: view.failed
+      }
+    }
+    Text {
+      width: parent.width
+      text: view.failed ? "Could not load the queue" : "The queue is empty"
+      textFormat: Text.PlainText
+      horizontalAlignment: Text.AlignHCenter
+      color: view.fg
+      font.family: view.family
+      font.pixelSize: Style.font.title
+      font.bold: true
+    }
+    Text {
+      width: parent.width
+      text: view.failed ? view.error : "Add songs from Search or Library, or start a radio from any song."
+      textFormat: Text.PlainText
+      wrapMode: Text.WordWrap
+      horizontalAlignment: Text.AlignHCenter
+      color: Util.alpha(view.fg, 0.6)
+      font.family: view.family
+      font.pixelSize: Style.font.body
+    }
+    HitButton {
+      objectName: view.failed ? "queueRetry" : "queueSearch"
+      anchors.horizontalCenter: parent.horizontalCenter
+      text: view.failed ? "Try again" : "Search for music"
+      iconText: view.failed ? Icons.repeat : Icons.search
+      fontFamily: view.family
+      foreground: view.failed ? view.fg : Color.background
+      background: view.failed ? Util.alpha(view.fg, 0.08) : Color.accent
+      radius: height / 2
+      onClicked: if (view.failed) view.load(true); else if (view.panel) view.panel.showTab("search")
+    }
   }
 }
