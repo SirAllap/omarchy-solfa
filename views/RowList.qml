@@ -106,6 +106,8 @@ ListView {
     Rectangle {
       visible: !cell.isHeader
       anchors.fill: parent
+      anchors.topMargin: Style.space(2)
+      anchors.bottomMargin: Style.space(2)
       radius: Style.space(14)
       // The song that plays is tinted; the keyboard cursor is an outline; the
       // pointer is a faint wash (the calm mockup's three row states).
@@ -117,9 +119,9 @@ ListView {
 
       Rectangle {
         visible: cell.now
-        x: 0; width: 2; radius: 1
+        x: 0; width: Style.space(3); radius: width / 2
         anchors.verticalCenter: parent.verticalCenter
-        height: parent.height * 0.5
+        height: Style.space(24)
         color: Calm.accent
       }
     }
@@ -140,10 +142,10 @@ ListView {
       visible: !cell.isHeader
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.leftMargin: Style.space(6)
+      anchors.leftMargin: Style.space(12)
       anchors.rightMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
-      spacing: Style.space(10)
+      spacing: Style.space(12)
 
       RoundCover {
         width: Style.space(42)
@@ -179,7 +181,7 @@ ListView {
             elide: Text.ElideRight
             color: cell.now ? Calm.accent : list.fg
             font.family: list.family
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.space(14)
             font.weight: Font.DemiBold
           }
         }
@@ -191,7 +193,7 @@ ListView {
           visible: text !== ""
           color: Util.alpha(list.fg, 0.6)
           font.family: list.family
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.space(12)
         }
       }
 
@@ -211,7 +213,7 @@ ListView {
             opacity: cell.showActions ? 1 : 0
             enabled: cell.showActions
             iconText: modelData.icon
-            iconSize: Style.font.icon
+            iconSize: Style.space(15)
             foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
             tooltipText: modelData.tip

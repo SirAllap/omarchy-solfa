@@ -20,7 +20,7 @@ ROOT = os.path.dirname(HERE)
 SHELL_DIR = os.path.join(os.environ.get("OMARCHY_PATH", "/usr/share/omarchy"), "shell")
 QS = shutil.which(os.environ.get("QS_TOOL", "qs"))
 MIN = 32          # every control
-TRANSPORT = 44    # shuffle, previous, play/pause, next, repeat
+TRANSPORT = 38    # shuffle, previous, play/pause, next, repeat (side chips 38, prev/next 42, play 62)
 
 
 def render(workdir, scale="1", extra_env=None):
@@ -71,7 +71,7 @@ class HitTargets(unittest.TestCase):
         for b in buttons:
             self.assertGreaterEqual(min(b["w"], b["h"]), MIN, b)
 
-    def test_the_transport_row_is_44_px_and_play_is_the_largest(self):
+    def test_the_transport_row_is_38_px_and_play_is_the_largest(self):
         tips = ("Shuffle the queue (s)", "Previous (p)", "Pause (space)", "Next (n)", "Repeat")
         transport = [b for b in self.geom["buttons"] if b["tip"].startswith(tips)]
         self.assertEqual(len(transport), 5, transport)
