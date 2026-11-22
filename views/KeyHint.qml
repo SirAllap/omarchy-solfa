@@ -17,16 +17,16 @@ Row {
     anchors.verticalCenter: parent.verticalCenter
     width: keyText.implicitWidth + Style.space(8)
     height: keyText.implicitHeight + Style.space(2)
-    radius: Style.space(3)
-    color: Util.alpha(hint.fg, 0.08)
+    radius: Style.space(4)
+    color: Util.alpha(hint.fg, 0.06)
     border.width: 1
-    border.color: Util.alpha(hint.fg, 0.18)
+    border.color: Util.alpha(hint.fg, 0.14)
     Text {
       id: keyText
       anchors.centerIn: parent
       text: hint.keys
       textFormat: Text.PlainText
-      color: Util.alpha(hint.fg, 0.85)
+      color: Util.alpha(hint.fg, 0.7)
       font.family: hint.family
       font.pixelSize: Style.font.caption
     }
@@ -36,7 +36,7 @@ Row {
     anchors.verticalCenter: parent.verticalCenter
     text: hint.label
     textFormat: Text.PlainText
-    color: Util.alpha(hint.fg, 0.55)
+    color: Util.alpha(hint.fg, 0.5)
     font.family: hint.family
     font.pixelSize: Style.font.caption
   }
