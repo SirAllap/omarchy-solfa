@@ -384,7 +384,13 @@ Column {
         anchors.verticalCenter: parent.verticalCenter
         minSize: controls.playSlot
         iconText: ""
-        VIcon { anchors.centerIn: parent; name: root.svc && root.svc.isPlaying ? "pause" : "play"; size: Style.space(26); filled: true; color: parent.playInk }
+        // play and pause turn into each other: the bars rotate and merge, 220 ms
+        property real pm: root.svc && root.svc.isPlaying ? 1 : 0
+        Behavior on pm { enabled: !Style.reduceMotion && root.live; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        VIcon { anchors.centerIn: parent; name: "play"; size: Style.space(26); filled: true; color: parent.playInk
+          opacity: 1 - parent.pm; rotation: 90 * parent.pm; scale: 1 - 0.3 * parent.pm }
+        VIcon { anchors.centerIn: parent; name: "pause"; size: Style.space(26); filled: true; color: parent.playInk
+          opacity: parent.pm; rotation: -90 * (1 - parent.pm); scale: 0.7 + 0.3 * parent.pm }
         // The one filled control: a calm accent disc with a dark glyph.
         foreground: playInk
         readonly property color playInk: (0.299 * Calm.accent.r + 0.587 * Calm.accent.g + 0.114 * Calm.accent.b) > 0.6 ? "#101010" : "#ffffff"
@@ -397,6 +403,11 @@ Column {
           radius: width / 2
           color: Calm.accent
           opacity: parent.hovered ? 0.92 : 1
+          // soft press squash on the disc: a little wider, a little shorter
+          transform: Scale { origin.x: width / 2; origin.y: height / 2
+            xScale: parent.pressed && !Style.reduceMotion ? 1.05 : 1; yScale: parent.pressed && !Style.reduceMotion ? 0.93 : 1
+            Behavior on xScale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Behavior on yScale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } } }
         }
         onClicked: if (root.svc) root.svc.togglePlaying()
       }
