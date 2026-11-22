@@ -375,22 +375,25 @@ Panel {
           id: bridge
           property Item card: null
           readonly property real cx: panel.anchorScreenPos.x + panel.anchorW / 2
+          readonly property real pillW: Math.max(Style.space(60), panel.anchorW)
           readonly property real pillBottom: panel.barThickness - Style.space(2)
-          readonly property real ov: Style.space(2)
+          readonly property real ov: Style.space(3)          // overlap into the pill and the card: no dark line
           readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
           readonly property real p: Motion.spatial(keys.tms, 0, 450)
           readonly property real q: Math.max(0, Math.min(1, p))
-          readonly property real a: Style.space(34) * q       // half-width at the pill
-          readonly property real b: Style.space(40) * q       // half-width at the card
-          readonly property real n: Style.space(12) * Math.max(0, p)  // neck half-width (wobbles)
+          readonly property real a: pillW * 0.35 * q          // half-width at the pill: 70% of it
+          readonly property real b: pillW * 0.8 * q           // half-width at the card: 1.6x the pill
+          readonly property real n: pillW * 0.27 * Math.max(0, p)  // neck half-width (wobbles)
           visible: !!card && card.visible && root.opened && gapH > 0.5 && q > 0.01
           opacity: card ? card.opacity : 0
           x: cx - Math.max(a, b)
           y: pillBottom - ov
           z: card ? card.z - 0.5 : 0
           width: 2 * Math.max(a, b)
-          height: gapH + ov + Style.space(4)
+          height: gapH + 2 * ov
           preferredRendererType: Shape.CurveRenderer
+          layer.enabled: true
+          layer.samples: 8
           ShapePath {
             id: sp
             fillColor: bridge.card ? bridge.card.color : "transparent"
@@ -422,6 +425,7 @@ Panel {
         if (!p) return
         p.borderSpec = Border.none()
         p.radius = Qt.binding(function () { return keys.frameRadius })
+        p.color = Calm.surface
         keys.hostCard = p
         // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
         if (p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel))
