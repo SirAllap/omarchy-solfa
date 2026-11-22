@@ -80,6 +80,9 @@ ListView {
     transform: Translate { y: Style.space(8) * (1 - cell.rise) }
 
     width: ListView.view ? ListView.view.width : 0
+    // a soft press: the row gives to .98 and comes back, never in reduce-motion
+    scale: !isHeader && hover.pressed && !Style.reduceMotion ? 0.98 : 1
+    Behavior on scale { enabled: !Style.reduceMotion; NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
     height: isHeader ? Style.space(30) : Style.space(58)
 
     // ---- section header
@@ -131,14 +134,16 @@ ListView {
         : rowHover.hovered || cell.selected ? Util.alpha(list.fg, 0.05) : "transparent"
       border.width: cell.selected ? 1 : 0
       border.color: Util.alpha(list.fg, 0.5)
-      Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 140 } }
+      Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
+      // The playing row's bar grows from its middle, 220 ms.
       Rectangle {
-        visible: cell.now
+        visible: height > 0
         x: 0; width: Style.space(3); radius: width / 2
         anchors.verticalCenter: parent.verticalCenter
-        height: Style.space(24)
+        height: cell.now ? Style.space(24) : 0
         color: Calm.accent
+        Behavior on height { enabled: !Style.reduceMotion && list.panelOpen; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
       }
     }
 
