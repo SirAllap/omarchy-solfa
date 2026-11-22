@@ -338,6 +338,49 @@ Panel {
         keys.hostCard = p
       }
 
+      // Open: the content grows out of the top edge with a soft overshoot
+      // while it fades in. The feel (not the code) follows caelestia-dots/shell
+      // (GPL-3.0; Material 3 expressive tokens): a spatial curve for the
+      // growth, 0.38 1.21 0.22 1, and a shorter effects curve for the fade,
+      // 0.34 0.8 0.34 1. Durations are shorter than its 500/200 ms because
+      // this card is large. It only touches this item's own opacity and
+      // scale: never the host card, 'visible', 'active' or 'opened', so
+      // closing is exactly the host's. No reverse: on close it stops and the
+      // item is reset at once.
+      property real grow: 1
+      property real fade: 1
+      opacity: fade
+      scale: 0.9 + 0.1 * grow
+      transformOrigin: Item.Top
+      ParallelAnimation {
+        id: enterAnim
+        NumberAnimation {
+          target: keys
+          property: "grow"
+          to: 1
+          duration: Style.duration(380)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: [0.38, 1.21, 0.22, 1, 1, 1]
+        }
+        NumberAnimation {
+          target: keys
+          property: "fade"
+          to: 1
+          duration: Style.duration(200)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: [0.34, 0.8, 0.34, 1, 1, 1]
+        }
+      }
+      Connections {
+        target: root
+        function onOpenedChanged() {
+          enterAnim.stop()
+          keys.grow = 1
+          keys.fade = 1
+          if (root.opened && !Style.reduceMotion) { keys.grow = 0; keys.fade = 0; enterAnim.start() }
+        }
+      }
+
       Views.NowPlaying {
         id: hero
         objectName: "panelHero"
