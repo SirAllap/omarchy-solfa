@@ -174,7 +174,7 @@ Item {
     spacing: 10
     opacity: 0.6
     SequentialAnimation on opacity {
-      running: view.loading && view.visible
+      running: view.loading && view.visible && view.active && !Style.reduceMotion
       loops: Animation.Infinite
       NumberAnimation { from: 0.45; to: 0.9; duration: 1100; easing.type: Easing.InOutSine }
       NumberAnimation { from: 0.9; to: 0.45; duration: 1100; easing.type: Easing.InOutSine }

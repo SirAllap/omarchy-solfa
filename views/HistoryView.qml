@@ -18,7 +18,10 @@ Item {
   property var info: null
   property bool busy: false
   property string error: ""
-  readonly property var rows: info ? Model.sectionRows(info.sections) : []
+  // Shelf titles read as small-caps labels (TODAY, YESTERDAY), as in the mockup.
+  readonly property var rows: info ? Model.sectionRows(info.sections).map(function (r) {
+    return r.header ? { header: String(r.header).toUpperCase(), more: r.more, moreParams: r.moreParams } : r
+  }) : []
   property alias cursor: list.cursor
   readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
   readonly property var hints: signedIn ? [["↵", "play"], ["e", "play next"]] : []
@@ -76,7 +79,7 @@ Item {
     spacing: 10
     opacity: 0.6
     SequentialAnimation on opacity {
-      running: view.loading && view.visible
+      running: view.loading && view.visible && view.active && !Style.reduceMotion
       loops: Animation.Infinite
       NumberAnimation { from: 0.45; to: 0.9; duration: 1100; easing.type: Easing.InOutSine }
       NumberAnimation { from: 0.9; to: 0.45; duration: 1100; easing.type: Easing.InOutSine }
