@@ -89,7 +89,7 @@ Item {
     id: list
     visible: view.signedIn
     anchors.top: chips.bottom
-    anchors.topMargin: Style.space(8)
+    anchors.topMargin: Style.space(12)  // mockup: list starts 12 px under the chips
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
