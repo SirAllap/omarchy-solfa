@@ -101,7 +101,7 @@ Item {
   Timer { id: debounce; interval: 350; onTriggered: view.run() }
 
   Column {
-    id: top
+    id: head
     width: parent.width
     spacing: Style.space(8)
 
@@ -138,7 +138,7 @@ Item {
 
   RowList {
     id: list
-    anchors.top: top.bottom
+    anchors.top: head.bottom
     anchors.topMargin: Style.space(8)
     anchors.left: parent.left
     anchors.right: parent.right
