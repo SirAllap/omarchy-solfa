@@ -517,7 +517,7 @@ Panel {
               radius: height / 2
               color: Util.alpha(root.fg, 0.07)
               opacity: tabBtn.open < 0.5 && tabMouse.containsMouse ? 1 : 0
-              Behavior on opacity { NumberAnimation { duration: 120 } }
+              Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
             }
             Row {
               anchors.centerIn: parent
@@ -674,7 +674,7 @@ Panel {
         border.color: Calm.hair
         opacity: root.flash !== "" ? 1 : 0
         visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: 160 } }
+        Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 160 } }
         Row {
           id: toastRow
           anchors.centerIn: parent
