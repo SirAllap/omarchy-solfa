@@ -312,16 +312,15 @@ Panel {
       focus: true
       Keys.onPressed: function (event) { root.onKey(event) }
 
-      // The calm card: graphite surface, hairline, big corners (the shell's own
-      // popup fill sits underneath, in the card's padding).
+      // The calm graphite fill, inside the shell's own frame: the same corner
+      // radius (less the border the shell draws), and no border of its own,
+      // so there is one frame and one radius.
       Rectangle {
         z: -2
         anchors.fill: parent
         anchors.margins: -Style.spacing.popupPadding
-        radius: Style.space(26)
+        radius: Math.max(0, Style.cornerRadius - Math.max(1, Style.space(2)))
         color: Calm.surface
-        border.width: 1
-        border.color: Calm.hair
       }
 
       Views.NowPlaying {
@@ -441,21 +440,51 @@ Panel {
         Repeater {
           id: tabRep
           model: root.tabs
-          delegate: Views.HitButton {
+          // No frame of its own: the one gliding pill marks the open tab, and
+          // hover is a soft fill of the same shape (same radius as the pill).
+          delegate: Item {
             id: tabBtn
             required property var modelData
             required property int index
             readonly property bool open: tabRow.hasActive && root.tab === modelData.key
-            iconText: modelData.icon
-            iconSize: Style.font.iconLarge
-            text: open ? modelData.label : ""
             width: open ? tabRow.activeW : tabRow.restW
             height: Style.space(36)
-            fontFamily: root.family
-            foreground: root.fg
-            selected: false   // the gliding pill behind the row marks the open tab
-            tooltipText: String(index + 1)
-            onClicked: root.showTab(modelData.key)
+            Rectangle {
+              anchors.fill: parent
+              radius: height / 2
+              color: Util.alpha(root.fg, 0.07)
+              opacity: !tabBtn.open && tabMouse.containsMouse ? 1 : 0
+              Behavior on opacity { NumberAnimation { duration: 120 } }
+            }
+            Row {
+              anchors.centerIn: parent
+              spacing: Style.space(8)
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: tabBtn.modelData.icon
+                textFormat: Text.PlainText
+                color: tabBtn.open ? Calm.accent : Util.alpha(root.fg, tabMouse.containsMouse ? 1 : 0.7)
+                font.family: root.family
+                font.pixelSize: Style.font.iconLarge
+              }
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: tabBtn.open
+                text: tabBtn.modelData.label
+                textFormat: Text.PlainText
+                color: root.fg
+                font.family: root.family
+                font.pixelSize: Style.font.body
+                font.weight: Font.DemiBold
+              }
+            }
+            MouseArea {
+              id: tabMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.showTab(tabBtn.modelData.key)
+            }
           }
         }
       }

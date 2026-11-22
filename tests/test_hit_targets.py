@@ -202,7 +202,11 @@ class PanelUsesHitButtons(unittest.TestCase):
     def test_panel_controls(self):
         with open(os.path.join(ROOT, "Panel.qml")) as f:
             src = f.read()
-        self.assertIn("delegate: Views.HitButton {", src)
+        # The tabs draw no frame of their own (one gliding pill marks the open
+        # tab): a plain Item that fills its whole cell, 36 px high, is the hit box.
+        self.assertRegex(src, r"delegate: Item \{\s*id: tabBtn")
+        self.assertIn("height: Style.space(36)", src)
+        self.assertRegex(src, r"id: tabMouse\s*anchors\.fill: parent")
         self.assertRegex(src, r"Views\.HitButton \{\s*iconText: Icons\.back")
         self.assertRegex(src, r"Views\.HitButton \{\s*id: allKeysButton")
         self.assertNotRegex(src, r"\bButton \{")
