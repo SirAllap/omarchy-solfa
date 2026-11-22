@@ -27,10 +27,21 @@ Item {
   signal showAllKeys()
 
   readonly property var sections: [
-    { key: "account", label: "Account" }, { key: "sound", label: "Sound" },
-    { key: "playback", label: "Playback" }, { key: "bar", label: "Bar and alerts" },
-    { key: "keys", label: "Keys" }, { key: "advanced", label: "Advanced" }, { key: "about", label: "About" }
+    { key: "account", label: "Account", icon: String.fromCodePoint(0xF0004) },
+    { key: "sound", label: "Sound", icon: Icons.volume },
+    { key: "playback", label: "Playback", icon: Icons.play },
+    { key: "bar", label: "Bar and alerts", icon: String.fromCodePoint(0xF0241) },
+    { key: "keys", label: "Keys", icon: String.fromCodePoint(0xF030C) },
+    { key: "advanced", label: "Advanced", icon: Icons.gear },
+    { key: "about", label: "About", icon: Icons.album }
   ]
+  readonly property string sectionLabel: root.sections[root.navIndex].label
+  readonly property string glyphDown: String.fromCodePoint(0xF0140)
+  readonly property string glyphUp: String.fromCodePoint(0xF0143)
+  // The one open dropdown (its pill), or null. The menu itself is drawn at
+  // the bottom of this file, above everything, so no row's clip cuts it.
+  property var menuSrc: null
+  function closeMenu() { root.menuSrc = null }
   property int navIndex: 0
   readonly property string section: root.sections[root.navIndex].key
   // "nav" (left column has the cursor) or "content" (right column does).
@@ -41,8 +52,9 @@ Item {
   // needs; move()/change()/act() below call through them.
   property var handlers: []
 
-  // A narrow panel (460 px) gets a slimmer side menu so the 10 EQ bands fit.
-  readonly property real navWidth: width < Style.space(520) ? Style.space(112) : Style.space(150)
+  // The mockup's narrow icon rail (no text menu): the room it leaves is what
+  // lets all 10 EQ bands fit in a 460 px panel.
+  readonly property real railWidth: Style.space(52)
 
   // ---- transient, per-open UI state (never persisted) -------------------
 
@@ -59,6 +71,7 @@ Item {
   readonly property int armTimeoutMs: 5000
   readonly property bool armTimerRunning: armTimer.running
   function disarm() {
+    root.closeMenu()
     root.switchArmed = false
     root.signOutArmed = false
     root.eraseArmed = false
@@ -377,61 +390,114 @@ Item {
     }
   }
 
-  component Chip: Rectangle {
-    id: chip
+  // A pill with a value and a chevron, like the mockup's "Warm v" / "Off v".
+  // Clicking it opens the one menu layer at the bottom of this file; picking
+  // an entry fires picked(key). The keyboard keeps stepping the same value
+  // through the row's handler, so a click and a key can never disagree.
+  component Dropdown: Rectangle {
+    id: dd
     property color fg: root.fg
-    property string label: ""
-    property bool active: false
-    signal clicked()
-    width: chipText.implicitWidth + Style.space(16)
-    height: Style.space(24)
+    property string text: ""
+    property var options: []          // [{ key, label }]
+    property string current: ""       // the key of the chosen entry
+    property int row: -1
+    signal picked(string key)
+    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property bool opened: root.menuSrc === dd
+    implicitWidth: ddRow.implicitWidth + Style.space(28)
+    width: implicitWidth
+    height: Style.space(32)
     radius: height / 2
-    color: active ? Calm.a(Calm.accent, 0.2) : Calm.wash
+    color: dd.opened || dd.focused ? Calm.a(Calm.accent, 0.12) : Util.alpha(dd.fg, 0.06)
     border.width: 1
-    border.color: active ? Calm.a(Calm.accent, 0.55) : Calm.hair
-    Text {
-      id: chipText
+    border.color: dd.opened || dd.focused ? Calm.accent : Calm.hair
+    Row {
+      id: ddRow
       anchors.centerIn: parent
-      text: chip.label
-      textFormat: Text.PlainText
-      color: chip.active ? Calm.accent : Util.alpha(chip.fg, 0.8)
-      font.family: root.family
-      font.pixelSize: Style.font.caption
+      spacing: Style.space(6)
+      Text { text: dd.text; textFormat: Text.PlainText; color: dd.fg; font.family: root.family; font.pixelSize: Style.font.body }
+      Text { text: dd.opened ? root.glyphUp : root.glyphDown; textFormat: Text.PlainText; color: Util.alpha(dd.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea {
       anchors.fill: parent
-      anchors.topMargin: Math.min(0, (parent.height - Style.space(32)) / 2)
-      anchors.bottomMargin: anchors.topMargin
       cursorShape: Qt.PointingHandCursor
-      onClicked: chip.clicked()
+      onClicked: {
+        var wasOpen = dd.opened
+        if (dd.row >= 0) root.pointAt(dd.row)
+        if (wasOpen) root.closeMenu(); else root.menuSrc = dd
+      }
     }
   }
 
-  // A value with ‹ › steppers, e.g. "400 MB", "12 h", "50%".
-  // A click on its left half steps down, on its right half up; `row` is the
-  // RowShell's own index (the row itself would only ever step up).
-  component StepValue: Item {
-    id: stepValue
-    property color fg: root.fg
-    property string value: ""
+  // A horizontal slider with its value on the right (mockup Preamp, Volume).
+  // A press or drag sets the value, snapped to `step`; the row's own handler
+  // moves it by the arrow keys.
+  component SliderRow: Item {
+    id: sl
     property int row: -1
-    implicitWidth: stepRowItems.implicitWidth
-    implicitHeight: Math.max(stepRowItems.implicitHeight, Style.space(32))
+    property real from: 0
+    property real to: 1
+    property real step: 1
+    property real value: 0
+    property string suffix: ""
+    signal moved(real v)
+    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property real frac: to > from ? Math.max(0, Math.min(1, (value - from) / (to - from))) : 0
+    implicitWidth: Style.space(200)
+    implicitHeight: Style.space(32)
     width: implicitWidth
     height: implicitHeight
-    Row {
-      id: stepRowItems
-      anchors.centerIn: parent
-      spacing: Style.space(6)
-      Text { text: Icons.chevronLeft; color: Util.alpha(root.fg, 0.45); font.family: root.family; font.pixelSize: Style.font.caption; textFormat: Text.PlainText }
-      Text { text: stepValue.value; color: stepValue.fg; font.family: root.family; font.pixelSize: Style.font.body; textFormat: Text.PlainText }
-      Text { text: Icons.chevronRight; color: Util.alpha(root.fg, 0.45); font.family: root.family; font.pixelSize: Style.font.caption; textFormat: Text.PlainText }
+    Item {
+      id: slBar
+      objectName: "sliderBar"
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(130)
+      height: Style.space(20)
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width; height: Style.space(4); radius: height / 2
+        color: Util.alpha(root.fg, 0.12)
+      }
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        width: slKnob.x + slKnob.width / 2; height: Style.space(4); radius: height / 2
+        color: Calm.accent
+      }
+      Rectangle {
+        id: slKnob
+        width: Style.space(16); height: width; radius: width / 2
+        anchors.verticalCenter: parent.verticalCenter
+        x: sl.frac * (slBar.width - width)
+        color: "white"
+        border.width: sl.focused ? 2 : 0
+        border.color: Calm.a(Calm.accent, 0.8)
+      }
+      MouseArea {
+        anchors.fill: parent
+        anchors.topMargin: -Style.space(6); anchors.bottomMargin: -Style.space(6)
+        cursorShape: Qt.PointingHandCursor
+        preventStealing: true
+        function place(mouse) {
+          var f = Math.max(0, Math.min(1, (mouse.x - slKnob.width / 2) / (slBar.width - slKnob.width)))
+          var v = sl.from + Math.round(f * (sl.to - sl.from) / sl.step) * sl.step
+          if (sl.row >= 0) root.pointAt(sl.row)
+          sl.moved(Math.max(sl.from, Math.min(sl.to, v)))
+        }
+        onPressed: function (mouse) { place(mouse) }
+        onPositionChanged: function (mouse) { if (pressed) place(mouse) }
+      }
     }
-    MouseArea {
-      anchors.fill: parent
-      enabled: stepValue.row >= 0
-      cursorShape: Qt.PointingHandCursor
-      onClicked: function (mouse) { root.stepRow(stepValue.row, mouse.x < width / 2 ? -1 : 1) }
+    Text {
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(56)
+      horizontalAlignment: Text.AlignRight
+      text: (sl.from < 0 && sl.value > 0 ? "+" : "") + sl.value + sl.suffix
+      textFormat: Text.PlainText
+      color: Util.alpha(root.fg, 0.6)
+      font.family: root.family
+      font.pixelSize: Style.font.body
     }
   }
 
@@ -443,9 +509,12 @@ Item {
     // Standalone (Account) buttons carry their own row; inside a RowShell
     // they leave it at -1 and the row takes the click.
     property int row: -1
+    // A button with its own onClicked (not a row's click) sets this.
+    property bool standalone: false
+    signal clicked()
     readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
-    width: qbtnText.implicitWidth + Style.space(20)
-    height: Style.space(26)
+    width: qbtnText.implicitWidth + Style.space(28)
+    height: Style.space(32)
     radius: height / 2
     color: focused ? Calm.a(Calm.accent, 0.12) : Calm.wash
     border.width: 1
@@ -457,16 +526,17 @@ Item {
       textFormat: Text.PlainText
       color: qbtn.danger ? Color.urgent : (qbtn.focused ? Calm.accent : qbtn.fg)
       font.family: root.family
-      font.pixelSize: Style.font.caption
+      font.pixelSize: Style.font.body
+      font.bold: true
     }
     MouseArea {
       // 32 px tall at least, like every other hit box in the panel.
       anchors.fill: parent
       anchors.topMargin: Math.min(0, (parent.height - Style.space(32)) / 2)
       anchors.bottomMargin: anchors.topMargin
-      enabled: qbtn.row >= 0
+      enabled: qbtn.row >= 0 || qbtn.standalone
       cursorShape: Qt.PointingHandCursor
-      onClicked: root.clickRow(qbtn.row)
+      onClicked: { if (qbtn.row >= 0) root.clickRow(qbtn.row); else qbtn.clicked() }
     }
   }
 
@@ -513,39 +583,47 @@ Item {
     anchors.bottom: parent.bottom
     spacing: Style.space(16)
 
-    Column {
+    Rectangle {
       id: nav
-      width: root.navWidth
-      height: parent.height
-      spacing: Style.space(2)
-      Repeater {
-        model: root.sections
-        delegate: Item {
-          required property var modelData
-          required property int index
-          width: nav.width
-          height: Style.space(30)
-          readonly property bool navFocused: root.column === "nav" && index === root.navIndex
-          Rectangle {
-            anchors.fill: parent
-            radius: height / 2
-            color: navFocused ? Calm.a(Calm.accent, 0.12)
-              : modelData.key === root.section ? Util.alpha(root.fg, 0.08) : "transparent"
-          }
-          Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: modelData.label
-            textFormat: Text.PlainText
-            color: modelData.key === root.section ? Calm.accent : Util.alpha(root.fg, 0.85)
-            font.family: root.family
-            font.pixelSize: Style.font.body
-            font.bold: modelData.key === root.section
-          }
-          MouseArea {
-            anchors.fill: parent
-            onClicked: { root.navIndex = index; root.column = "content" }
+      objectName: "settingsRail"
+      width: root.railWidth
+      height: railCol.implicitHeight + Style.space(16)
+      radius: width / 2
+      color: Util.alpha(root.fg, 0.05)
+      Column {
+        id: railCol
+        anchors.centerIn: parent
+        spacing: Style.space(6)
+        Repeater {
+          model: root.sections
+          delegate: Item {
+            required property var modelData
+            required property int index
+            objectName: "railItem_" + modelData.key
+            width: Style.space(40)
+            height: width
+            readonly property bool current: modelData.key === root.section
+            readonly property bool navFocused: root.column === "nav" && index === root.navIndex
+            Rectangle {
+              anchors.fill: parent
+              radius: width / 2
+              color: parent.current ? Calm.a(Calm.accent, 0.22) : (parent.navFocused ? Calm.a(Calm.accent, 0.12) : "transparent")
+              border.width: parent.current || parent.navFocused ? 1 : 0
+              border.color: parent.current ? Calm.a(Calm.accent, 0.5) : Calm.hair
+            }
+            Text {
+              anchors.centerIn: parent
+              text: modelData.icon
+              textFormat: Text.PlainText
+              color: parent.current ? Calm.accent : Util.alpha(root.fg, 0.6)
+              font.family: root.family
+              font.pixelSize: Style.font.title
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { root.navIndex = index; root.column = "content" }
+            }
           }
         }
       }
@@ -556,93 +634,113 @@ Item {
       width: parent.width - nav.width - parent.spacing
       height: parent.height
       clip: true
+      readonly property real sectionTop: sectionTitle.height + Style.space(14)
+
+      // The section's name, big, like the mockup.
+      Text {
+        id: sectionTitle
+        objectName: "sectionTitle"
+        text: root.sectionLabel
+        textFormat: Text.PlainText
+        color: root.fg
+        font.family: root.family
+        font.pixelSize: Style.font.display
+        font.bold: true
+      }
 
       // ---- Account ----
       Column {
         visible: root.section === "account"
         width: parent.width
+        y: content.sectionTop
         spacing: Style.space(14)
 
-        Row {
-          visible: root.signedIn
-          spacing: Style.space(14)
-
-          // Centred on the row (never on the name column: a taller avatar
-          // would then start above the row and be cut flat by the clip).
-          RoundCover {
-            id: avatar
-            objectName: "accountAvatar"
-            width: Style.space(52)
-            height: width
+        // The mockup's card: avatar, who, and the account buttons.
+        Rectangle {
+          width: parent.width
+          height: acctRow.implicitHeight + Style.space(28)
+          radius: Style.space(18)
+          color: Util.alpha(root.fg, 0.05)
+          border.width: 1
+          border.color: Calm.hair
+          Row {
+            id: acctRow
+            anchors.left: parent.left; anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            source: root.svc && root.svc.accountDetails.avatar ? root.svc.accountDetails.avatar : ""
-            fill: Util.alpha(root.fg, 0.12)
-            foreground: root.fg
-            glyph: root.svc ? root.initialsFor(root.svc.accountDetails.name) : "?"
-            fontFamily: root.family
-          }
+            anchors.margins: Style.space(14)
+            spacing: Style.space(14)
 
-          Column {
-            id: nameCol
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
-            Text {
-              text: root.svc ? (root.svc.accountDetails.name || "Signed in") : ""
-              textFormat: Text.PlainText
-              color: root.fg
-              font.family: root.family
-              font.pixelSize: Style.font.subtitle
+            // Centred on the row (never on the name column: a taller avatar
+            // would then start above the row and be cut flat by the clip).
+            RoundCover {
+              id: avatar
+              objectName: "accountAvatar"
+              width: Style.space(52)
+              height: width
+              anchors.verticalCenter: parent.verticalCenter
+              source: root.signedIn && root.svc && root.svc.accountDetails.avatar ? root.svc.accountDetails.avatar : ""
+              fill: root.signedIn ? Calm.a(Calm.accent, 0.5) : Util.alpha(root.fg, 0.12)
+              foreground: root.fg
+              glyph: root.signedIn && root.svc ? root.initialsFor(root.svc.accountDetails.name) : "?"
+              fontFamily: root.family
             }
-            Text {
-              visible: root.svc && root.svc.accountDetails.email !== ""
-              text: root.svc ? root.svc.accountDetails.email : ""
-              textFormat: Text.PlainText
-              color: Util.alpha(root.fg, 0.6)
-              font.family: root.family
-              font.pixelSize: Style.font.caption
-            }
-            Text {
-              objectName: "accountHelp"
-              text: "Signed in to YouTube Music"
-              textFormat: Text.PlainText
-              color: Util.alpha(root.fg, 0.5)
-              font.family: root.family
-              font.pixelSize: Style.font.caption
-            }
-          }
-        }
-        Text {
-          visible: !root.signedIn
-          text: "Signed out"
-          textFormat: Text.PlainText
-          color: root.fg
-          font.family: root.family
-          font.pixelSize: Style.font.subtitle
-        }
 
-        Row {
-          visible: !root.signedIn
-          spacing: Style.space(8)
-          QuietButton {
-            objectName: "accountSignIn"
-            label: "Sign in"
-            row: 0
-          }
-        }
-        Row {
-          visible: root.signedIn
-          spacing: Style.space(8)
-          QuietButton {
-            objectName: "accountSwitch"
-            label: root.switchArmed ? "Press again to switch" : "Switch account"
-            danger: root.switchArmed
-            row: 0
-          }
-          QuietButton {
-            objectName: "accountSignOut"
-            label: root.signOutArmed ? "Press again to sign out" : "Sign out"
-            danger: root.signOutArmed
-            row: 1
+            Column {
+              id: nameCol
+              anchors.verticalCenter: parent.verticalCenter
+              width: parent.width - avatar.width - parent.spacing
+              spacing: Style.space(4)
+              Text {
+                visible: root.signedIn
+                text: root.svc ? (root.svc.accountDetails.name || "Signed in") : ""
+                textFormat: Text.PlainText
+                color: root.fg
+                font.family: root.family
+                font.pixelSize: Style.font.subtitle
+                font.bold: true
+              }
+              Text {
+                visible: root.signedIn && root.svc && root.svc.accountDetails.email !== ""
+                text: root.svc ? root.svc.accountDetails.email : ""
+                textFormat: Text.PlainText
+                color: Util.alpha(root.fg, 0.6)
+                font.family: root.family
+                font.pixelSize: Style.font.caption
+              }
+              Text {
+                objectName: "accountHelp"
+                text: root.signedIn ? "Signed in to YouTube Music" : "Signed out"
+                textFormat: Text.PlainText
+                color: root.signedIn ? Util.alpha(root.fg, 0.5) : root.fg
+                font.family: root.family
+                font.pixelSize: root.signedIn ? Style.font.caption : Style.font.subtitle
+                font.bold: !root.signedIn
+              }
+              Flow {
+                width: parent.width
+                spacing: Style.space(8)
+                QuietButton {
+                  visible: !root.signedIn
+                  objectName: "accountSignIn"
+                  label: "Sign in"
+                  row: 0
+                }
+                QuietButton {
+                  visible: root.signedIn
+                  objectName: "accountSwitch"
+                  label: root.switchArmed ? "Press again to switch" : "Switch account"
+                  danger: root.switchArmed
+                  row: 0
+                }
+                QuietButton {
+                  visible: root.signedIn
+                  objectName: "accountSignOut"
+                  label: root.signOutArmed ? "Press again to sign out" : "Sign out"
+                  danger: root.signOutArmed
+                  row: 1
+                }
+              }
+            }
           }
         }
         Text {
@@ -672,51 +770,32 @@ Item {
       Column {
         visible: root.section === "sound"
         width: parent.width
-        spacing: Style.space(10)
+        y: content.sectionTop
+        spacing: 0
 
+        // Equalizer on/off, and the preset as a dropdown on the right.
         RowShell {
           objectName: "eqRow"
           label: "Equalizer"
           row: 0
           MiniToggle { active: root.svc ? !!root.svc.setting("eqEnabled", false) : false }
-        }
-
-        Item {
-          width: parent.width
-          height: presetRow.implicitHeight + Style.space(8)
-          Rectangle {
-            anchors.fill: parent
-            radius: Style.spacing.labelGap
-            color: root.column === "content" && root.cursor === 1 ? Calm.a(Calm.accent, 0.12) : "transparent"
-          }
-          MouseArea { anchors.fill: parent; onClicked: root.pointAt(1) }
-          Flow {
-            id: presetRow
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Style.space(6)
-            anchors.rightMargin: Style.space(6)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(6)
-            Repeater {
-              model: Model.EQ_PRESET_ORDER
-              delegate: Chip {
-                required property string modelData
-                objectName: "eqPreset_" + modelData
-                label: Model.EQ_PRESET_LABELS[modelData]
-                active: root.settingOr("eqPreset", "flat") === modelData
-                onClicked: { root.pointAt(1); root.setEqPreset(modelData) }
-              }
-            }
+          Dropdown {
+            objectName: "eqPresetDrop"
+            row: 1
+            text: Model.EQ_PRESET_LABELS[root.settingOr("eqPreset", "flat")] || "Flat"
+            current: root.settingOr("eqPreset", "flat")
+            options: Model.EQ_PRESET_ORDER.map(function (k) { return { key: k, label: Model.EQ_PRESET_LABELS[k] } })
+            onPicked: function (key) { root.setEqPreset(key) }
           }
         }
 
+        // All 10 bands, each its own slider; the cell width comes from the
+        // room we have, so they always fit.
         Row {
           id: bandRow
-          // Cell width comes from the room we have: all 10 bands always fit.
-          readonly property real gap: Style.space(2)
-          readonly property real cellW: Math.floor((parent.width - 9 * gap) / 10)
-          spacing: gap
+          topPadding: Style.space(14)
+          bottomPadding: Style.space(14)
+          readonly property real cellW: Math.floor(parent.width / 10)
           Repeater {
             model: 10
             delegate: Item {
@@ -736,11 +815,12 @@ Item {
               Column {
                 id: bandCol
                 anchors.centerIn: parent
-                spacing: Style.space(4)
+                spacing: Style.space(8)
                 Item {
                   id: track
                   objectName: "eqBandTrack" + bandCell.index
-                  width: Math.min(Style.space(18), bandRow.cellW - Style.space(4))
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  width: Style.space(20)
                   height: Style.space(90)
                   // Press or drag on the track: the knob goes where the
                   // pointer is (whole dB, -12..+12, like the arrow keys).
@@ -760,33 +840,32 @@ Item {
                   }
                   Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 2
-                    height: parent.height
-                    color: Util.alpha(root.fg, 0.15)
+                    width: Style.space(6); height: parent.height; radius: width / 2
+                    color: Util.alpha(root.fg, 0.12)
+                  }
+                  // The fill rises from the bottom to the knob, like the mockup.
+                  Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    width: Style.space(6); radius: width / 2
+                    height: parent.height - knob.y - knob.height / 2
+                    color: Calm.accent
                   }
                   Rectangle {
-                    width: Style.space(14); height: width; radius: width / 2
-                    color: bandCell.db !== 0 ? Calm.accent : root.fg
+                    id: knob
+                    width: Style.space(20); height: width; radius: width / 2
+                    color: "white"
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: (parent.height / 2) - (bandCell.db / 12) * (parent.height / 2) - height / 2
                     border.width: bandCell.bandFocused ? 2 : 0
-                    border.color: Util.alpha(Calm.accent, 0.6)
+                    border.color: Calm.a(Calm.accent, 0.8)
                   }
-                }
-                Text {
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  text: (bandCell.db > 0 ? "+" : "") + bandCell.db
-                  textFormat: Text.PlainText
-                  color: Util.alpha(root.fg, 0.6)
-                  font.family: root.family
-                  font.pixelSize: Style.font.caption
                 }
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter
                   text: Model.EQ_BAND_HZ[bandCell.index]
                   textFormat: Text.PlainText
-                  color: Util.alpha(root.fg, 0.45)
+                  color: Util.alpha(root.fg, 0.5)
                   font.family: root.family
                   font.pixelSize: Style.font.caption
                 }
@@ -798,7 +877,14 @@ Item {
         RowShell {
           label: "Preamp"
           row: 12
-          StepValue { objectName: "preampStep"; row: 12; value: (root.svc ? root.svc.setting("eqPreamp", 0) : 0) + " dB" }
+          SliderRow {
+            objectName: "preampSlider"
+            row: 12
+            from: -12; to: 0; step: 1
+            suffix: " dB"
+            value: root.settingOr("eqPreamp", 0)
+            onMoved: function (v) { root.svc.saveSetting("eqPreamp", v) }
+          }
         }
         RowShell {
           label: "Even out loudness"
@@ -812,23 +898,42 @@ Item {
       Column {
         visible: root.section === "playback"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell {
           label: "Sleep timer"
           help: "Fades the volume over 10 s, then pauses"
           row: 0
-          StepValue { row: 0; value: root.svc ? Model.sleepLabel(root.svc.sleepMode) : "Off" }
+          Dropdown {
+            row: 0
+            text: root.svc ? Model.sleepLabel(root.svc.sleepMode) : "Off"
+            options: Model.SLEEP_OPTIONS.map(function (k) { return { key: k, label: Model.sleepLabel(k) } })
+            onPicked: function (key) {
+              // The service only steps through its options; walk to the one asked for.
+              for (var n = 0; n < Model.SLEEP_OPTIONS.length && root.svc.sleepMode !== key; n++) root.svc.nudgeSleepMode(1)
+            }
+          }
         }
         RowShell {
           label: "When Solfa starts"
           row: 1
-          StepValue { row: 1; value: root.settingOr("startPaused", false) ? "Resume paused" : "Resume playing" }
+          Dropdown {
+            row: 1
+            text: root.settingOr("startPaused", false) ? "Resume paused" : "Resume playing"
+            options: [{ key: "play", label: "Resume playing" }, { key: "paused", label: "Resume paused" }]
+            onPicked: function (key) { root.svc.saveSetting("startPaused", key === "paused") }
+          }
         }
         RowShell {
           label: "Volume at start"
           row: 2
-          StepValue { row: 2; value: root.settingOr("startVolume", "last") === "last" ? "Last used" : root.settingOr("startVolume", "last") + "%" }
+          Dropdown {
+            row: 2
+            text: root.settingOr("startVolume", "last") === "last" ? "Last used" : root.settingOr("startVolume", "last") + "%"
+            options: ["last", "25", "50", "75", "100"].map(function (k) { return { key: k, label: k === "last" ? "Last used" : k + "%" } })
+            onPicked: function (key) { root.svc.saveSetting("startVolume", key) }
+          }
         }
         RowShell {
           label: "Start with the shell"
@@ -839,7 +944,12 @@ Item {
           label: "Browser for the engine"
           help: "An absolute path to a Chromium-family browser (never a bare command)"
           row: 4
-          StepValue { row: 4; value: Model.browserLabel(root.svc ? root.svc.setting("browser", "") : "") }
+          Dropdown {
+            row: 4
+            text: Model.browserLabel(root.svc ? root.svc.setting("browser", "") : "")
+            options: root.svc ? Model.browserChoices(root.svc.browsers, root.svc.setting("browser", "")).map(function (k) { return { key: k, label: Model.browserLabel(k) } }) : []
+            onPicked: function (key) { root.svc.saveSetting("browser", key) }
+          }
         }
         RowShell {
           visible: root.braveEngine
@@ -854,14 +964,21 @@ Item {
       Column {
         visible: root.section === "bar"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell { label: "Previous, play/pause and next in the bar"; row: 0
           MiniToggle { active: root.svc ? !!root.svc.setting("barControls", true) : true } }
         RowShell { label: "Song title in the bar"; row: 1
           MiniToggle { active: root.svc ? !!root.svc.setting("showTitle", true) : true } }
         RowShell { label: "Title width in the bar"; row: 2
-          StepValue { row: 2; value: (root.svc ? root.svc.setting("maxLabelWidth", 160) : 160) + " px" } }
+          SliderRow {
+            objectName: "titleWidthSlider"
+            row: 2
+            from: 80; to: 400; step: 20
+            value: root.settingOr("maxLabelWidth", 160)
+            onMoved: function (v) { root.svc.saveSetting("maxLabelWidth", v) }
+          } }
         RowShell { label: "Show in the bar when nothing is loaded"; row: 3
           MiniToggle { active: root.svc ? !!root.svc.setting("showWhenIdle", true) : true } }
         RowShell { label: "Notify when the song changes"; row: 4
@@ -872,12 +989,13 @@ Item {
       Column {
         visible: root.section === "keys"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell {
           objectName: "globalKeysRow"
           label: "Global shortcuts"
-          help: "Super+M panel, Super+Alt+M play/pause, Super+Alt+N next, Super+Alt+B previous, Super+Alt+L like"
+          help: "Play, next, previous and like from anywhere"
           row: 0
           MiniToggle { active: root.svc ? !!root.svc.setting("globalKeys", true) : true }
         }
@@ -892,12 +1010,23 @@ Item {
       Column {
         visible: root.section === "advanced"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell { label: "Refresh the page when memory passes"; help: "Applies on next start"; row: 0
-          StepValue { row: 0; value: Model.recycleHeapMbFor(root.svc ? root.svc.setting("recycleHeapMb", 400) : 400) + " MB" } }
+          Dropdown {
+            row: 0
+            text: Model.recycleHeapMbFor(root.svc ? root.svc.setting("recycleHeapMb", 400) : 400) + " MB"
+            options: [200, 300, 400, 500, 600, 700].map(function (k) { return { key: String(k), label: k + " MB" } })
+            onPicked: function (key) { root.svc.saveSetting("recycleHeapMb", Number(key)) }
+          } }
         RowShell { label: "Refresh at least every"; help: "Applies on next start"; row: 1
-          StepValue { row: 1; value: Model.recycleHoursFor(root.svc ? root.svc.setting("recycleHours", 12) : 12) + " h" } }
+          Dropdown {
+            row: 1
+            text: Model.recycleHoursFor(root.svc ? root.svc.setting("recycleHours", 12) : 12) + " hours"
+            options: [1, 2, 4, 6, 12, 24, 48, 72].map(function (k) { return { key: String(k), label: k + " hours" } })
+            onPicked: function (key) { root.svc.saveSetting("recycleHours", Number(key)) }
+          } }
         RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 2
           QuietButton { label: "Clear" } }
         RowShell { label: "Reset settings"; row: 3
@@ -906,7 +1035,8 @@ Item {
           label: "Erase engine data"
           help: root.eraseArmed ? "Press again to erase. This signs you out." : (root.eraseNote !== "" ? root.eraseNote : "Deletes the profile; signs you out")
           row: 4
-          QuietButton { label: root.eraseArmed ? "Press again" : "Erase"; danger: true }
+          QuietButton { visible: root.eraseArmed; standalone: true; label: "Keep"; onClicked: root.disarm() }
+          QuietButton { label: root.eraseArmed ? "Yes, erase" : "Erase"; danger: true }
         }
       }
 
@@ -914,10 +1044,98 @@ Item {
       Column {
         visible: root.section === "about"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: Style.space(14)
 
-        Text { text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.body }
-        Text { text: "Engine: " + root.engineVersionText; textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption }
+        Rectangle {
+          width: parent.width
+          height: aboutCol.implicitHeight + Style.space(32)
+          radius: Style.space(18)
+          color: Util.alpha(root.fg, 0.05)
+          border.width: 1
+          border.color: Calm.hair
+          Column {
+            id: aboutCol
+            anchors.centerIn: parent
+            spacing: Style.space(6)
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.subtitle; font.bold: true }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineVersionText; textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption }
+          }
+        }
+        Text {
+          width: parent.width
+          text: "A YouTube Music player for the Omarchy shell. The web app plays the audio. It is never seen and never takes focus."
+          textFormat: Text.PlainText
+          wrapMode: Text.WordWrap
+          color: Util.alpha(root.fg, 0.6)
+          font.family: root.family
+          font.pixelSize: Style.font.caption
+        }
+      }
+    }
+  }
+
+  // ---- the open dropdown's menu, above every row -----------------------
+
+  Item {
+    id: menuLayer
+    anchors.fill: parent
+    visible: root.menuSrc !== null
+    z: 50
+    MouseArea { anchors.fill: parent; onClicked: root.closeMenu() }
+    Rectangle {
+      id: menuBox
+      readonly property point pos: root.menuSrc ? root.menuSrc.mapToItem(root, 0, 0) : Qt.point(0, 0)
+      readonly property real srcW: root.menuSrc ? root.menuSrc.width : 0
+      readonly property real srcH: root.menuSrc ? root.menuSrc.height : 0
+      width: Math.max(Style.space(150), srcW)
+      height: menuCol.implicitHeight + Style.space(12)
+      x: Math.max(0, Math.min(root.width - width, pos.x + srcW - width))
+      y: Math.max(0, Math.min(pos.y + srcH + Style.space(6), root.height - height))
+      radius: Style.space(14)
+      color: Calm.raised
+      border.width: 1
+      border.color: Calm.hair
+      Column {
+        id: menuCol
+        anchors.fill: parent
+        anchors.margins: Style.space(6)
+        Repeater {
+          model: root.menuSrc ? root.menuSrc.options : []
+          delegate: Rectangle {
+            required property var modelData
+            objectName: "menuItem_" + modelData.key
+            readonly property bool chosen: root.menuSrc !== null && modelData.key === root.menuSrc.current
+            width: menuCol.width
+            height: Style.space(34)
+            radius: Style.space(10)
+            color: chosen ? Calm.a(Calm.accent, 0.22) : "transparent"
+            Text {
+              anchors.left: parent.left; anchors.leftMargin: Style.space(12)
+              anchors.verticalCenter: parent.verticalCenter
+              text: modelData.label
+              textFormat: Text.PlainText
+              color: parent.chosen ? Calm.accent : Calm.fg
+              font.family: root.family
+              font.pixelSize: Style.font.body
+            }
+            Text {
+              visible: parent.chosen
+              anchors.right: parent.right; anchors.rightMargin: Style.space(12)
+              anchors.verticalCenter: parent.verticalCenter
+              text: Icons.check
+              textFormat: Text.PlainText
+              color: Calm.accent
+              font.family: root.family
+              font.pixelSize: Style.font.body
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { var key = modelData.key; var src = root.menuSrc; root.closeMenu(); if (src) src.picked(key) }
+            }
+          }
+        }
       }
     }
   }
