@@ -356,9 +356,11 @@ Panel {
           readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
           readonly property real q: Math.max(0, Math.min(1, p))
-          readonly property real a: pillW * 0.35 * q          // half-width at the pill: 70% of it
-          readonly property real b: pillW * 0.8 * q           // half-width at the card: 1.6x the pill
-          readonly property real n: pillW * 0.27 * Math.max(0, p)  // neck half-width (wobbles)
+          // The top spans the whole pill (inset a little for its rounded ends), the
+          // neck pinches slightly, and the foot flares wider than the pill each side.
+          readonly property real a: (pillW / 2 - Style.space(8)) * q
+          readonly property real b: (pillW / 2 + Style.space(22)) * q
+          readonly property real n: (pillW / 2 - Style.space(12)) * Math.max(0, p)  // neck half-width (wobbles)
           visible: !!card && card.visible && root.opened && gapH > 0.5 && q > 0.01
           opacity: card ? card.opacity : 0
           x: cx - Math.max(a, b)
