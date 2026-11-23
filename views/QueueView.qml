@@ -20,13 +20,29 @@ Item {
   property string error: ""
   // The song J/K just moved: the cursor follows it once the queue reloads.
   property string follow: ""
+  // The queue read the next page was last asked for: one request per read,
+  // however often the cursor or the scroll touches the end before the page
+  // lands (its queue event brings the next read).
+  property var askedMoreFor: null
   readonly property var rows: Model.queueRows(queue)
   property alias cursor: list.cursor
   readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
   readonly property var hints: [["↵", "play"], ["x", "remove"], ["J K", "move"]]
 
   function shown() { load(true) }
-  function move(dy) { list.cursor = Model.moveCursor(rows, list.cursor, dy) }
+  function move(dy) {
+    list.cursor = Model.moveCursor(rows, list.cursor, dy)
+    if (dy > 0 && list.cursor >= rows.length - 3) loadMore()
+  }
+
+  // A long list (a playlist, a radio) comes a page at a time; YouTube Music
+  // adds the next one by itself only when playback nears the end. Reaching
+  // the end of the list here asks for it too, one page per request.
+  function loadMore() {
+    if (!svc || !view.queue || !view.queue.more || view.askedMoreFor === view.queue) return
+    view.askedMoreFor = view.queue
+    svc.request("queue.more", {}, function (r) { if (!r.ok) view.askedMoreFor = null })
+  }
 
   function load(jumpToCurrent) {
     if (!svc) return
@@ -153,6 +169,7 @@ Item {
     emptyText: ""
     onActivated: function (i) { view.jump(view.rows[i]) }
     onAction: function (name, i) { view.runAction(name, view.rows[i]) }
+    onAtYEndChanged: if (atYEnd) view.loadMore()
   }
 
   // ---- empty / loading / error: one calm centred state, no list behind it.

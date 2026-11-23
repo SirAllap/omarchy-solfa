@@ -151,6 +151,15 @@ Panel {
     focusKeys()
   }
 
+  // c: the link of the song playing, on the clipboard.
+  function copyLink() {
+    if (!svc || !svc.hasTrack || svc.isAd) { say("Nothing to share"); return }
+    svc.copyLink(function (url, source, ok) {
+      // ok is false when wl-copy did not run or failed: say so, never "copied".
+      root.say(!url ? "Nothing to share" : ok === false ? "Could not copy the link" : "Link copied")
+    })
+  }
+
   function say(text) { root.flash = text; flashTimer.restart() }
   Timer { id: flashTimer; interval: 2600; onTriggered: root.flash = "" }
 
@@ -219,11 +228,13 @@ Panel {
   function onKey(event) {
     var t = event.text
     var k = event.key
-    var inField = root.pages.length === 0 && root.tab === "search" && searchView.inputFocused
+    // A text field has the keys: Search's, or the find field of a page.
+    var inField = !!(root.view && root.view.inputFocused)
     if (k === Qt.Key_Escape) {
       if (root.allKeys) root.allKeys = false
       else if (root.saveOpen) saveView.back()
       else if (root.settingsOpen) root.closeSettings()
+      else if (root.pages.length > 0 && detailView.finding) detailView.closeFind()
       else root.back()
       event.accepted = true
       return
@@ -305,6 +316,7 @@ Panel {
       case "e": if (cur) root.runAction("next", cur); break
       case "R": if (cur && cur.item && cur.item.videoId) root.runAction("radio", cur); else if (svc.hasTrack) { svc.radioFor(svc.player); root.say("Radio from " + svc.title) } break
       case "S": root.saveRow(cur); break
+      case "c": root.copyLink(); break
       case "g": root.openArtist(cur); break
       case "o": root.openAlbum(cur); break
       case "[": if (v === searchView) searchView.cycleFilter(-1); else if (v === libraryView) libraryView.cycleSection(-1); break
@@ -594,6 +606,7 @@ Panel {
         topInset: brand.height
         onSaveRequested: root.saveRow(null)
         onRadioRequested: { if (root.svc && root.svc.hasTrack) { root.svc.radioFor(root.svc.player); root.say("Radio from " + root.svc.title) } }
+        onShareRequested: root.copyLink()
       }
 
       // Solfa's name and the power button, top right: far from play.
@@ -661,7 +674,7 @@ Panel {
       // The tab bar's pill: a faint rounded track, and one accent pill that
       // glides under the open tab (a still pill under reduce-motion).
       Rectangle {
-        visible: tabRow.visible && root.pages.length === 0
+        visible: tabRow.visible
         x: tabRow.x - Style.space(4); y: tabRow.y - Style.space(4)
         width: tabRow.width + Style.space(8); height: tabRow.height + Style.space(8)
         radius: height / 2
@@ -670,7 +683,7 @@ Panel {
       }
       Rectangle {
         id: tabPill
-        visible: tabRow.visible && root.pages.length === 0
+        visible: tabRow.visible
         x: tabRow.x + tabRow.pillX - Style.space(60) * (1 - Motion.spatial(keys.tms, 110, 200)); y: tabRow.y
         opacity: Motion.effects(keys.tms, 110, 160)
         width: tabRow.pillW; height: tabRow.height
@@ -693,11 +706,12 @@ Panel {
         // index. The pill (x and width), each tab's width and each label's
         // fade all read it, so they land together. A critically damped
         // spring (about 260 ms, no overshoot); a new click re-aims it mid-glide.
-        readonly property bool hasActive: root.pages.length === 0
+        // A page keeps its parent tab lit: the strip looks the same in every view.
+        readonly property bool hasActive: true
         readonly property int target: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return i; return 0 }
         property real pos: target
         Behavior on pos { enabled: !Style.reduceMotion; SpringAnimation { spring: 11; damping: 1; epsilon: 0.001 } }
-        // 1 while a tab is open, 0 while a detail page covers the bar.
+        // 1 while a tab is open.
         property real act: hasActive ? 1 : 0
         Behavior on act { enabled: !Style.reduceMotion; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         property var labelWs: []
@@ -797,21 +811,6 @@ Panel {
         }
       }
 
-      Row {
-        anchors.verticalCenter: tabRow.verticalCenter
-        anchors.right: parent.right
-        spacing: Style.space(6)
-        visible: root.pages.length > 0 && !root.settingsOpen
-        Views.HitButton {
-          iconText: Icons.back
-          text: "Back"
-          fontFamily: root.family
-          foreground: root.fg
-          fontSize: Style.font.caption
-          onClicked: root.back()
-        }
-      }
-
       // Settings takes it all, from the top row down: its "‹ Settings" back
       // row sits level with the brand corner, which stays (gear, power).
       Item {
@@ -850,7 +849,7 @@ Panel {
         Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(libraryView); opacity: stage.fade(libraryView); enabled: root.view === libraryView; active: root.opened && root.view === libraryView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(libraryView) } }
         Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(lyricsView); opacity: stage.fade(lyricsView); enabled: root.view === lyricsView; active: root.opened && root.view === lyricsView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(lyricsView) } }
         Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(historyView); opacity: stage.fade(historyView); enabled: root.view === historyView; active: root.opened && root.view === historyView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(historyView) } }
-        Views.DetailView { id: detailView; enabled: root.view === detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
+        Views.DetailView { id: detailView; objectName: "detailView"; enabled: root.view === detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
 
         Views.SettingsView {
           id: settingsView
@@ -942,7 +941,7 @@ Panel {
           width: parent.width - allKeysButton.width - Style.space(4)
           height: Style.space(20)
           visible: !keys.blocked && !root.settingsOpen && !root.saveOpen
-          readonly property bool typing: root.pages.length === 0 && root.view === searchView && searchView.inputFocused
+          readonly property bool typing: !!(root.view && root.view.inputFocused)   // Search's field or a page's find field
           // Last, so it is the first dropped when the line is short: the real panel key.
           readonly property var hints: Model.footerHints(root.view ? root.view.hints : null,
                                                          !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
