@@ -100,6 +100,56 @@ test("save picker rows: New playlist, then Recent and All playlists, the filter 
   assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "S"))
 })
 
+test("find in a playlist: every word, any order, any field, no case, no accents", () => {
+  const t = (title, artists, album) => ({ title, artists: artists.map((name) => ({ name })), album: album ? { name: album } : undefined })
+  const tracks = [
+    t("Crème Brûlée", ["Zoë Example"], "Été Sessions"),
+    t("Sunrise", ["Zoë Example", "The Samples"]),
+    t("Zebra Crossing", ["Mia Fixture"], "Stripes"),
+    { title: "No Artist" },
+  ]
+  const names = (q) => M.filterTracks(tracks, q).map((x) => x.title)
+  deep(names(""), ["Crème Brûlée", "Sunrise", "Zebra Crossing", "No Artist"])
+  deep(names("   "), ["Crème Brûlée", "Sunrise", "Zebra Crossing", "No Artist"], "blanks are no query")
+  deep(names("creme"), ["Crème Brûlée"], "accents do not matter")
+  deep(names("CRÈME brulee"), ["Crème Brûlée"], "nor case, in either direction")
+  deep(names("zoe"), ["Crème Brûlée", "Sunrise"], "the artist")
+  deep(names("sessions"), ["Crème Brûlée"], "the album")
+  deep(names("zoe brulee"), ["Crème Brûlée"], "all words must match")
+  deep(names("brulee   zoe"), ["Crème Brûlée"], "in any order, any spacing")
+  deep(names("samples sunrise"), ["Sunrise"], "title and a second artist")
+  deep(names("zoe stripes"), [], "words from different songs do not add up")
+  deep(names("ZEBRA"), ["Zebra Crossing"])
+  deep(names("artist"), ["No Artist"], "a song with no artists or album still matches its title")
+  assert.equal(M.filterTracks(tracks, "").length, 4)
+  assert.equal(M.filterTracks(null, "x").length, 0)
+  assert.equal(M.foldText("Ångström Ñandú"), "angstrom nandu")
+  assert.equal(M.foldText(null), "")
+})
+
+test("find in a playlist: the status line and the cursor's place in the full list", () => {
+  assert.equal(M.findStatus("", 890, 890, false, false), "890 songs")
+  assert.equal(M.findStatus("", 300, 300, true, false), "Loading 300 songs")
+  assert.equal(M.findStatus("", 1, 1, false, false), "1 song")
+  assert.equal(M.findStatus("", 200, 200, false, true), "200 songs · not all loaded")
+  assert.equal(M.findStatus("zoe", 12, 890, false, false), "12 of 890")
+  assert.equal(M.findStatus("zoe", 2, 300, true, false), "2 of 300 · loading")
+  assert.equal(M.findStatus("zoe", 0, 200, false, true), "0 of 200 · not all loaded")
+  const rows = M.trackRows([{ videoId: "A", setVideoId: "1" }, { videoId: "B", setVideoId: "2" }, { videoId: "A", setVideoId: "3" }])
+  assert.equal(M.rowIndex(rows, { item: { videoId: "A", setVideoId: "3" } }), 2, "a song twice in the list is told apart by its own id")
+  assert.equal(M.rowIndex(rows, { item: { videoId: "B", setVideoId: "2" } }), 1)
+  assert.equal(M.rowIndex(rows, { item: { videoId: "Z" } }), -1)
+  assert.equal(M.rowIndex(rows, null), -1)
+  assert.equal(M.rowIndex(rows, { header: "x" }), -1)
+  assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "F"))
+})
+
+test("footer hints: a pinned hint stays after the first", () => {
+  const page = [["↵", "play or open"], ["F", "find", true], ["e", "play next"], ["esc", "back"]]
+  deep(M.footerHints(page, true), [["↵", "play or open"], ["F", "find", true], ["space", "play/pause"], ["n p", "next/previous"]])
+  deep(M.footerHints(page, false), [["↵", "play or open"], ["F", "find", true], ["space", "play/pause"], ["n p", "next/previous"]])
+})
+
 test("queue rows: queued, then autoplay under its own header", () => {
   const rows = M.queueRows({ items: [{ videoId: "A" }, { videoId: "B" }], automix: [{ videoId: "C" }], index: 1 })
   assert.equal(rows.length, 4)

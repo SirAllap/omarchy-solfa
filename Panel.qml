@@ -180,11 +180,13 @@ Panel {
   function onKey(event) {
     var t = event.text
     var k = event.key
-    var inField = root.pages.length === 0 && root.tab === "search" && searchView.inputFocused
+    // A text field has the keys: Search's, or the find field of a page.
+    var inField = !!(root.view && root.view.inputFocused)
     if (k === Qt.Key_Escape) {
       if (root.allKeys) root.allKeys = false
       else if (root.saveOpen) saveView.back()
       else if (root.settingsOpen) root.closeSettings()
+      else if (root.pages.length > 0 && detailView.finding) detailView.closeFind()
       else root.back()
       event.accepted = true
       return
@@ -432,7 +434,7 @@ Panel {
         Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && root.view === libraryView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && root.view === lyricsView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
         Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && root.view === historyView; active: root.opened && visible; svc: root.svc; bar: root.bar; panel: root }
-        Views.DetailView { id: detailView; anchors.fill: parent; visible: !root.settingsOpen && root.view === detailView; svc: root.svc; bar: root.bar; panel: root }
+        Views.DetailView { id: detailView; objectName: "detailView"; anchors.fill: parent; visible: !root.settingsOpen && root.view === detailView; svc: root.svc; bar: root.bar; panel: root }
 
         Views.SettingsView {
           id: settingsView
@@ -504,7 +506,7 @@ Panel {
           Repeater {
             model: Model.footerHints(root.view ? root.view.hints : null,
                                      !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
-                                     root.pages.length === 0 && root.view === searchView && searchView.inputFocused)
+                                     !!(root.view && root.view.inputFocused))
             delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar }
           }
         }
