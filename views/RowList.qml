@@ -25,6 +25,9 @@ ListView {
   property string emptyText: ""
   property color fg: Calm.fg
   property string family: Calm.font
+  // A soft fade where more rows wait under the bottom edge, so none is cut hard.
+  // DetailView draws its own (top and bottom) and turns this off.
+  property bool fadeBottom: true
 
   // The panel's open clock (its content root's 'tms', 350 = settled).
   property real openMs: 350
@@ -59,6 +62,19 @@ ListView {
     color: Util.alpha(list.fg, 0.6)
     font.family: list.family
     font.pixelSize: Style.font.body
+  }
+
+  Rectangle {
+    parent: list.parent
+    visible: list.fadeBottom && list.visible
+    anchors.left: list.left; anchors.right: list.right; anchors.bottom: list.bottom
+    height: Style.space(16)
+    opacity: list.atYEnd ? 0 : 1
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
+    gradient: Gradient {
+      GradientStop { position: 0; color: Qt.rgba(Calm.surface.r, Calm.surface.g, Calm.surface.b, 0) }
+      GradientStop { position: 1; color: Calm.surface }
+    }
   }
 
   delegate: Item {

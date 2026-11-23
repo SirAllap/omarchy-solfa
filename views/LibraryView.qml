@@ -113,7 +113,10 @@ Item {
     readonly property bool round: view.section === "artists"
     readonly property real cardW: (view.width - gap * (view.columns - 1)) / view.columns
     cellWidth: cardW + gap
-    cellHeight: round ? Style.space(134) + Style.space(4) : cardW + Style.space(38) + Style.space(10)
+    // The vertical gap between tile rows: was 4 / 10 px, now 12 / 20, so a tile's
+    // name and count never touch the tiles below. The tiles themselves are unchanged.
+    readonly property real vGap: round ? Style.space(12) : Style.space(20)
+    cellHeight: round ? Style.space(134) + vGap : cardW + Style.space(38) + vGap
     currentIndex: list.cursor
     onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, GridView.Contain)
 
@@ -134,7 +137,7 @@ Item {
       readonly property bool hot: index === list.cursor
       readonly property real coverSize: grid.round ? Math.min(grid.cardW, Style.space(134) - Style.space(38)) : grid.cardW
       width: grid.cardW
-      height: grid.cellHeight - (grid.round ? Style.space(4) : Style.space(10))
+      height: grid.cellHeight - grid.vGap + (grid.round ? Style.space(4) : Style.space(10))
       scale: hot || cardMouse.containsMouse ? 1.04 : 1
       Behavior on scale { enabled: !Style.reduceMotion; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
@@ -191,6 +194,19 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: { list.cursor = card.index; view.panel.activateRow(view.rows[card.index], view.info && view.info.playlistId ? view.info.playlistId : "") }
       }
+    }
+  }
+
+  // Soft fade where tiles run under the grid's bottom edge: none is cut hard.
+  Rectangle {
+    visible: grid.visible
+    anchors.left: grid.left; anchors.right: grid.right; anchors.bottom: grid.bottom
+    height: Style.space(16)
+    opacity: grid.atYEnd ? 0 : 1
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
+    gradient: Gradient {
+      GradientStop { position: 0; color: Qt.rgba(Calm.surface.r, Calm.surface.g, Calm.surface.b, 0) }
+      GradientStop { position: 1; color: Calm.surface }
     }
   }
 

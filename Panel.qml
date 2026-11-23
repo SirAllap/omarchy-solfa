@@ -42,7 +42,10 @@ Panel {
   // one motion. A critically damped feel (BezierSpline 0.2,0,0,1): 320 ms
   // grow, 240 ms shrink; none with reduce motion.
   property real growth: 0
-  readonly property real baseH: panel.cappedContentHeight(Style.space(780))
+  // The content area (under the tab strip) gets +160 px over the old 780: the
+  // lists show ~6 rows. Capped by the free screen height; fewer rows then.
+  readonly property real roomH: Style.space(940)
+  readonly property real baseH: panel.cappedContentHeight(roomH)
   readonly property real maxGrow: panel.availableCardHeight > 0 ? Math.max(0, panel.availableCardHeight - baseH) : Style.space(400)
   // The stage's height with no page open: measured at rest, never mid-motion.
   property real stageRest: 0
@@ -393,7 +396,7 @@ Panel {
       ? panel.fittedContentHeight(hero.implicitHeight + gate.implicitHeight + Style.space(20))
       : root.svc && root.svc.closed && !root.settingsOpen
       ? panel.fittedContentHeight(hero.implicitHeight + offCard.implicitHeight + Style.space(28))
-      : panel.cappedContentHeight(Style.space(780) + root.growth)
+      : panel.cappedContentHeight(root.roomH + root.growth)
 
     // A plain Item, not a FocusScope: a scope hands focus back to the child
     // that had it, so the search field would keep the keys after Enter.

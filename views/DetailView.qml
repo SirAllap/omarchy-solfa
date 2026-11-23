@@ -463,6 +463,7 @@ Item {
   RowList {
     id: list
     objectName: "detailList"
+    fadeBottom: false
     anchors.top: findBar.bottom
     anchors.topMargin: view.finding ? Style.space(10) : Style.space(20)  // mockup: list 20 px under the cover
     anchors.left: parent.left
