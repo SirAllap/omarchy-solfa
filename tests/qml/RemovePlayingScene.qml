@@ -324,6 +324,13 @@ ShellRoot {
                           fakeSvc.signedIn = false
                           st.queue.signedOut = win.button().meaning
                           fakeSvc.signedIn = true
+                          // The first entry of the queue playing (index 0): the same request.
+                          win.play("CCCCCCCCCCC", "RDAMVMCCCCCCCCCCC", "", { index: 0, canNext: true })
+                          var before0 = win.count("queue.removePlaying")
+                          st.queue.firstMeaning = b.meaning
+                          b.clicked()
+                          st.queue.first = win.sent("queue.removePlaying").slice(before0)
+                          panel.flash = ""
                           // The last song, nothing after it: the button stays, and does nothing.
                           win.play("CCCCCCCCCCC", "RDAMVMCCCCCCCCCCC", "", { index: 2, canNext: false })
                           var asked = win.count("queue.removePlaying")

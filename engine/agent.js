@@ -692,6 +692,68 @@
     return id
   }
 
+  // The id the app's queue service knows an entry by (the entry's place in
+  // the list it was queued from, its watch endpoint's `index`), or "".
+  function entryKey(e) {
+    var r = e && e.playlistPanelVideoWrapperRenderer ? e.playlistPanelVideoWrapperRenderer.primaryRenderer : e
+    r = r && r.playlistPanelVideoRenderer
+    var i = r && r.navigationEndpoint && r.navigationEndpoint.watchEndpoint ? r.navigationEndpoint.watchEndpoint.index : undefined
+    return typeof i === "number" ? String(i) : ""
+  }
+
+  // One entry (not the one playing) out of the queue. Signed in, the queue
+  // also lives on YouTube's side, and an edit of the store alone is undone
+  // by the next sync from there: so it goes through the app's own queue
+  // service (removeItem, which tells YouTube too) when that service can
+  // name this entry alone, else through the store.
+  function removeEntry(s, at, playing) {
+    var a = app()
+    var items = s.getState().queue.items
+    var key = entryKey(items[at])
+    var named = key !== "" && items.filter(function (e) { return entryKey(e) === key }).length === 1
+    if (!(named && a && a.queue && typeof a.queue.removeItem === "function")) {
+      editQueue(s, { type: "REMOVE_ITEM", payload: at }, playing)
+      return
+    }
+    editing = true
+    try {
+      a.queue.removeItem(key)
+      keepSelection(s, playing)
+    } finally {
+      editing = false
+    }
+    checkArmed()
+  }
+
+  // For a few seconds after, a list from YouTube's side that lands late (the
+  // queue it builds on the first skip of a list just started, a sync) may
+  // bring the entry back before the song playing: it is taken out again,
+  // twice at most.
+  function keepGone(s, key, videoId) {
+    var tries = 2
+    var until = Date.now() + 6000
+    var look = function () {
+      if (tries <= 0 || Date.now() > until) return
+      var q = s.getState().queue
+      // Before the song playing, found by its video: a list put in whole
+      // leaves the selection where it was.
+      var now = playingId(), cur = q.selectedItemIndex
+      for (var j = 0; j < q.items.length; j++) {
+        var t = P.panelVideo(q.items[j]) || {}
+        if (now && (t.videoId === now || t.twinId === now)) { cur = j; break }
+      }
+      for (var k = 0; k < cur && k < q.items.length; k++) {
+        if (entryKey(q.items[k]) === key && (P.panelVideo(q.items[k]) || {}).videoId === videoId) {
+          tries--
+          removeEntry(s, k, playingId())
+          break
+        }
+      }
+      setTimeout(look, 300)
+    }
+    setTimeout(look, 300)
+  }
+
   // Now Playing's "Remove from queue": the song playing leaves the queue.
   // The app will not drop the entry it plays, so the player moves on to the
   // next one first, then that entry goes. `index` is the entry the panel saw
@@ -704,6 +766,7 @@
     if (i >= q.items.length - 1 && !(q.automixItems || []).length) fail("last")
     var gone = q.items[i]
     var goneId = P ? (P.panelVideo(gone) || {}).videoId : ""
+    var goneKey = entryKey(gone)
     var p = needPlayer()
     p.nextVideo()
     var until = Date.now() + 5000
@@ -714,7 +777,8 @@
     var at = q.items.indexOf(gone)
     if (at < 0 && P && q.items[i] && (P.panelVideo(q.items[i]) || {}).videoId === goneId) at = i
     if (at < 0) fail("moved")
-    editQueue(s, { type: "REMOVE_ITEM", payload: at }, playingId())
+    removeEntry(s, at, playingId())
+    if (goneKey && P) keepGone(s, goneKey, goneId)
     return { removed: true }
   }
 

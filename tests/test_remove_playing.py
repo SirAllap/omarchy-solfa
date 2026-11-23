@@ -103,6 +103,8 @@ class RemovePlaying(unittest.TestCase):
         self.assertEqual(q["flash"], "Removed from the queue")
         self.assertEqual(q["playlistRemoves"], 0)
         self.assertEqual(q["signedOut"], "queue", "no account needed")
+        self.assertEqual(q["firstMeaning"], "queue")
+        self.assertEqual(q["first"], [{"index": 0}], "the first entry of the queue too")
 
     def test_the_last_song_keeps_the_button_but_it_does_nothing(self):
         last = self.state["queue"]["last"]

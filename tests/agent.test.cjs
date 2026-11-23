@@ -362,6 +362,54 @@ test("queue.removePlaying: the next song starts, then the entry that was playing
   assert.deepEqual(ids(), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
 })
 
+test("queue.removePlaying on the first entry: YouTube's copy of the queue loses it too, and a late list does not bring it back", async () => {
+  // Entries of a list, each with its place there (watchEndpoint.index): the id the app's queue service knows them by.
+  const keyed = (id, title, n) => { const e = entry(id, title); e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint.index = n; return e }
+  const make = () => makePage({ items: [keyed("AAAAAAAAAAA", "First Light", 0), keyed("BBBBBBBBBBB", "Second Wind", 1), keyed("CCCCCCCCCCC", "Third Rail", 2)] })
+  const ids = (p) => p.store.getState().queue.items.map((e) => e.playlistPanelVideoRenderer.videoId)
+  const keyOf = (e) => String(e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint.index)
+  // YouTube's side keeps its own copy of the list, which only the app's queue
+  // service edits; the first skip of a list just started makes it put the
+  // whole list back into the store a moment later.
+  const withYouTube = (p, service) => {
+    let server = p.store.getState().queue.items.slice()
+    let sent = false
+    p.store.subscribe(() => {
+      if (sent || p.store.getState().queue.selectedItemIndex !== 1) return
+      sent = true
+      setImmediate(() => p.store.dispatch({ type: "RESET_ITEMS", payload: server.slice() }))
+    })
+    const asked = []
+    if (service) p.app.queue.removeItem = (key) => {
+      asked.push(key)
+      server = server.filter((e) => keyOf(e) !== key)
+      p.store.dispatch({ type: "REMOVE_ITEM", payload: p.store.getState().queue.items.findIndex((e) => keyOf(e) === key) })
+    }
+    return asked
+  }
+  const later = () => new Promise((r) => setTimeout(r, 40))
+
+  // The app's service can name the entry: it goes through it.
+  let p = make()
+  await p.settle()
+  let asked = withYouTube(p, true)
+  assert.deepEqual(plain(await p.call("queue.removePlaying", { index: 0 })), { removed: true })
+  await later()
+  assert.deepEqual(asked, ["0"], "removed through the app's queue service, by the entry's id")
+  assert.deepEqual(ids(p), ["BBBBBBBBBBB", "CCCCCCCCCCC"], "the list YouTube sends back no longer has it")
+  assert.equal(p.player.current, "BBBBBBBBBBB")
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0)
+
+  // No such service (or no id): the store, and the entry put back by the late list is taken out again.
+  p = make()
+  await p.settle()
+  withYouTube(p, false)
+  await p.call("queue.removePlaying", { index: 0 })
+  await later()
+  assert.deepEqual(ids(p), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0, "on the song playing")
+})
+
 test("session: saved on one page, given back on a fresh one", async () => {
   const old = makePage()
   await old.settle()
