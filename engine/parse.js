@@ -315,14 +315,20 @@ var SolfaParse = (function () {
   }
 
   // playlistPanelVideoRenderer (the queue), also inside a wrapper that pairs
-  // a song with its music-video twin: the primary one is what plays. A song
-  // queued from a playlist carries its row there (`playlistSetVideoId`, the
-  // same value the playlist's page gives that row) next to the playlist's
-  // id in its watch endpoint.
+  // a song with its music-video twin. The entry is the primary one; the app
+  // plays either of the two, as its song/video switch says, and `twinId`
+  // names the other. A song queued from a playlist carries its row there
+  // (`playlistSetVideoId`, the same value the playlist's page gives that
+  // row) next to the playlist's id in its watch endpoint; in a pair, the
+  // primary's, else the twin's.
   function panelVideo(r, opts) {
     opts = opts || {}
     if (!r) return null
-    if (r.playlistPanelVideoWrapperRenderer) r = dig(r, ["playlistPanelVideoWrapperRenderer", "primaryRenderer"])
+    var twin = null
+    if (r.playlistPanelVideoWrapperRenderer) {
+      twin = dig(r, ["playlistPanelVideoWrapperRenderer", "counterpart", 0, "counterpartRenderer", "playlistPanelVideoRenderer"]) || null
+      r = dig(r, ["playlistPanelVideoWrapperRenderer", "primaryRenderer"])
+    }
     if (r && r.playlistPanelVideoRenderer) r = r.playlistPanelVideoRenderer
     if (!r || !r.videoId) return null
     var by = runs(r.longBylineText)
@@ -333,7 +339,7 @@ var SolfaParse = (function () {
       if (segs.length) artists = [{ name: segText(segs[0]), id: "" }]
     }
     var albums = linked(by, "album")
-    return track({
+    var out = track({
       kind: kindOfVideo(videoType(we)),
       videoId: String(r.videoId),
       title: text(r.title),
@@ -342,9 +348,11 @@ var SolfaParse = (function () {
       duration: seconds(text(r.lengthText)),
       thumb: bestThumb(dig(r, ["thumbnail", "thumbnails"]) || [], opts.thumbPx || 120),
       playlistId: we.playlistId || "",
-      setVideoId: r.playlistSetVideoId || "",
+      setVideoId: r.playlistSetVideoId || (twin && twin.playlistSetVideoId) || "",
       radio: menuEndpoints(r).radio || null
     })
+    if (twin && twin.videoId) out.twinId = String(twin.videoId)
+    return out
   }
 
   function anyItem(wrapper, opts) {

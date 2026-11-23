@@ -633,6 +633,13 @@ test("Now Playing's remove: only the song playing from a playlist of the user's,
   assert.equal(M.playingRemoval(but(playing, { setVideoId: "S2" }), mine, {}), null, "the page gives that row to another song")
   assert.equal(M.playingRemoval(playing, mine, { "PLmine/S3": true }), null, "taken out already")
   assert.notEqual(M.playingRemoval(playing, mine, { "PLmine/S1": true, "PLother/S3": true }), null, "another row, or the same setVideoId in another list")
+  // A song and its music video share one queue entry: the twin playing is
+  // still the entry's row, and the removal names the row's own video.
+  const twin = but(playing, { videoId: "TTTTTTTTTTT", entryVideoIds: ["AAAAAAAAAAA", "TTTTTTTTTTT"] })
+  deep(M.playingRemoval(twin, mine, {}), { playlistId: "PLmine", videoId: "AAAAAAAAAAA", setVideoId: "S3", title: "Road trip" })
+  const notLoaded = but(twin, { setVideoId: "S999" })
+  assert.equal(M.playingRemoval(notLoaded, mine, {}).videoId, "AAAAAAAAAAA", "a row the page has not loaded: the entry's own video")
+  assert.equal(M.playingRemoval(but(twin, { entryVideoIds: ["UUUUUUUUUUU", "TTTTTTTTTTT"] }), mine, {}), null, "an entry whose videos are not the row's")
   assert.equal(M.rowKey("VLPLmine", "S3"), "PLmine/S3")
   assert.equal(M.bareListId("VLPLmine"), "PLmine")
   assert.equal(M.bareListId(undefined), "")

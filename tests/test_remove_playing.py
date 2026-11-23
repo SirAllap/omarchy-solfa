@@ -142,6 +142,12 @@ class RemovePlaying(unittest.TestCase):
         self.assertTrue(s["shown"])
         self.assertEqual(s["browsed"], ["VLPLmine"])
 
+    def test_the_music_video_of_the_rows_song_playing_is_still_that_row(self):
+        t = self.state["twin"]
+        self.assertTrue(t["shown"])
+        self.assertEqual(t["videoId"], "DDDDDDDDDDD", "the removal names the row's own video")
+        self.assertFalse(t["stranger"], "an entry whose videos are not the row's")
+
     def test_removing_the_playing_row_from_the_page_takes_the_button_away(self):
         f = self.state["fromPage"]
         self.assertEqual(f["sent"], {"playlistId": "PLmine", "videoId": "DDDDDDDDDDD", "setVideoId": "SET4"})

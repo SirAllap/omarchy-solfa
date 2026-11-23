@@ -285,6 +285,14 @@ ShellRoot {
                         fakeSvc.signedIn = true
                         win.after(function () {
                           st.signedInAgain = { shown: win.shown(), browsed: win.browsed().slice(-1) }
+                          // The music video of the row's song plays instead (one queue entry
+                          // pairs them): still that row, and the removal names the row's video.
+                          win.play("EEEEEEEEEEE", "PLmine", "SET4", { entryVideoIds: ["DDDDDDDDDDD", "EEEEEEEEEEE"] })
+                          st.twin = { shown: win.shown(), videoId: panel.playingRemoval ? panel.playingRemoval.videoId : "" }
+                          // An entry whose videos are not the row's: no button.
+                          win.play("EEEEEEEEEEE", "PLmine", "SET4", { entryVideoIds: ["XXXXXXXXXXX", "EEEEEEEEEEE"] })
+                          st.twin.stranger = win.shown()
+                          win.play("EEEEEEEEEEE", "PLmine", "SET4", { entryVideoIds: ["DDDDDDDDDDD", "EEEEEEEEEEE"] })
                           // x on the playing row in the page: Now Playing's button goes too.
                           var at = -1
                           for (var k = 0; k < view.rows.length; k++) if (view.rows[k].item.setVideoId === "SET4") at = k

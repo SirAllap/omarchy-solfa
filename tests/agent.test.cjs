@@ -1104,6 +1104,41 @@ test("the player names the playlist the song plays from and its row there, for t
   assert.equal(s.setVideoId, "")
 })
 
+test("a song and its music video share one entry: the twin playing is still that row of the playlist", async () => {
+  const fromList = (videoId, title, setVideoId) => {
+    const e = entry(videoId, title)
+    e.playlistPanelVideoRenderer.playlistSetVideoId = setVideoId
+    Object.assign(e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint, { playlistId: "PLinventedPlaylist01", playlistSetVideoId: setVideoId })
+    return e
+  }
+  // The entry the playlist queued (its video) and the song version the app plays.
+  const pair = { playlistPanelVideoWrapperRenderer: { primaryRenderer: fromList("VVVVVVVVVVV", "Night Drive (video)", "SETVIDEO0001"),
+    counterpart: [{ counterpartRenderer: entry("SSSSSSSSSSS", "Night Drive"), segmentMap: {} }] } }
+  const p = makePage({ items: [entry("AAAAAAAAAAA", "First Light"), pair, entry("CCCCCCCCCCC", "Third Rail")] })
+  await p.settle()
+  p.store.dispatch({ type: "SET_INDEX", payload: 1 })
+  p.player.current = "SSSSSSSSSSS"
+  let s = (await p.call("state")).player
+  assert.equal(s.videoId, "SSSSSSSSSSS")
+  assert.equal(s.playlistId, "PLinventedPlaylist01")
+  assert.equal(s.setVideoId, "SETVIDEO0001")
+  assert.deepEqual(plain(s.entryVideoIds), ["VVVVVVVVVVV", "SSSSSSSSSSS"])
+  // Its own video playing: the same entry.
+  p.player.current = "VVVVVVVVVVV"
+  s = (await p.call("state")).player
+  assert.equal(s.setVideoId, "SETVIDEO0001")
+  // Another video than either: nothing borrowed from the entry.
+  p.player.current = "ZZZZZZZZZZZ"
+  s = (await p.call("state")).player
+  assert.equal(s.setVideoId, "")
+  assert.deepEqual(plain(s.entryVideoIds), [])
+  // A queue edit while the twin plays keeps the selection on its entry.
+  p.player.current = "SSSSSSSSSSS"
+  await p.call("queue.remove", { index: 0 })
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0)
+  assert.equal(p.store.getState().queue.items.length, 2)
+})
+
 test("snapshot during an ad reports adPosition/adDuration, and zeroes the regular clock", async () => {
   const p = makePage()
   await p.settle()

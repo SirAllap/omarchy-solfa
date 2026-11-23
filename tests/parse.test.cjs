@@ -264,6 +264,16 @@ test("a queue entry from a playlist names the playlist and its row there", () =>
   other.playlistPanelVideoRenderer.playlistSetVideoId = "FEDCBA9876543210"
   const pair = { playlistPanelVideoWrapperRenderer: { primaryRenderer: fromList, counterpart: [{ counterpartRenderer: other }] } }
   assert.equal(P.panelVideo(pair).setVideoId, "0123456789ABCDEF")
+  // The pair names its twin, the video the app may play instead.
+  assert.equal(P.panelVideo(pair).twinId, other.playlistPanelVideoRenderer.videoId)
+  assert.notEqual(P.panelVideo(pair).twinId, P.panelVideo(pair).videoId)
+  // A primary without the row: the twin's.
+  const bare = JSON.parse(JSON.stringify(fromList))
+  delete bare.playlistPanelVideoRenderer.playlistSetVideoId
+  const pair2 = { playlistPanelVideoWrapperRenderer: { primaryRenderer: bare, counterpart: [{ counterpartRenderer: other }] } }
+  assert.equal(P.panelVideo(pair2).setVideoId, "FEDCBA9876543210")
+  // No pair, no twin.
+  assert.equal(P.panelVideo(fromList).twinId, undefined)
   // Queued on its own (get_queue): no row of any playlist.
   assert.equal(P.panelVideo(P.queueEntries(F("queue"))[0]).setVideoId, "")
 })
