@@ -67,7 +67,10 @@ BarWidget {
   readonly property bool signingIn: svc ? svc.signingIn : false
   readonly property bool showTitle: root.setting("showTitle", true) && (hasTrack || closed || signingIn) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
-  readonly property color fg: bar ? bar.barForeground : Color.foreground
+  // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
+  // (chosen by the surface's luminance): the bar's own foreground is white on a dark bar
+  // and invisible on a light pill, and the other way round.
+  readonly property color fg: Calm.fg
   readonly property string family: Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
   readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
@@ -116,7 +119,7 @@ BarWidget {
       barSize: root.barSize
       hasTrack: root.hasTrack
       progress: root.svc ? root.svc.progress : 0
-      ringColor: root.playing ? Color.accent : Util.alpha(root.fg, 0.45)
+      ringColor: root.playing ? Calm.accent : Calm.muted
       trackColor: Util.alpha(root.fg, 0.15)
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
@@ -159,6 +162,7 @@ BarWidget {
 
       BarIconButton {
         bar: root.bar
+        foreground: Calm.fg
         text: Icons.previous
         tooltipText: "Previous"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
@@ -166,6 +170,7 @@ BarWidget {
       }
       BarIconButton {
         bar: root.bar
+        foreground: Calm.fg
         text: root.playing ? Icons.pause : Icons.play
         tooltipText: root.playing ? "Pause" : "Play"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
@@ -173,6 +178,7 @@ BarWidget {
       }
       BarIconButton {
         bar: root.bar
+        foreground: Calm.fg
         text: Icons.next
         tooltipText: "Next"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
