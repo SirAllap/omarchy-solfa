@@ -1,10 +1,12 @@
 import QtQuick
 import QtQuick.Shapes
+import QtQuick.Window
 import "lib"
 import qs.Ui
 import qs.Commons
 import "lib/Model.js" as Model
 import "lib/Icons.js" as Icons
+import "lib/Pixel.js" as Pixel
 import "views" as Views
 
 // The bar pill: a round cover in a progress ring, the song, and previous /
@@ -30,7 +32,7 @@ BarWidget {
   onSvcChanged: { pushSettings(); injectPanel() }
   onSettingsChanged: { pushSettings(); injectPanel() }
   onBarChanged: { pushSettings(); injectPanel() }
-  Component.onCompleted: pushSettings()
+  Component.onCompleted: { pushSettings(); syncGx() }
 
   // ---- the shape Bar.findPanelWidget expects (shell summon/hide/toggle)
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
@@ -163,9 +165,20 @@ BarWidget {
   // The pill's drawn box, snapped to whole pixels so the fill, the squared-off half and
   // the outline share one edge (a half-pixel offset between them showed as a seam or a
   // double line). Panel.qml reads pillBoxX/Y/W/H to put the bridge on the same box.
-  readonly property real pillBoxW: Math.round(body.implicitWidth + 2 * pillPad)
+  // The pill's width is a centred text width, so its screen x is fractional. Width and left edge
+  // are snapped to whole DEVICE pixels in screen space (gx is the widget's x in the bar window),
+  // the same Pixel.snap the join uses, so the pill's two ends and the join's two sides start
+  // from the same numbers and the left and right are exact mirror images.
+  readonly property real dpr: Screen.devicePixelRatio
+  property real gx: 0
+  function syncGx() { var p = root.mapToItem(null, 0, 0); if (p.x !== gx) gx = p.x }
+  onXChanged: syncGx()
+  onWidthChanged: syncGx()
+  onParentChanged: syncGx()
+  onOpenedChanged: syncGx()
+  readonly property real pillBoxW: Pixel.snap(body.implicitWidth + 2 * pillPad, dpr)
   readonly property real pillBoxH: Math.round(pillHeight)
-  readonly property real pillBoxX: Math.round((width - pillBoxW) / 2)
+  readonly property real pillBoxX: Pixel.snap(gx + (width - pillBoxW) / 2, dpr) - gx
   readonly property real pillBoxY: Math.round((height - pillBoxH) / 2)
 
   // The widget is a quiet pill. One colour for pill, bridge and card: the same opaque

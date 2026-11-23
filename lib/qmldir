@@ -1,2 +1,3 @@
 singleton Calm 1.0 Calm.qml
 BridgeSocket 1.0 BridgeSocket.qml
+Bridge 1.0 Bridge.qml
