@@ -127,7 +127,7 @@ BarWidget {
     layer.samples: 8
     ShapePath {
       fillColor: "transparent"
-      strokeColor: Calm.hair
+      strokeColor: Calm.outline
       strokeWidth: 1
       startX: 0.5; startY: pillRing.height
       PathLine { x: 0.5; y: pillRing.r + 0.5 }

@@ -349,7 +349,7 @@ Panel {
           color: "transparent"
           radius: parent.radius
           border.width: 1
-          border.color: Calm.hair
+          border.color: Calm.outline
           antialiasing: true
         }
       }
@@ -435,7 +435,7 @@ Panel {
           // foot. They run on from the pill's line and into the card's ring.
           ShapePath {
             fillColor: "transparent"
-            strokeColor: Calm.hair
+            strokeColor: Calm.outline
             strokeWidth: 1
             startX: sp.m + sp.hw - 0.5; startY: 0
             PathArc { x: sp.m + sp.hw + bridge.rx; y: bridge.height - 0.5
@@ -443,7 +443,7 @@ Panel {
           }
           ShapePath {
             fillColor: "transparent"
-            strokeColor: Calm.hair
+            strokeColor: Calm.outline
             strokeWidth: 1
             startX: sp.m - sp.hw - bridge.rx; startY: bridge.height - 0.5
             PathArc { x: sp.m - sp.hw + 0.5; y: 0

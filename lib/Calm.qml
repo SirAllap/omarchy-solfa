@@ -41,6 +41,8 @@ QtObject {
   // Ink on an accent fill (primary buttons, the active chip).
   readonly property color onAccent: lum(accent) > 0.5 ? Qt.rgba(0.051, 0.055, 0.067, 1) : Qt.rgba(1, 1, 1, 1)
   readonly property color hair: a(fg, light ? 0.14 : 0.075)
+  // The liquid shape's one outer outline (pill + bridge + card): fg at 14-18 %, stronger on light.
+  readonly property color outline: a(fg, light ? 0.18 : 0.14)
   readonly property color wash: a(fg, light ? 0.07 : 0.05)
   // The mockup's UI font; icons keep the shell's glyph font (they are not in Inter).
   readonly property string font: Qt.fontFamilies().indexOf("Inter") >= 0 ? "Inter" : ""
