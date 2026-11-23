@@ -24,7 +24,7 @@ Only ideas; no code or assets copied, so no MIT notice is needed.
 Motion.qml holds the one reduce-motion switch, the decay constants, wave delays, smoothstep and seeded random.
 Cover looks at the pressed control (spring), EventGlow, Comet, DotRing, Typewriter, WaveItem and MotionLab show each idea.
 
-Open it, no engine, fake data:
+Open it from the repo root, no engine, fake data:
 
     qml mockups/redesign/Gallery.qml
-    quickshell -p mockups/redesign/shell.qml
+    quickshell -p "$PWD/mockups/redesign/shell.qml"
