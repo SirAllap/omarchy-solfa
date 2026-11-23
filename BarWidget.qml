@@ -79,6 +79,25 @@ BarWidget {
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
   readonly property real pillHeight: Math.min(height, barSize) - Style.space(4)
+  // Pill look (a design option, default "hover"):
+  //   solid   - Calm.surface fill, as before
+  //   outline - no fill, only the hairline (Calm.outline)
+  //   tint    - the bar colour mixed 8% toward the ink, no outline
+  //   glass   - Calm.surface at 55% alpha over the bar, plus the hairline
+  //   hover   - no fill when idle; the tint only on hover (and the panel, below, keeps the join)
+  property string pillStyle: "hover"
+  readonly property color barBg: Color.bar && Calm.valid(Color.bar.background) ? Color.bar.background : Calm.bg
+  readonly property color pillTint: Qt.rgba(barBg.r + (Calm.fg.r - barBg.r) * 0.08, barBg.g + (Calm.fg.g - barBg.g) * 0.08, barBg.b + (Calm.fg.b - barBg.b) * 0.08, barBg.a)
+  readonly property bool pillHot: barMouse.containsMouse || root.opened
+  // While the panel is open every style fills with Calm.surface: the card and the bridge are that
+  // colour, and the pill must join them without a seam.
+  readonly property color pillFill: root.opened ? Calm.surface
+    : pillStyle === "outline" ? "transparent"
+    : pillStyle === "tint" ? pillTint
+    : pillStyle === "glass" ? Calm.a(Calm.surface, 0.55)
+    : pillStyle === "hover" ? (pillHot ? pillTint : "transparent")
+    : Calm.surface
+  readonly property bool pillOutlined: !root.opened && (pillStyle === "outline" || pillStyle === "glass")
   readonly property real pillPad: Math.max(4, Math.round((pillHeight - coverSlot.height) / 2))
   implicitWidth: visible ? body.implicitWidth + 2 * pillPad : 0
   implicitHeight: barSize
@@ -106,7 +125,11 @@ BarWidget {
     height: root.pillBoxH
     radius: height / 2
     visible: !root.closed
-    color: Calm.surface
+    // One colour for pill, bridge and card: the same opaque Calm.surface binding, no
+    // animation, tint or alpha of its own, so the three never differ by a shade.
+    color: root.pillFill
+    border.width: root.pillOutlined ? 1 : 0
+    border.color: Calm.outline
   }
   // While the panel is open the pill opens straight down into the card: its bottom half
   // is squared off (same colour), so the bridge's curves start at the pill's two ends.
