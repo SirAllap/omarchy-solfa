@@ -1023,12 +1023,12 @@ Item {
         RowShell {
           objectName: "panelKeyRow"
           label: "Panel key"
-          help: "Opens and closes Solfa. Super+M is used when it is free."
+          help: "Opens and closes Solfa. Super+Alt+M is used when it is free."
           row: 1
           Dropdown {
             objectName: "panelKeyPicker"
             row: 1
-            text: root.svc ? root.svc.panelKeyLabel : "Super+M"
+            text: root.svc ? root.svc.panelKeyLabel : "Super+Alt+M"
             options: (root.svc ? root.svc.panelKeyOptions : [""]).map(function (k) {
               return { key: k, label: k === "" ? "Automatic" : Model.keyLabel(k) }
             })
@@ -1048,7 +1048,7 @@ Item {
           columns: 2
           rowSpacing: Style.space(10)
           readonly property var keyList: [
-            [root.svc ? root.svc.panelKeyLabel : "Super+M", "open panel"], ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
+            [root.svc ? root.svc.panelKeyLabel : "Super+Alt+M", "open panel"], ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
             ["f", "like"], ["/", "search"], ["tab", "next tab"], ["e", "play next"],
             ["a", "add to queue"], ["R", "start radio"], ["[ ]", "section"], ["esc", "back"]
           ]

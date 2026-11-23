@@ -819,7 +819,7 @@ Panel {
             anchors.margins: Style.space(6)
             spacing: Style.space(10)
             Repeater {
-              model: Model.ALL_KEY_HINTS
+              model: [[root.svc ? root.svc.panelKeyLabel : "Super+Alt+M", "open or close Solfa"]].concat(Model.ALL_KEY_HINTS)
               delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar; width: (parent.width - Style.space(10)) / 2 }
             }
           }

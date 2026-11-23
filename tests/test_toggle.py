@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The key path (Super+M) opens and closes the panel.
+"""The key path (Super+Alt+M) opens and closes the panel.
 
-Super+M runs `omarchy-shell shell toggle <id>`. The shell finds the bar widget
+Super+Alt+M runs `omarchy-shell shell toggle <id>`. The shell finds the bar widget
 (Bar.findPanelWidget needs open(), close() and a defined 'opened'), then calls
 close() on it when it is open and open() otherwise. This builds the real
 BarWidget.qml and Panel.qml (tests/qml/ServiceLifecycleScene.qml, offscreen,
@@ -35,9 +35,11 @@ class KeyToggle(unittest.TestCase):
 
 
     def test_when_super_m_is_taken_the_panel_key_falls_back_and_settings_shows_it(self):
-        # Omarchy binds Super+M to minimize: Solfa must not touch it, and must
-        # register the first free fallback instead.
-        binds = json.dumps([{"modmask": 64, "key": "M", "description": "Minimize window to the dock"}])
+        # Someone holds Super+Alt+M: Solfa must not touch it, and must
+        # register the first free fallback instead. Omarchy's Super+M
+        # (minimize) is left alone either way.
+        binds = json.dumps([{"modmask": 64, "key": "M", "description": "Minimize window to the dock"},
+                            {"modmask": 72, "key": "M", "description": "Another app"}])
         steps = [{"at": 0, "do": "service"},
                  {"at": 300, "do": "build", "name": "w1", "entry": wm.ENTRY},
                  {"at": 3800, "do": "panelKey"}]
@@ -46,19 +48,24 @@ class KeyToggle(unittest.TestCase):
         self.assertTrue(evals, "no keys were registered:\n" + "\n".join(calls) + wm.tail(log))
         lua = " ".join(evals)
         self.assertIn("hl.bind([[SUPER + SHIFT + M]]", lua)
-        self.assertNotIn("[[SUPER + M]]", lua)  # never unbind or bind the other app's key
+        self.assertNotIn("[[SUPER + M]]", lua)  # Omarchy's minimize
+        self.assertNotIn("hl.bind([[SUPER + ALT + M]]", lua)  # never take the other app's key
+        self.assertNotIn("unbind, [[SUPER + ALT + M]]", lua)
         self.assertIn("hl.bind([[SUPER + ALT + N]]", lua)
+        self.assertIn("hl.bind([[SUPER + ALT + P]]", lua)  # play/pause moved here
         found = json.loads(re.search(r"PANELKEY (\{.*\})", log).group(1))
         self.assertEqual(found["label"], "Super+Shift+M")
-        self.assertEqual(found["options"], ["", "SUPER + SHIFT + M", "SUPER + ALT + P", "SUPER + CTRL + M"])
+        self.assertEqual(found["options"], ["", "SUPER + SHIFT + M", "SUPER + CTRL + M"])
 
-    def test_super_m_is_used_when_it_is_free(self):
+    def test_super_alt_m_is_the_default_panel_key(self):
         steps = [{"at": 0, "do": "service"},
                  {"at": 300, "do": "build", "name": "w1", "entry": wm.ENTRY},
                  {"at": 3800, "do": "panelKey"}]
         bridge, calls, log = wm.run_scene(steps, scene_ms=4500, stub_panel=True)
-        self.assertIn("hl.bind([[SUPER + M]]", " ".join(c for c in calls if c.startswith("hyprctl eval")))
-        self.assertEqual(json.loads(re.search(r"PANELKEY (\{.*\})", log).group(1))["label"], "Super+M")
+        lua = " ".join(c for c in calls if c.startswith("hyprctl eval"))
+        self.assertIn("hl.bind([[SUPER + ALT + M]]", lua)
+        self.assertNotIn("[[SUPER + M]]", lua)
+        self.assertEqual(json.loads(re.search(r"PANELKEY (\{.*\})", log).group(1))["label"], "Super+Alt+M")
 
 
 if __name__ == "__main__":

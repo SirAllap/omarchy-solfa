@@ -819,13 +819,13 @@ Item {
   property bool keysRegistered: false
   property string lastBindsJson: ""
   onWantKeysChanged: root.syncKeys()
-  // The panel key: picked in Settings, or automatic (Super+M when free, else a
+  // The panel key: picked in Settings, or automatic (Super+Alt+M when free, else a
   // fallback; see Model.panelKeyFor). The label is what the footer, the
   // all-keys sheet and Settings show.
   readonly property string panelKeyPick: String(root.setting("panelKey", ""))
   onPanelKeyPickChanged: root.syncKeys()
   readonly property var panelKeyChosen: Model.panelKeyFor(root.lastBindsJson, root.panelKeyPick)
-  readonly property string panelKeyLabel: Model.keyLabel(root.panelKeyChosen ? root.panelKeyChosen.keys : "SUPER + M")
+  readonly property string panelKeyLabel: Model.keyLabel(root.panelKeyChosen ? root.panelKeyChosen.keys : "SUPER + ALT + M")
   readonly property var panelKeyOptions: Model.panelKeyOptions(root.lastBindsJson)
 
   // The plugin can be removed or disabled without warning (Omarchy just
