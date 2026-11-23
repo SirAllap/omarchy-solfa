@@ -396,18 +396,22 @@ Panel {
         Shape {
           id: bridge
           property Item card: null
-          readonly property real cx: panel.anchorScreenPos.x + panel.anchorW / 2
-          readonly property real pillW: panel.anchorW                // the pill's full width, end to end
+          // The pill's own drawn box (BarWidget.pillBox*, whole pixels), so the bridge meets the
+          // pill's two ends exactly; the widget's width is only the fallback.
+          readonly property Item pillHost: panel.anchorItem && panel.anchorItem.pillBoxW !== undefined ? panel.anchorItem : null
+          readonly property real pillW: pillHost ? pillHost.pillBoxW : panel.anchorW   // the pill's full width, end to end
+          readonly property real cx: panel.anchorScreenPos.x + (pillHost ? pillHost.pillBoxX + pillHost.pillBoxW / 2 : panel.anchorW / 2)
           readonly property real pillBottom: panel.barThickness - Style.space(2)
           readonly property real ov: 1                               // 1 px into the pill and into the card: no seam
           readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
-          readonly property real q: Math.max(0, Math.min(1, p))
           // The flare out of each end of the pill into the card top: a big concave
           // arc (about 16 px wide, as tall as the gap), like two drops merging.
           readonly property real rxMax: Style.space(18)
           readonly property real rx: Style.space(16) * Math.max(0, p)
-          visible: !!card && card.visible && root.opened && gapH > 0.5 && q > 0.01
+          // Visible from the first frame: the pill squares off the moment the panel opens, so a frame
+          // without the bridge would show a flat-bottomed pill floating above the card.
+          visible: !!card && card.visible && root.opened && gapH > 0.5
           opacity: card ? card.opacity : 0
           x: cx - pillW / 2 - rxMax
           y: pillBottom - ov

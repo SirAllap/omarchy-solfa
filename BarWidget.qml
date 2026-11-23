@@ -79,7 +79,7 @@ BarWidget {
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
   readonly property real pillHeight: Math.min(height, barSize) - Style.space(4)
-  readonly property real pillPad: Math.max(3, Math.round((pillHeight - coverSlot.height) / 2))
+  readonly property real pillPad: Math.max(4, Math.round((pillHeight - coverSlot.height) / 2))
   implicitWidth: visible ? body.implicitWidth + 2 * pillPad : 0
   implicitHeight: barSize
   // The shell underlines a widget whose panel is open. Solfa shows that state
@@ -88,40 +88,48 @@ BarWidget {
   readonly property Item openPanelIndicatorItem: offMark
   Item { id: offMark; x: -100000; width: 1; height: 1 }
 
-  // The widget is a quiet pill: a faint wash and a hairline, a little
-  // brighter (with an accent edge) while the pointer is on it or the panel is open.
+  // The pill's drawn box, snapped to whole pixels so the fill, the squared-off half and
+  // the outline share one edge (a half-pixel offset between them showed as a seam or a
+  // double line). Panel.qml reads pillBoxX/Y/W/H to put the bridge on the same box.
+  readonly property real pillBoxW: Math.round(body.implicitWidth + 2 * pillPad)
+  readonly property real pillBoxH: Math.round(pillHeight)
+  readonly property real pillBoxX: Math.round((width - pillBoxW) / 2)
+  readonly property real pillBoxY: Math.round((height - pillBoxH) / 2)
+
+  // The widget is a quiet pill. One colour for pill, bridge and card: the same opaque
+  // Calm.surface binding, no animation, tint or alpha of its own, so the three never
+  // differ by a shade.
   Rectangle {
-    readonly property bool hot: barMouse.containsMouse || root.opened
-    anchors.centerIn: parent
-    width: body.implicitWidth + 2 * root.pillPad
-    height: root.pillHeight
+    x: root.pillBoxX
+    y: root.pillBoxY
+    width: root.pillBoxW
+    height: root.pillBoxH
     radius: height / 2
     visible: !root.closed
-    // One colour for pill, bridge and card: the same opaque Calm.surface binding, no
-    // animation, tint or alpha of its own, so the three never differ by a shade.
     color: Calm.surface
   }
   // While the panel is open the pill opens straight down into the card: its bottom half
   // is squared off (same colour), so the bridge's curves start at the pill's two ends.
+  // It starts at the pill's middle line, never above it, so the round top ends stay round.
   Rectangle {
     visible: root.opened && !root.closed
-    x: (parent.width - width) / 2
-    y: (parent.height + root.pillHeight) / 2 - height
-    width: body.implicitWidth + 2 * root.pillPad
-    height: root.pillHeight / 2
+    x: root.pillBoxX
+    y: root.pillBoxY + Math.floor(root.pillBoxH / 2)
+    width: root.pillBoxW
+    height: root.pillBoxH - Math.floor(root.pillBoxH / 2)
     color: Calm.surface
   }
-  // The pill's part of the one outer hairline (Calm.hair, 1 px): up the left side,
-  // over the rounded top, down the right side. No line along the bottom: the bridge
-  // continues the contour from the two ends.
+  // The pill's part of the one outer hairline: up the left side, over the rounded top,
+  // down the right side. No line along the bottom: the bridge continues the contour
+  // from the two ends. Its top ends are the same quarter circles as the fill's.
   Shape {
     id: pillRing
     readonly property real r: height / 2 - 0.5
     visible: root.opened && !root.closed
-    x: (parent.width - width) / 2
-    y: (parent.height - root.pillHeight) / 2
-    width: body.implicitWidth + 2 * root.pillPad
-    height: root.pillHeight
+    x: root.pillBoxX
+    y: root.pillBoxY
+    width: root.pillBoxW
+    height: root.pillBoxH
     preferredRendererType: Shape.CurveRenderer
     layer.enabled: true
     layer.samples: 8
@@ -152,7 +160,7 @@ BarWidget {
       hasTrack: root.hasTrack
       progress: root.svc ? root.svc.progress : 0
       ringColor: root.playing ? Calm.accent : Calm.muted
-      trackColor: Util.alpha(root.fg, 0.15)
+      trackColor: Calm.hair
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
