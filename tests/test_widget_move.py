@@ -133,11 +133,11 @@ def patched_service(dest, stubs):
     open(dest, "w").write(text)
 
 
-def make_stubs(stubs, log, key_file):
+def make_stubs(stubs, log, key_file, binds="[]"):
     os.mkdir(stubs)
     for name in ("systemd-run", "hyprctl", "notify-send"):
         path = os.path.join(stubs, name)
-        out = "echo '[]'" if name == "hyprctl" else ":"
+        out = ('if [ "$1" = "-j" ]; then echo \'%s\'; fi' % binds) if name == "hyprctl" else ":"
         if name == "systemd-run":
             # Remember the launch key the unit was asked to start with.
             out = 'for a in "$@"; do case "$a" in --setenv=SOLFA_LAUNCH_KEY=*) echo "${a#--setenv=SOLFA_LAUNCH_KEY=}" > "%s";; esac; done' % key_file
@@ -146,7 +146,7 @@ def make_stubs(stubs, log, key_file):
         os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
 
 
-def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0, stub_panel=False):
+def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0, stub_panel=False, binds="[]"):
     """Returns (bridge, stub_calls, log)."""
     work = tempfile.mkdtemp(prefix="solfa-wm-")
     # AF_UNIX paths are short (108 bytes): the runtime dir is a short one
@@ -157,7 +157,7 @@ def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0, 
         os.mkdir(cfg)
         stubs, stublog = os.path.join(work, "stubs"), os.path.join(work, "stubs.log")
         key_file = os.path.join(work, "launch-key")
-        make_stubs(stubs, stublog, key_file)
+        make_stubs(stubs, stublog, key_file, binds)
         patched_service(os.path.join(cfg, "Service.qml"), stubs)
         ui = os.path.join(SHELL_DIR, "Ui")
         if stub_panel:

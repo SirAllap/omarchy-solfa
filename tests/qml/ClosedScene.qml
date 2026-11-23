@@ -23,6 +23,8 @@ ShellRoot {
     property bool isAd: false
     property bool adSkippable: false
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premium: false
     property string like: "LIKE"
     property string title: hasTrack ? "Northern Lights" : ""

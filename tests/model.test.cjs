@@ -145,6 +145,38 @@ test("global keys: only the free ones, ours do not count as taken", () => {
   assert.equal(M.freeKeys("not json").length, 0)
 })
 
+test("panel key: Super+M when free, else the first free fallback, never another app's key", () => {
+  const free = "[]"
+  assert.equal(M.panelKeyFor(free, "").keys, "SUPER + M")
+  const taken = JSON.stringify([{ modmask: 64, key: "M", description: "Minimize window to the dock" }])
+  assert.equal(M.panelKeyFor(taken, "").keys, "SUPER + SHIFT + M")
+  const more = JSON.stringify([{ modmask: 64, key: "M", description: "x" }, { modmask: 65, key: "m", description: "y" }])
+  assert.equal(M.panelKeyFor(more, "").keys, "SUPER + ALT + P")
+  const all = JSON.stringify([{ modmask: 64, key: "M" }, { modmask: 65, key: "M" }, { modmask: 72, key: "P" }, { modmask: 68, key: "M" }])
+  assert.equal(M.panelKeyFor(all, ""), null)
+  assert.ok(!M.freeKeys(all, "").some((k) => k.command === "toggle"))
+  // a pick is honoured when free, ignored when taken
+  assert.equal(M.panelKeyFor(free, "SUPER + ALT + P").keys, "SUPER + ALT + P")
+  assert.equal(M.panelKeyFor(taken, "SUPER + M").keys, "SUPER + SHIFT + M")
+  assert.equal(M.panelKeyOptions(taken).join("|"), "|SUPER + SHIFT + M|SUPER + ALT + P|SUPER + CTRL + M")
+  assert.equal(M.keyLabel("SUPER + SHIFT + M"), "Super+Shift+M")
+  // Solfa's own binds do not count as taken
+  const ours = JSON.stringify([{ modmask: 65, key: "M", description: "Solfa: open or close" }])
+  assert.equal(M.panelKeyFor(ours, "").keys, "SUPER + M")
+})
+
+test("unbind: only our own binds, by their own key", () => {
+  const binds = JSON.stringify([
+    { modmask: 64, key: "M", description: "Minimize window to the dock" },
+    { modmask: 65, key: "M", description: "Solfa: open or close" },
+    { modmask: 72, key: "N", description: "Solfa: next song" }
+  ])
+  const lua = M.unbindLua(binds)
+  assert.match(lua, /SUPER \+ SHIFT \+ M/)
+  assert.match(lua, /SUPER \+ ALT \+ N/)
+  assert.ok(!/\[\[SUPER \+ M\]\]/.test(lua))
+})
+
 test("bind Lua unbinds first and calls the service over the shell's IPC", () => {
   const lua = M.bindLua(M.GLOBAL_KEYS.slice(0, 2))
   assert.match(lua, /pcall\(hl\.unbind, \[\[SUPER \+ M\]\]\); hl\.bind\(\[\[SUPER \+ M\]\], hl\.dsp\.exec_cmd\(\[\[\/usr\/share\/omarchy\/bin\/omarchy-shell shell toggle io\.github\.sirallap\.solfa '\{\}'\]\]\)/)
@@ -152,7 +184,7 @@ test("bind Lua unbinds first and calls the service over the shell's IPC", () => 
   // every IPC method a key calls exists on the service's handler
   const svc = fs.readFileSync(path.join(__dirname, "..", "Service.qml"), "utf8")
   for (const k of M.GLOBAL_KEYS) if (k.command !== "toggle") assert.match(svc, new RegExp("function " + k.command + "\\(\\): void"))
-  assert.equal(M.unbindLua(JSON.stringify([{ description: "Solfa: like" }])), "pcall(hl.unbind, [[SUPER + ALT + L]]); ")
+  assert.equal(M.unbindLua(JSON.stringify([{ description: "Solfa: like", modmask: 72, key: "l" }])), "pcall(hl.unbind, [[SUPER + ALT + L]]); ")
 })
 
 // M3: no bare program name goes through Hyprland's exec (a PATH lookup, sh -c).

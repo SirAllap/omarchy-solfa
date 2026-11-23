@@ -34,5 +34,32 @@ class KeyToggle(unittest.TestCase):
                          [(False, True), (True, False), (False, True), (True, False)], log[-2000:])
 
 
+    def test_when_super_m_is_taken_the_panel_key_falls_back_and_settings_shows_it(self):
+        # Omarchy binds Super+M to minimize: Solfa must not touch it, and must
+        # register the first free fallback instead.
+        binds = json.dumps([{"modmask": 64, "key": "M", "description": "Minimize window to the dock"}])
+        steps = [{"at": 0, "do": "service"},
+                 {"at": 300, "do": "build", "name": "w1", "entry": wm.ENTRY},
+                 {"at": 3800, "do": "panelKey"}]
+        bridge, calls, log = wm.run_scene(steps, scene_ms=4500, stub_panel=True, binds=binds)
+        evals = [c for c in calls if c.startswith("hyprctl eval")]
+        self.assertTrue(evals, "no keys were registered:\n" + "\n".join(calls) + wm.tail(log))
+        lua = " ".join(evals)
+        self.assertIn("hl.bind([[SUPER + SHIFT + M]]", lua)
+        self.assertNotIn("[[SUPER + M]]", lua)  # never unbind or bind the other app's key
+        self.assertIn("hl.bind([[SUPER + ALT + N]]", lua)
+        found = json.loads(re.search(r"PANELKEY (\{.*\})", log).group(1))
+        self.assertEqual(found["label"], "Super+Shift+M")
+        self.assertEqual(found["options"], ["", "SUPER + SHIFT + M", "SUPER + ALT + P", "SUPER + CTRL + M"])
+
+    def test_super_m_is_used_when_it_is_free(self):
+        steps = [{"at": 0, "do": "service"},
+                 {"at": 300, "do": "build", "name": "w1", "entry": wm.ENTRY},
+                 {"at": 3800, "do": "panelKey"}]
+        bridge, calls, log = wm.run_scene(steps, scene_ms=4500, stub_panel=True)
+        self.assertIn("hl.bind([[SUPER + M]]", " ".join(c for c in calls if c.startswith("hyprctl eval")))
+        self.assertEqual(json.loads(re.search(r"PANELKEY (\{.*\})", log).group(1))["label"], "Super+M")
+
+
 if __name__ == "__main__":
     unittest.main()

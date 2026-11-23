@@ -68,6 +68,8 @@ ShellRoot {
       scene.inject(scene.widgets[step.name], step.entry)
     } else if (step.do === "save") {
       scene.svc.saveSetting(step.key, step.value)
+    } else if (step.do === "panelKey") {
+      console.log("PANELKEY " + JSON.stringify({ label: scene.svc.panelKeyLabel, options: scene.svc.panelKeyOptions }))
     } else if (step.do === "toggle") {
       // shell.toggle on a bar-widget panel: Bar.findPanelWidget accepts the
       // widget only if it has open(), close() and a defined 'opened', then

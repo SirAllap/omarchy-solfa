@@ -22,6 +22,8 @@ ShellRoot {
     property bool gated: false
     property bool closed: false
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premium: false
     property bool hasTrack: true
     property bool isPlaying: true

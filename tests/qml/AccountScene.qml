@@ -21,6 +21,8 @@ ShellRoot {
     property bool closed: false
     property bool engineReady: true
     property bool signedIn: false
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premiumFlag: false
     readonly property bool ready: bridgeUp && engineReady
     readonly property bool premium: signedIn && premiumFlag

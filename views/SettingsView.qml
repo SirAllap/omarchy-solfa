@@ -216,6 +216,7 @@ Item {
       ]
       case "keys": return [
         { toggle: function () { svc.saveSetting("globalKeys", !svc.setting("globalKeys", true)) } },
+        { change: function (dir) { svc.saveSetting("panelKey", Model.cycleList(svc.panelKeyOptions, String(svc.setting("panelKey", "")), dir)) } },
         { act: function () { root.showAllKeys() } }
       ]
       case "advanced": return [
@@ -1020,8 +1021,23 @@ Item {
           MiniToggle { active: root.svc ? !!root.svc.setting("globalKeys", true) : true }
         }
         RowShell {
-          label: "Every key"
+          objectName: "panelKeyRow"
+          label: "Panel key"
+          help: "Opens and closes Solfa. Super+M is used when it is free."
           row: 1
+          Dropdown {
+            objectName: "panelKeyPicker"
+            row: 1
+            text: root.svc ? root.svc.panelKeyLabel : "Super+M"
+            options: (root.svc ? root.svc.panelKeyOptions : [""]).map(function (k) {
+              return { key: k, label: k === "" ? "Automatic" : Model.keyLabel(k) }
+            })
+            onPicked: function (key) { root.svc.saveSetting("panelKey", key) }
+          }
+        }
+        RowShell {
+          label: "Every key"
+          row: 2
           QuietButton { label: "All keys"; icon: "keyboard" }
         }
         // The keys that work in the panel, two columns (the real bindings).
@@ -1032,7 +1048,7 @@ Item {
           columns: 2
           rowSpacing: Style.space(10)
           readonly property var keyList: [
-            ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
+            [root.svc ? root.svc.panelKeyLabel : "Super+M", "open panel"], ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
             ["f", "like"], ["/", "search"], ["tab", "next tab"], ["e", "play next"],
             ["a", "add to queue"], ["R", "start radio"], ["[ ]", "section"], ["esc", "back"]
           ]

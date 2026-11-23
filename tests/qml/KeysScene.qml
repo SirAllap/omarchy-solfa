@@ -22,6 +22,8 @@ ShellRoot {
     property bool gated: false
     property bool closed: false
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premium: false
     property bool hasTrack: true
     property bool isPlaying: true
@@ -182,6 +184,8 @@ ShellRoot {
           win.press(0, "?"); out.allKeysOn = panel.allKeys
           win.press(Qt.Key_Escape); out.allKeysOff = panel.allKeys; out.stillOpen = panel.opened
           panel.toggleSettings(); out.settingsOn = panel.settingsOpen
+          var pk = win.find(stage, "panelKeyPicker")
+          out.panelKeyShown = pk ? pk.text : null
           win.press(Qt.Key_Down); win.press(Qt.Key_Up); win.press(Qt.Key_Right); win.press(Qt.Key_Left); win.press(Qt.Key_Tab)
           win.press(Qt.Key_Escape); out.settingsOff = panel.settingsOpen; out.openAfterSettings = panel.opened
           win.press(Qt.Key_Escape); out.closedByEsc = !panel.opened

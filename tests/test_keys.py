@@ -74,6 +74,7 @@ class KeyboardPath(unittest.TestCase):
         self.assertFalse(self.k["allKeysOff"])
         self.assertTrue(self.k["stillOpen"])
         self.assertTrue(self.k["settingsOn"])
+        self.assertEqual(self.k["panelKeyShown"], "Super+Shift+M")  # Settings › Keys shows the real key
         self.assertFalse(self.k["settingsOff"])
         self.assertTrue(self.k["openAfterSettings"])
         self.assertTrue(self.k["closedByEsc"])

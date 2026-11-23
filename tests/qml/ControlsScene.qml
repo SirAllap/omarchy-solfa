@@ -24,6 +24,8 @@ ShellRoot {
     // the hit-target test of the Skip ad pill next to its clock.
     property bool isAd: Quickshell.env("SOLFA_SCENE_AD") === "1"
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool isPlaying: true
     property string like: "LIKE"
     property string title: "Northern Lights"
