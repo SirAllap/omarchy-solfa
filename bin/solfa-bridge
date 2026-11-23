@@ -669,6 +669,7 @@ PAGE_OPS = {
     "queue.add": (check_queue_add, 15),
     "queue.move": (lambda a: {"from": a_int(only(a, "from", "to").get("from"), "from", 0, 10000), "to": a_int(a.get("to"), "to", 0, 10000)}, 5),
     "queue.remove": (check_index, 5),
+    "queue.removePlaying": (lambda a: {"index": a_int(only(a, "index").get("index"), "index", 0, 10000)}, 10),
     "queue.jump": (check_index, 8),
     "queue.more": (check_none, 15),
     "like": (lambda a: {"videoId": a_video(only(a, "videoId", "status").get("videoId")), "status": a_enum(a.get("status"), "status", ("LIKE", "DISLIKE", "INDIFFERENT"))}, 10),
@@ -686,7 +687,7 @@ PAGE_OPS = {
 }
 
 # Requests that change what plays: a restore in flight gives way to them.
-USER_PLAYBACK_OPS = {"play", "radio", "transport", "seek", "queue.jump"}
+USER_PLAYBACK_OPS = {"play", "radio", "transport", "seek", "queue.jump", "queue.removePlaying"}
 
 BRIDGE_OPS = {"hello", "consent.answer", "engine.start", "engine.stop", "engine.restart", "window.show", "window.hide", "signin.begin", "art", "rules",
               "engine.version", "cache.clear", "profile.erase", "signout", "start.set", "bridge.quit", "ui.attach"}

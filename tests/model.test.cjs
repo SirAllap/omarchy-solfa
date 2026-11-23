@@ -640,6 +640,17 @@ test("Now Playing's remove: only the song playing from a playlist of the user's,
   const notLoaded = but(twin, { setVideoId: "S999" })
   assert.equal(M.playingRemoval(notLoaded, mine, {}).videoId, "AAAAAAAAAAA", "a row the page has not loaded: the entry's own video")
   assert.equal(M.playingRemoval(but(twin, { entryVideoIds: ["UUUUUUUUUUU", "TTTTTTTTTTT"] }), mine, {}), null, "an entry whose videos are not the row's")
+  // Otherwise the button takes the song playing out of the queue: an entry, and a song after it.
+  const q = { videoId: "AAAAAAAAAAA", index: 3, canNext: true, ad: false }
+  assert.equal(M.playingQueueIndex(q), 3)
+  assert.equal(M.playingQueueIndex(but(q, { index: 0 })), 0)
+  assert.equal(M.playingQueueIndex(but(q, { canNext: false })), -1, "nothing after it")
+  assert.equal(M.playingQueueIndex(but(q, { index: -1 })), -1, "no entry")
+  assert.equal(M.playingQueueIndex(but(q, { ad: true })), -1, "an advert")
+  assert.equal(M.playingQueueIndex(but(q, { videoId: "" })), -1)
+  assert.equal(M.playingQueueIndex(null), -1)
+  assert.match(M.errorText("moved"), /queue changed/)
+  assert.match(M.errorText("last"), /Nothing comes after/)
   assert.equal(M.rowKey("VLPLmine", "S3"), "PLmine/S3")
   assert.equal(M.bareListId("VLPLmine"), "PLmine")
   assert.equal(M.bareListId(undefined), "")

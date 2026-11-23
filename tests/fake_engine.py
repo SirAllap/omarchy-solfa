@@ -220,6 +220,8 @@ def page_op(op, a):
     if op == "queue.more":
         # The canned queue is empty: there is no next page to add.
         return {"added": 0, "more": False}, None
+    if op == "queue.removePlaying":
+        return {"removed": True}, None
     return {"ok": True}, None
 
 

@@ -80,8 +80,7 @@ class RemovePlaying(unittest.TestCase):
 
     def test_the_row_of_eight_takes_no_more_room_than_the_row_of_seven(self):
         lay = self.state["open"]["layout"]
-        plain = self.state["hidden"]["noRow"]["rowWidth"]
-        self.assertLessEqual(lay["rowWidth"], plain, (lay["rowWidth"], plain))
+        self.assertLessEqual(lay["rowWidth"], lay["sevenWidth"], lay)
         boxes = lay["boxes"]
         for (x, w, h), (nx, _, _) in zip(boxes, boxes[1:]):
             self.assertLessEqual(x + w, nx, ("hit boxes overlap", boxes))
@@ -89,6 +88,34 @@ class RemovePlaying(unittest.TestCase):
             self.assertGreaterEqual(min(w, h), 38, ("a transport button under 38 px", boxes))
         self.assertTrue(lay["sliderShown"], "the volume line under it is untouched")
         self.assertGreaterEqual(lay["sliderWidth"], 48)
+
+    def test_the_queue_meaning_is_the_same_button_in_the_same_place(self):
+        q, lay = self.state["queue"], self.state["open"]["layout"]
+        self.assertEqual(q["meaning"], "queue")
+        self.assertTrue(q["visible"] and q["enabled"])
+        self.assertEqual(q["tip"], "Remove from queue")
+        self.assertEqual(q["icon"], ["close"], "the queue row's glyph")
+        self.assertEqual((q["rowWidth"], q["x"]), (lay["rowWidth"], lay["x"]), "no jump when the meaning changes")
+
+    def test_the_queue_meaning_skips_and_removes_once_and_says_so(self):
+        q = self.state["queue"]
+        self.assertEqual(q["sent"], [{"index": 2}], "one request while the first is out")
+        self.assertEqual(q["flash"], "Removed from the queue")
+        self.assertEqual(q["playlistRemoves"], 0)
+        self.assertEqual(q["signedOut"], "queue", "no account needed")
+
+    def test_the_last_song_keeps_the_button_but_it_does_nothing(self):
+        last = self.state["queue"]["last"]
+        self.assertTrue(last["visible"])
+        self.assertFalse(last["enabled"])
+        self.assertEqual(last["meaning"], "")
+        self.assertEqual(last["tip"], "Nothing after it in the queue")
+        self.assertEqual(last["asked"], 0)
+
+    def test_a_queue_error_is_reported_and_an_advert_hides_the_button(self):
+        q = self.state["queue"]
+        self.assertEqual(q["failed"], {"reported": ["moved"], "flash": ""})
+        self.assertFalse(q["ad"])
 
     def test_the_playlist_is_looked_up_once(self):
         self.assertEqual(self.state["pushes"]["browsed"], ["VLPLmine"])

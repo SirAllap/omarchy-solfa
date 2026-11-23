@@ -170,6 +170,9 @@ Panel {
   readonly property string playingList: Model.playingListId(svc ? svc.player : null)
   readonly property var playingRemoval: svc && svc.hasTrack && svc.signedIn
     ? Model.playingRemoval(svc.player, root.listInfo[root.playingList] || null, root.removedRows) : null
+  // Otherwise the same button takes the song playing out of the queue.
+  readonly property int playingQueueIndex: svc && svc.hasTrack ? Model.playingQueueIndex(svc.player) : -1
+  property bool queueRemoving: false
 
   onPlayingListChanged: checkPlayingList()
   Connections {
@@ -205,10 +208,12 @@ Panel {
   }
 
   // No confirmation, as on the playlist's page: the song leaves the
-  // playlist it plays from, keeps playing, and stays in the queue.
+  // playlist it plays from, keeps playing, and stays in the queue. A song
+  // that is not a row of a playlist of the user's leaves the queue instead.
   function removePlaying() {
     var t = root.playingRemoval
-    if (!t || !svc) return
+    if (!t) { root.removePlayingFromQueue(); return }
+    if (!svc) return
     var key = Model.rowKey(t.playlistId, t.setVideoId)
     if (root.removingRows[key]) return
     root.removingRows[key] = true
@@ -217,6 +222,19 @@ Panel {
       if (!r.ok) { svc.report(r.error); return }
       root.trackRemoved(t.playlistId, t.setVideoId)
       root.say(Model.removedMessage(t.title))
+    })
+  }
+
+  // The next song starts and the one that was playing leaves the queue:
+  // the app keeps the entry it plays, so the engine skips first.
+  function removePlayingFromQueue() {
+    var i = root.playingQueueIndex
+    if (i < 0 || !svc || root.queueRemoving) return
+    root.queueRemoving = true
+    svc.request("queue.removePlaying", { index: i }, function (r) {
+      root.queueRemoving = false
+      if (!r.ok) { svc.report(r.error); return }
+      root.say("Removed from the queue")
     })
   }
 
@@ -636,6 +654,7 @@ Panel {
         bar: root.bar
         topInset: brand.height
         removal: root.playingRemoval
+        queueRemovable: root.playingQueueIndex >= 0
         onSaveRequested: root.saveRow(null)
         onRadioRequested: { if (root.svc && root.svc.hasTrack) { root.svc.radioFor(root.svc.player); root.say("Radio from " + root.svc.title) } }
         onShareRequested: root.copyLink()

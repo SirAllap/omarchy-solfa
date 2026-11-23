@@ -81,7 +81,7 @@ ShellRoot {
     property var reported: []
     function playing(id, list, setId) {
       return { videoId: id, title: "One", artists: [{ name: "The Examples" }], playing: true, volume: 70, duration: 180, position: 42,
-               ad: false, playlistId: list, setVideoId: setId }
+               ad: false, playlistId: list, setVideoId: setId, index: 0, canNext: true }
     }
     function song(id, title, setId) { return { kind: "song", videoId: id, title: title, artists: [{ name: "The Examples" }], duration: 180, setVideoId: setId } }
     function tracks() { return [song("AAAAAAAAAAA", "One", "SET1"), song("BBBBBBBBBBB", "Two", "SET2"), song("AAAAAAAAAAA", "One", "SET3"), song("DDDDDDDDDDD", "Four", "SET4")] }
@@ -98,7 +98,7 @@ ShellRoot {
       if (op === "browse" && page(args.id)) reply = { ok: true, data: page(args.id) }
       else if (op === "queue") reply = { ok: true, data: { items: [song("AAAAAAAAAAA", "One", "SET3")], automix: [], index: 0, version: 1 } }
       else if (failOps[op]) reply = { ok: false, error: failOps[op] }
-      else if (op === "playlist.remove") {
+      else if (op === "playlist.remove" || op === "queue.removePlaying") {
         reply = { ok: true, data: { removed: true } }
         if (hold) { held.push(function () { cb(reply) }); return 0 }
       }
@@ -170,7 +170,8 @@ ShellRoot {
     function browsed() { return win.sent("browse").map(function (a) { return a.id }) }
     function titles(view) { return view.rows.map(function (r) { return r.item.title + "/" + r.item.setVideoId }) }
     function button() { return win.find(stage, "removeButton") }
-    function shown() { var b = win.button(); return !!(b && b.visible) }
+    // The button there with its playlist meaning ("Remove from <playlist>").
+    function shown() { var b = win.button(); return !!(b && b.visible && b.meaning === "playlist") }
     function play(id, list, setId, extra) { fakeSvc.player = Object.assign(fakeSvc.playing(id, list, setId), extra || {}) }
 
     Timer { id: settle; interval: 200; property var pending: null
@@ -190,6 +191,9 @@ ShellRoot {
         sameRow: save.parent === row,
         fromSave: visibleKids.slice(visibleKids.indexOf(save)).map(function (k) { return k.objectName }),
         rowWidth: Math.round(row.width),
+        // What the redesign gives its seven buttons: 48 px squares, a 62 px play, 10 px gaps.
+        sevenWidth: Math.round(Style.space(6 * 48 + 62 + 6 * 10)),
+        x: Math.round(b.x),
         // In the row's own frame: the opening's scale and slide do not count.
         boxes: visibleKids.map(function (k) { return [Math.round(k.x), Math.round(k.width), Math.round(k.height)] }),
         sliderShown: mute.parent.children[1].visible,
@@ -299,6 +303,42 @@ ShellRoot {
                           view.cursor = at
                           panel.onKey({ key: Qt.Key_X, text: "x", modifiers: 0, accepted: false })
                           st.fromPage = { sent: win.sent("playlist.remove").pop(), shown: win.shown(), page: win.titles(view) }
+                          // A song that is no row of a playlist of the user's: the same
+                          // button, in the same place, takes it out of the queue.
+                          win.play("CCCCCCCCCCC", "RDAMVMCCCCCCCCCCC", "", { index: 2, canNext: true })
+                          var b = win.button()
+                          st.queue = { meaning: b.meaning, visible: b.visible, enabled: b.enabled, tip: b.tooltipText,
+                                       rowWidth: win.rowWidth(), x: Math.round(b.x), icon: b.children.filter(function (c) { return c.hasOwnProperty("stroke") }).map(function (c) { return c.name }) }
+                          var removes = win.count("playlist.remove")
+                          fakeSvc.hold = true
+                          b.clicked()
+                          b.clicked()
+                          st.queue.sent = win.sent("queue.removePlaying")
+                          fakeSvc.hold = false
+                          fakeSvc.held.forEach(function (f) { f() })
+                          fakeSvc.held = []
+                          st.queue.flash = panel.flash
+                          st.queue.playlistRemoves = win.count("playlist.remove") - removes
+                          panel.flash = ""
+                          // Signed out, the queue still can.
+                          fakeSvc.signedIn = false
+                          st.queue.signedOut = win.button().meaning
+                          fakeSvc.signedIn = true
+                          // The last song, nothing after it: the button stays, and does nothing.
+                          win.play("CCCCCCCCCCC", "RDAMVMCCCCCCCCCCC", "", { index: 2, canNext: false })
+                          var asked = win.count("queue.removePlaying")
+                          b.clicked()
+                          st.queue.last = { meaning: b.meaning, visible: b.visible, enabled: b.enabled, tip: b.tooltipText, asked: win.count("queue.removePlaying") - asked }
+                          // An error is reported, nothing else.
+                          win.play("CCCCCCCCCCC", "RDAMVMCCCCCCCCCCC", "", { index: 2, canNext: true })
+                          fakeSvc.failOps = { "queue.removePlaying": "moved" }
+                          b.clicked()
+                          st.queue.failed = { reported: fakeSvc.reported.slice(-1), flash: panel.flash }
+                          fakeSvc.failOps = ({})
+                          // During an advert it hides with Save and Share.
+                          fakeSvc.isAd = true
+                          st.queue.ad = win.button().visible
+                          fakeSvc.isAd = false
                           console.log("STATE " + JSON.stringify(st))
                           Qt.quit()
                         })

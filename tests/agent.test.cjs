@@ -342,6 +342,26 @@ test("queue: add next, move and remove keep the playing track selected", async (
   assert.equal(model.automix.length, 1)
 })
 
+test("queue.removePlaying: the next song starts, then the entry that was playing leaves the queue", async () => {
+  const p = makePage()
+  await p.settle()
+  const ids = () => p.store.getState().queue.items.map((e) => e.playlistPanelVideoRenderer.videoId)
+  // The panel saw another entry playing: nothing happens.
+  await assert.rejects(p.call("queue.removePlaying", { index: 1 }), /moved/)
+  assert.deepEqual(ids(), ["AAAAAAAAAAA", "BBBBBBBBBBB", "CCCCCCCCCCC"])
+  const r = await p.call("queue.removePlaying", { index: 0 })
+  assert.deepEqual(plain(r), { removed: true })
+  assert.equal(p.player.current, "BBBBBBBBBBB", "the next song plays")
+  assert.deepEqual(ids(), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0, "the selection stays on the song playing")
+  // The last entry with autoplay after it: allowed; with nothing at all after it: refused.
+  p.store.dispatch({ type: "REMOVE_AUTOMIX_ITEM", payload: 0 })
+  p.store.dispatch({ type: "SET_INDEX", payload: 1 })
+  p.player.current = "CCCCCCCCCCC"
+  await assert.rejects(p.call("queue.removePlaying", { index: 1 }), /last/)
+  assert.deepEqual(ids(), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
+})
+
 test("session: saved on one page, given back on a fresh one", async () => {
   const old = makePage()
   await old.settle()

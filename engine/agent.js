@@ -665,6 +665,32 @@
     return { removed: true }
   }
 
+  // Now Playing's "Remove from queue": the song playing leaves the queue.
+  // The app will not drop the entry it plays, so the player moves on to the
+  // next one first, then that entry goes. `index` is the entry the panel saw
+  // playing: if the queue has moved on since, nothing is done.
+  async function queueRemovePlaying(args) {
+    var s = needStore()
+    var q = s.getState().queue
+    var i = q.selectedItemIndex
+    if (args.index !== i || i < 0 || i >= q.items.length) fail("moved")
+    if (i >= q.items.length - 1 && !(q.automixItems || []).length) fail("last")
+    var gone = q.items[i]
+    var goneId = P ? (P.panelVideo(gone) || {}).videoId : ""
+    var p = needPlayer()
+    p.nextVideo()
+    var until = Date.now() + 5000
+    while (s.getState().queue.selectedItemIndex === i && Date.now() < until) await sleep(50)
+    q = s.getState().queue
+    if (q.selectedItemIndex === i) fail("timeout")
+    // The same entry, else the one at its place if it is the same song.
+    var at = q.items.indexOf(gone)
+    if (at < 0 && P && q.items[i] && (P.panelVideo(q.items[i]) || {}).videoId === goneId) at = i
+    if (at < 0) fail("moved")
+    editQueue(s, { type: "REMOVE_ITEM", payload: at }, playingId())
+    return { removed: true }
+  }
+
   async function queueJump(args) {
     var s = needStore()
     var a = app()
@@ -1081,6 +1107,7 @@
     "queue.add": queueAdd,
     "queue.move": queueMove,
     "queue.remove": queueRemove,
+    "queue.removePlaying": queueRemovePlaying,
     "queue.jump": queueJump,
     "queue.more": queueMore,
 

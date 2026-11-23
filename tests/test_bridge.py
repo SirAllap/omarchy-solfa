@@ -222,6 +222,8 @@ class BridgeTest(unittest.TestCase):
                ("share.link", {}), ("share.link", {"videoId": "x"}), ("share.link", {"videoId": "AAAAAAAAAAA&si=1"}),
                ("share.link", {"videoId": "AAAAAAAAAAA", "extra": 1}),
                ("queue.more", {"index": 3}),
+               ("queue.removePlaying", {}), ("queue.removePlaying", {"index": -1}), ("queue.removePlaying", {"index": "0"}),
+               ("queue.removePlaying", {"index": 0, "automix": False}),
                ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA"}), ("playlist.remove", {"playlistId": "PLabc", "setVideoId": "ABCDEF0123"}),
                ("playlist.remove", {"playlistId": "x", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123"}),
                ("playlist.remove", {"playlistId": "PLabc", "videoId": "x", "setVideoId": "ABCDEF0123"}),
@@ -271,6 +273,12 @@ class BridgeTest(unittest.TestCase):
         args = {"playlistId": "VLPLfixture1", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123"}
         self.assertEqual(c.call("playlist.remove", args)["data"], {"removed": True})
         self.assertIn({"op": "playlist.remove", "args": args}, self.page_log())
+
+    def test_queue_remove_playing_reaches_the_page_with_its_index(self):
+        c = self.start()
+        self.wait_ready(c)
+        self.assertEqual(c.call("queue.removePlaying", {"index": 0})["data"], {"removed": True})
+        self.assertIn({"op": "queue.removePlaying", "args": {"index": 0}}, self.page_log())
 
     def test_queue_more_reaches_the_page_with_no_arguments(self):
         c = self.start()
