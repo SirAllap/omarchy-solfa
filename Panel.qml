@@ -49,6 +49,12 @@ Panel {
   readonly property real maxGrow: panel.availableCardHeight > 0 ? Math.max(0, panel.availableCardHeight - baseH) : Style.space(400)
   // The stage's height with no page open: measured at rest, never mid-motion.
   property real stageRest: 0
+  // Where the free screen height cannot fit 4 full rows under the full header (1080p),
+  // the detail header gets a smaller cover; fonts, colours and buttons are the same.
+  readonly property bool compactHead: stageRest > 0 && panel.availableCardHeight > 0
+    && stageRest + maxGrow - Style.space(36 + 12 + 118 + 20) < 4 * Style.space(66)
+  readonly property real headCover: compactHead ? 56 : 118
+  readonly property real headH: Style.space(36 + 12 + headCover + 20)
   function syncGrowth() {
     var tgt = 0
     if (pages.length > 0 && !settingsOpen) {
@@ -58,7 +64,7 @@ Panel {
       var n = Math.min(cnt, 6)
       if (n === 0) return
       // The stage at rest (no page, no growth) minus the fixed header above the list.
-      var baseList = (stageRest > 0 ? stageRest : stage.height - growth) - Style.space(36 + 12 + 118 + 20)
+      var baseList = (stageRest > 0 ? stageRest : stage.height - growth) - headH
       tgt = Math.min(maxGrow, Math.max(0, n * Style.space(66) - baseList))
     }
     if (Style.reduceMotion) { growAnim.stop(); growth = tgt; return }

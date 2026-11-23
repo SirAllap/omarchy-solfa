@@ -300,11 +300,11 @@ Item {
     id: head
     y: backRow.height + Style.space(12)
     width: parent.width
-    height: cover.height
+    height: Math.max(cover.height, headCol.height)
 
     RoundCover {
       id: cover
-      width: Style.space(118)
+      width: Style.space(view.compact ? 56 : 118)
       height: width
       cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(20)
       source: view.info ? (view.info.thumb || "") : ""
@@ -315,12 +315,14 @@ Item {
     }
 
     Column {
+      id: headCol
       x: cover.width + Style.space(20)  // mockup DetailView: 20 px between cover and text
       width: parent.width - x
       anchors.verticalCenter: cover.verticalCenter
       spacing: Style.space(4)
       Text {
-        visible: !!view.info
+        visible: !!view.info && !view.compact
+        height: visible ? implicitHeight : 0
         text: view.info ? (view.info.kind === "artist" ? "ARTIST" : view.info.kind === "playlist" ? "PLAYLIST" : "ALBUM") : ""
         color: Calm.accent
         font.family: view.family
@@ -460,6 +462,8 @@ Item {
   // many rows (6 tracks at 58 px + 8 px gap), and says how tall it is now.
   // While the rows load and their count is known (from the tile), grey placeholder
   // rows fill the grown height: never a tall empty card with a word in the middle.
+  // Short screens (set by the Panel): a smaller cover and no kind label, so more rows fit.
+  readonly property bool compact: !!(panel && panel.compactHead === true)
   readonly property int skeletonRows: busy && rows.length === 0 && page && page.count > 0 ? Math.min(page.count, 6) : 0
   readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
 
