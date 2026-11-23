@@ -307,6 +307,7 @@ Item {
       width: Style.space(view.compact ? 56 : 118)
       height: width
       cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(20)
+      hold: true
       source: (view.info && view.info.thumb) || (view.page ? (view.page.thumb || "") : "")
       foreground: Calm.fg
       fill: Calm.a(Calm.fg, 0.08)

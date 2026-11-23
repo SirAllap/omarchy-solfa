@@ -147,6 +147,7 @@ Item {
         width: card.coverSize
         height: width
         cornerRadius: grid.round ? -1 : Style.space(16)
+        hold: true
         source: card.item.thumb || ""
         foreground: Calm.fg
         fill: Calm.a(Calm.fg, 0.08)

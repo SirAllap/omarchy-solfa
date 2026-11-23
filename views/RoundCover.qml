@@ -72,7 +72,7 @@ Item {
     anchors.fill: parent
     radius: root.cr
     color: root.fill
-    visible: img.status !== Image.Ready
+    visible: img.status !== Image.Ready && !root.heldShown
 
     Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.62; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: Util.alpha(root.foreground, 0.16) }
     Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.34; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: Util.alpha(root.foreground, 0.2) }
@@ -89,6 +89,13 @@ Item {
     }
   }
 
+  // hold: keep the last picture that was ready on screen while the source changes
+  // (the tile's image, then the page's own): a new picture fades in over it, the
+  // source never shows a gap. For a cover that stays the same item (page header,
+  // grid tile); not for recycled list rows.
+  property bool hold: false
+  readonly property bool heldShown: hold && held.status === Image.Ready
+
   Image {
     id: img
     anchors.fill: parent
@@ -104,30 +111,44 @@ Item {
     sourceSize.width: root.width * 2 <= 128 ? 128 : 512
     sourceSize.height: root.width * 2 <= 128 ? 128 : 512
     visible: false
+    onStatusChanged: if (status === Image.Ready && root.hold) held.source = source
+  }
+
+  // The last ready picture: from the pixmap cache, so it is there at once.
+  Image {
+    id: held
+    anchors.fill: parent
+    fillMode: Image.PreserveAspectCrop
+    asynchronous: false
+    cache: true
+    smooth: true
+    mipmap: true
+    sourceSize: img.sourceSize
+    visible: false
   }
 
   // Cut to a circle by the same vector renderer as the bar's ring, so the
   // two share one centre at any scale (a masked texture lands on the pixel
   // grid and sat up to a pixel off at 125 % and 150 %).
-  Shape {
+  component CoverShape: Shape {
+    id: cs
+    property Item pic: null
     anchors.fill: parent
-    visible: img.status === Image.Ready
     preferredRendererType: Shape.CurveRenderer
-    opacity: root.dim ? 0.75 : 1
     layer.enabled: root.dim
     layer.effect: MultiEffect { saturation: -0.8 }
 
     ShapePath {
       strokeWidth: -1
       strokeColor: "transparent"
-      fillItem: img
+      fillItem: cs.pic
       // The picture comes in at its own size in screen pixels: scale it to
       // cover the circle and centre it ("object-fit: cover" on the web).
       fillTransform: {
         // (Window.devicePixelRatio is Qt 6.11; the screen's ratio before that.)
         var win = root.Window.window
         var dpr = (win && win.devicePixelRatio) || root.Screen.devicePixelRatio || 1
-        var iw = Math.max(1, img.implicitWidth) / dpr, ih = Math.max(1, img.implicitHeight) / dpr
+        var iw = Math.max(1, cs.pic.implicitWidth) / dpr, ih = Math.max(1, cs.pic.implicitHeight) / dpr
         var k = Math.max(root.width / iw, root.height / ih) * 1.03   // a hair over, so the edge never samples past the crop
         return PlanarTransform.fromAffineMatrix(k, 0, 0, k, (root.width - iw * k) / 2, (root.height - ih * k) / 2)
       }
@@ -140,5 +161,18 @@ Item {
         }
       }
     }
+  }
+
+  CoverShape {
+    pic: held
+    visible: root.heldShown
+    opacity: root.dim ? 0.75 : 1
+  }
+  CoverShape {
+    pic: img
+    visible: opacity > 0
+    opacity: (img.status === Image.Ready ? 1 : 0) * (root.dim ? 0.75 : 1)
+    // fades in over a held picture; with none, it is simply there
+    Behavior on opacity { enabled: root.heldShown && !root.reduceMotion; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
   }
 }
