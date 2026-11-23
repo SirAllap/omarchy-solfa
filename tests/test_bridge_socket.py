@@ -67,7 +67,10 @@ def run_scene(windows, scene_ms, linger=0.0):
     try:
         cfg = os.path.join(workdir, "scene")
         os.mkdir(cfg)
-        os.symlink(os.path.join(ROOT, "lib"), os.path.join(cfg, "lib"))
+        # Only BridgeSocket: lib/qmldir also lists the Calm singleton, which
+        # needs the shell's qs.Commons and would fail the whole module here.
+        os.mkdir(os.path.join(cfg, "lib"))
+        os.symlink(os.path.join(ROOT, "lib", "BridgeSocket.qml"), os.path.join(cfg, "lib", "BridgeSocket.qml"))
         os.symlink(os.path.join(HERE, "qml", "SocketScene.qml"), os.path.join(cfg, "shell.qml"))
         path = os.path.join(sockdir, "bridge.sock")
         bridge = FakeBridge(path, windows, linger)
