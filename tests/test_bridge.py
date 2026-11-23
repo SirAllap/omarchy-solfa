@@ -219,7 +219,8 @@ class BridgeTest(unittest.TestCase):
                ("playlist.options", {}), ("playlist.options", {"videoId": "x"}), ("playlist.options", {"videoId": "AAAAAAAAAAA", "extra": 1}),
                ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"}),
                ("share.link", {}), ("share.link", {"videoId": "x"}), ("share.link", {"videoId": "AAAAAAAAAAA&si=1"}),
-               ("share.link", {"videoId": "AAAAAAAAAAA", "extra": 1})]
+               ("share.link", {"videoId": "AAAAAAAAAAA", "extra": 1}),
+               ("queue.more", {"index": 3})]
         for op, args in bad:
             r = c.call(op, args)
             self.assertFalse(r["ok"], (op, args))
@@ -256,6 +257,15 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(dup["data"], {"added": False, "duplicate": True})
         forced = c.call("playlist.add", {"playlistId": "PLfixture2", "videoId": "AAAAAAAAAAA", "force": True})
         self.assertEqual(forced["data"], {"added": True})
+
+    def test_queue_more_reaches_the_page_with_no_arguments(self):
+        c = self.start()
+        self.wait_ready(c)
+        logged = len(self.page_log())
+        r = c.call("queue.more")
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["data"], {"added": 0, "more": False})
+        self.assertEqual([(e["op"], e["args"]) for e in self.page_log()[logged:]], [("queue.more", {})])
 
     def test_library_history_is_a_valid_section_and_needs_sign_in(self):
         c = self.start()

@@ -659,6 +659,7 @@ PAGE_OPS = {
     "queue.move": (lambda a: {"from": a_int(only(a, "from", "to").get("from"), "from", 0, 10000), "to": a_int(a.get("to"), "to", 0, 10000)}, 5),
     "queue.remove": (check_index, 5),
     "queue.jump": (check_index, 8),
+    "queue.more": (check_none, 15),
     "like": (lambda a: {"videoId": a_video(only(a, "videoId", "status").get("videoId")), "status": a_enum(a.get("status"), "status", ("LIKE", "DISLIKE", "INDIFFERENT"))}, 10),
     "lyrics": (lambda a: {"videoId": a_video(only(a, "videoId").get("videoId"))}, 20),
     "playlist.create": (lambda a: {"title": a_text(only(a, "title", "videoIds").get("title"), "title", 150),

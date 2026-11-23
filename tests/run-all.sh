@@ -81,6 +81,7 @@ run panel-settings python3 tests/test_panel_settings.py
 run save-picker python3 tests/test_save_picker.py
 run share-link python3 tests/test_share_link.py
 run find-in-playlist python3 tests/test_find_in_playlist.py
+run queue-more python3 tests/test_queue_more.py
 run widget-move python3 tests/test_widget_move.py
 if command -v omarchy >/dev/null 2>&1; then run manifest omarchy plugin validate .; fi
 echo "solfa in /run/user leftovers: $(ls "/run/user/$(id -u)" 2>/dev/null | grep -c solfa || true)"

@@ -653,6 +653,25 @@ var SolfaParse = (function () {
     return out
   }
 
+  // `next` asked with a queue continuation → the page's entries for the
+  // app's store and the token for the page after it ("" at the end). The
+  // songs the app itself leaves out of a page (unplayable ones, or anything
+  // that is not a queue entry) are left out here too.
+  function queuePage(data) {
+    var c = (data && data.continuationContents && data.continuationContents.playlistPanelContinuation) || {}
+    var entries = (c.contents || []).filter(function (e) {
+      var r = e && (e.playlistPanelVideoRenderer || dig(e, ["playlistPanelVideoWrapperRenderer", "primaryRenderer", "playlistPanelVideoRenderer"]))
+      return !!r && !r.unplayableText
+    })
+    var next = ""
+    var conts = c.continuations || []
+    for (var i = 0; i < conts.length && !next; i++) {
+      var d = conts[i] && (conts[i].nextRadioContinuationData || conts[i].nextContinuationData)
+      if (d && d.continuation) next = String(d.continuation)
+    }
+    return { entries: entries, continuation: next }
+  }
+
   // `account/account_menu` → the signed-in account, for Settings > Account.
   function accountInfo(data) {
     var header = collect(data, "activeAccountHeaderRenderer")[0] || {}
@@ -791,6 +810,7 @@ var SolfaParse = (function () {
     watchInfo: watchInfo,
     lyrics: lyrics,
     queueEntries: queueEntries,
+    queuePage: queuePage,
     accountInfo: accountInfo,
     addToPlaylist: addToPlaylist,
     playlistEditResult: playlistEditResult,
