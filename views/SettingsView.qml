@@ -1,8 +1,8 @@
 import QtQuick
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
-import "../lib/Icons.js" as Icons
 
 // The Settings view: replaces the panel body (Panel.qml puts it in `stage`,
 // same place as Queue/Search/Library/Lyrics). Left column = sections, right
@@ -21,26 +21,42 @@ Item {
   property var svc: null
   property color fg: Color.foreground
   property string family: Style.font.family
+  // A calm, muted red for what destroys data (not the shell's loud urgent red).
+  readonly property color dangerColor: "#c4727f"
 
   signal backRequested()
   signal showAllKeys()
 
   readonly property var sections: [
-    { key: "account", label: "Account" }, { key: "sound", label: "Sound" },
-    { key: "playback", label: "Playback" }, { key: "bar", label: "Bar and alerts" },
-    { key: "keys", label: "Keys" }, { key: "advanced", label: "Advanced" }, { key: "about", label: "About" }
+    { key: "account", label: "Account", icon: "user" },
+    { key: "sound", label: "Sound", icon: "volume" },
+    { key: "playback", label: "Playback", icon: "play" },
+    { key: "bar", label: "Bar and alerts", icon: "bolt" },
+    { key: "keys", label: "Keys", icon: "keyboard" },
+    { key: "advanced", label: "Advanced", icon: "gear" },
+    { key: "about", label: "About", icon: "album" }
   ]
+  readonly property string sectionLabel: root.sections[root.navIndex].label
+  // The one open dropdown (its pill), or null. The menu itself is drawn at
+  // the bottom of this file, above everything, so no row's clip cuts it.
+  property var menuSrc: null
+  function closeMenu() { root.menuSrc = null }
   property int navIndex: 0
   readonly property string section: root.sections[root.navIndex].key
   // "nav" (left column has the cursor) or "content" (right column does).
   property string column: "content"
   property int cursor: 0
+  // True once the keyboard has moved (arrow, Tab): only then is the row under
+  // the cursor filled. Opening Settings, or a click, leaves every row flat.
+  property bool kbd: false
   // Handlers for the current section's rows, in the same order they are
   // drawn: { change(dir), act(), toggle() } — a row supplies whichever it
   // needs; move()/change()/act() below call through them.
   property var handlers: []
 
-  readonly property real navWidth: Style.space(150)
+  // The mockup's narrow icon rail (no text menu): the room it leaves is what
+  // lets all 10 EQ bands fit in a 460 px panel.
+  readonly property real railWidth: Style.space(52)
 
   // ---- transient, per-open UI state (never persisted) -------------------
 
@@ -52,9 +68,12 @@ Item {
   property bool switchArmed: false
   property bool signOutArmed: false
   property bool eraseArmed: false
+  // A setting read that survives a null service (load and teardown).
+  function settingOr(key, fallback) { return root.svc ? root.svc.setting(key, fallback) : fallback }
   readonly property int armTimeoutMs: 5000
   readonly property bool armTimerRunning: armTimer.running
   function disarm() {
+    root.closeMenu()
     root.switchArmed = false
     root.signOutArmed = false
     root.eraseArmed = false
@@ -67,12 +86,18 @@ Item {
   }
   onCursorChanged: root.disarm()
   onColumnChanged: root.disarm()
-  onVisibleChanged: if (!root.visible) root.disarm()
+  onVisibleChanged: { root.kbd = false; if (!root.visible) root.disarm() }
   property string cacheNote: ""
   property string eraseNote: ""
   property string engineVersionText: ""
+  // "Chrome/155.0.8059.84" -> "Chromium 155"; anything else shows as it came.
+  function engineLabel(s) {
+    var m = /Chrome\/(\d+)/.exec(s || "")
+    return m ? "Chromium " + m[1] : s
+  }
 
   function rebuildHandlers() {
+    root.kbd = false
     root.cursor = 0
     root.handlers = root.buildHandlers(root.section)
   }
@@ -113,6 +138,7 @@ Item {
   // ---- keyboard API, called by Panel.qml ---------------------------------
 
   function move(dir) {
+    root.kbd = true
     if (root.column === "nav") {
       root.navIndex = (root.navIndex + dir + root.sections.length) % root.sections.length
     } else if (root.handlers.length > 0) {
@@ -127,21 +153,21 @@ Item {
     else if (h.change) h.change(dir)
   }
   function act() {
-    if (root.column === "nav") { root.column = "content"; root.cursor = 0; return }
+    if (root.column === "nav") { root.kbd = true; root.column = "content"; root.cursor = 0; return }
     var h = root.handlers[root.cursor]
     if (!h) return
     if (h.act) h.act()
     else if (h.toggle) h.toggle()
     else if (h.change) h.change(1)
   }
-  function switchColumn() { root.column = root.column === "nav" ? "content" : "nav" }
+  function switchColumn() { root.kbd = true; root.column = root.column === "nav" ? "content" : "nav" }
 
   // ---- pointer API: a click is the keyboard's cursor move plus its key ----
   // Every row routes its click through the same handlers the keyboard uses,
   // so a click and an Enter can never disagree (the two-step confirms
   // included: a second click on an armed row runs it, like a second Enter).
 
-  function pointAt(i) { root.column = "content"; root.cursor = i }
+  function pointAt(i) { root.kbd = false; root.column = "content"; root.cursor = i }
   function clickRow(i) { root.pointAt(i); root.act() }
   function stepRow(i, dir) { root.pointAt(i); root.change(dir) }
 
@@ -169,11 +195,11 @@ Item {
           .concat(bandHandlers)
           .concat([
             { change: function (dir) { svc.saveSetting("eqPreamp", Model.stepNumber(svc.setting("eqPreamp", 0), dir, -12, 0)) } },
-            { toggle: function () { svc.saveSetting("eqLoudness", !svc.setting("eqLoudness", false)) } }
+            { toggle: function () { svc.saveSetting("eqLoudness", !svc.setting("eqLoudness", false)) } },
+            { change: function (dir) { svc.nudgeSleepMode(dir) }, act: function () { svc.nudgeSleepMode(1) } }
           ])
       }
       case "playback": return [
-        { change: function (dir) { svc.nudgeSleepMode(dir) }, act: function () { svc.nudgeSleepMode(1) } },
         { toggle: function () { svc.saveSetting("startPaused", !svc.setting("startPaused", false)) } },
         { change: function (dir) { svc.saveSetting("startVolume", Model.cycleList(["last", "25", "50", "75", "100"], String(svc.setting("startVolume", "last")), dir)) } },
         { toggle: function () { svc.saveSetting("autostart", !svc.setting("autostart", true)) } },
@@ -190,11 +216,13 @@ Item {
       ]
       case "keys": return [
         { toggle: function () { svc.saveSetting("globalKeys", !svc.setting("globalKeys", true)) } },
+        { change: function (dir) { svc.saveSetting("panelKey", Model.cycleList(svc.panelKeyOptions, String(svc.setting("panelKey", "")), dir)) } },
         { act: function () { root.showAllKeys() } }
       ]
       case "advanced": return [
         { change: function (dir) { svc.saveSetting("recycleHeapMb", Model.stepNumber(Model.recycleHeapMbFor(svc.setting("recycleHeapMb", 400)), dir * 50, Model.RECYCLE_HEAP_MB_RANGE[0], Model.RECYCLE_HEAP_MB_RANGE[1])) } },
         { change: function (dir) { svc.saveSetting("recycleHours", Model.stepNumber(Model.recycleHoursFor(svc.setting("recycleHours", 12)), dir, Model.RECYCLE_HOURS_RANGE[0], Model.RECYCLE_HOURS_RANGE[1])) } },
+        { toggle: function () { svc.saveSetting("reduceMotion", !svc.setting("reduceMotion", false)) } },
         { act: function () { root.cacheNote = "Clearing…"; svc.clearCache(function (r) { root.cacheNote = r.ok ? "Cleared" : "Could not clear the cache" }) } },
         { act: function () { svc.resetSettings() } },
         { act: function () { root.actErase() } }
@@ -275,22 +303,28 @@ Item {
     property string family: root.family
     property string label: ""
     property string help: ""
+    property color labelColor: fg
     // The row's index in its section's handlers: the keyboard cursor lands
     // on it, and a click anywhere on the row runs it.
     property int row: -1
-    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
     width: parent ? parent.width : 0
     // Grows with a wrapped help line. A fixed height with the text centred
     // on it pushed a two-line help's title above the row's top, where the
     // content's clip cut it off.
-    height: Math.max(Style.space(46), rowText.implicitHeight + Style.space(12))
+    height: Math.max(Style.space(50), rowText.implicitHeight + Style.space(12))
     default property alias controlChildren: controlSlot.children
 
+    // Hairline between rows (calm list, no boxes).
+    Rectangle {
+      anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+      height: 1
+      color: Util.alpha(rowShell.fg, 0.08)
+    }
     Rectangle {
       anchors.fill: parent
-      radius: Style.spacing.labelGap
-      color: rowShell.focused ? Style.selectedFillFor(rowShell.fg, Color.accent)
-                              : (rowHover.containsMouse ? Util.alpha(rowShell.fg, 0.05) : "transparent")
+      radius: Style.space(10)
+      color: rowShell.focused ? Calm.a(Calm.accent, 0.12) : "transparent"
     }
 
     // Below the controls, so a control with its own pointer handling (a
@@ -308,17 +342,18 @@ Item {
       id: rowText
       objectName: "rowText"
       anchors.left: parent.left
-      anchors.leftMargin: Style.space(6)
       anchors.right: controlSlot.left
       anchors.rightMargin: Style.space(12)
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(2)
       Text {
+        width: parent.width
+        wrapMode: Text.WordWrap
         text: rowShell.label
         textFormat: Text.PlainText
-        color: rowShell.fg
+        color: rowShell.labelColor
         font.family: rowShell.family
-        font.pixelSize: Style.font.body
+        font.pixelSize: Style.space(14)
       }
       Text {
         visible: rowShell.help !== ""
@@ -328,14 +363,14 @@ Item {
         wrapMode: Text.WordWrap
         color: Util.alpha(rowShell.fg, 0.5)
         font.family: rowShell.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.space(12)
       }
     }
 
     Row {
       id: controlSlot
       anchors.right: parent.right
-      anchors.rightMargin: Style.space(8)
+      anchors.rightMargin: 1
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(8)
     }
@@ -345,78 +380,135 @@ Item {
     id: toggle
     property color fg: root.fg
     property bool active: false
-    width: Style.space(38)
-    height: Style.space(20)
+    // Mockup Toggle: 44x26, 20 px knob 3 px in; the on state is a solid accent
+    // with no outline, the off state a wash with one hairline.
+    width: Style.space(44)
+    height: Style.space(26)
     radius: height / 2
-    color: active ? Util.alpha(Color.accent, 0.35) : Util.alpha(fg, 0.12)
-    border.width: 1
-    border.color: active ? Color.accent : Util.alpha(fg, 0.25)
+    color: active ? Calm.accent : Calm.a(Calm.fg, 0.1)
+    border.width: active ? 0 : 1
+    border.color: Calm.hair
     Rectangle {
-      width: parent.height - 4
+      width: parent.height - Style.space(6)
       height: width
       radius: width / 2
-      color: toggle.active ? Color.accent : toggle.fg
+      color: toggle.active ? "white" : Util.alpha(toggle.fg, 0.64)
       anchors.verticalCenter: parent.verticalCenter
-      x: toggle.active ? parent.width - width - 2 : 2
+      x: toggle.active ? parent.width - width - Style.space(3) : Style.space(3)
       Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
   }
 
-  component Chip: Rectangle {
-    id: chip
+  // A pill with a value and a chevron, like the mockup's "Warm v" / "Off v".
+  // Clicking it opens the one menu layer at the bottom of this file; picking
+  // an entry fires picked(key). The keyboard keeps stepping the same value
+  // through the row's handler, so a click and a key can never disagree.
+  component Dropdown: Rectangle {
+    id: dd
     property color fg: root.fg
-    property string label: ""
-    property bool active: false
-    signal clicked()
-    width: chipText.implicitWidth + Style.space(16)
-    height: Style.space(24)
-    radius: Style.space(12)
-    color: active ? Style.selectedFillFor(fg, Color.accent) : "transparent"
+    property string text: ""
+    property var options: []          // [{ key, label }]
+    property string current: ""       // the key of the chosen entry
+    property int row: -1
+    signal picked(string key)
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
+    readonly property bool opened: root.menuSrc === dd
+    implicitWidth: ddRow.implicitWidth + Style.space(28)
+    width: implicitWidth
+    height: Style.space(32)
+    radius: height / 2
+    color: dd.opened || dd.focused ? Calm.a(Calm.accent, 0.12) : Util.alpha(dd.fg, 0.06)
     border.width: 1
-    border.color: active ? Color.accent : Util.alpha(fg, 0.2)
-    Text {
-      id: chipText
+    border.color: dd.opened || dd.focused ? Calm.accent : Calm.hair
+    Row {
+      id: ddRow
       anchors.centerIn: parent
-      text: chip.label
-      textFormat: Text.PlainText
-      color: chip.active ? Color.accent : Util.alpha(chip.fg, 0.8)
-      font.family: root.family
-      font.pixelSize: Style.font.caption
+      spacing: Style.space(6)
+      Text { text: dd.text; textFormat: Text.PlainText; color: dd.fg; font.family: root.family; font.pixelSize: Style.font.body }
+      Icon { name: "chev"; size: Style.space(14); stroke: 1.9; color: Util.alpha(dd.fg, 0.6); rotation: dd.opened ? 180 : 0; anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea {
       anchors.fill: parent
-      anchors.topMargin: Math.min(0, (parent.height - Style.space(32)) / 2)
-      anchors.bottomMargin: anchors.topMargin
       cursorShape: Qt.PointingHandCursor
-      onClicked: chip.clicked()
+      onClicked: {
+        var wasOpen = dd.opened
+        if (dd.row >= 0) root.pointAt(dd.row)
+        if (wasOpen) root.closeMenu(); else root.menuSrc = dd
+      }
     }
   }
 
-  // A value with ‹ › steppers, e.g. "400 MB", "12 h", "50%".
-  // A click on its left half steps down, on its right half up; `row` is the
-  // RowShell's own index (the row itself would only ever step up).
-  component StepValue: Item {
-    id: stepValue
-    property color fg: root.fg
-    property string value: ""
+  // A horizontal slider with its value on the right (mockup Preamp, Volume).
+  // A press or drag sets the value, snapped to `step`; the row's own handler
+  // moves it by the arrow keys.
+  component SliderRow: Item {
+    id: sl
     property int row: -1
-    implicitWidth: stepRowItems.implicitWidth
-    implicitHeight: Math.max(stepRowItems.implicitHeight, Style.space(32))
+    property real from: 0
+    property real to: 1
+    property real step: 1
+    property real value: 0
+    property string suffix: ""
+    property real barW: Style.space(130)
+    property real valueW: Style.space(56)
+    signal moved(real v)
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
+    readonly property real frac: to > from ? Math.max(0, Math.min(1, (value - from) / (to - from))) : 0
+    implicitWidth: barW + Style.space(14) + valueW
+    implicitHeight: Style.space(32)
     width: implicitWidth
     height: implicitHeight
-    Row {
-      id: stepRowItems
-      anchors.centerIn: parent
-      spacing: Style.space(6)
-      Text { text: Icons.chevronLeft; color: Util.alpha(root.fg, 0.45); font.family: root.family; font.pixelSize: Style.font.caption; textFormat: Text.PlainText }
-      Text { text: stepValue.value; color: stepValue.fg; font.family: root.family; font.pixelSize: Style.font.body; textFormat: Text.PlainText }
-      Text { text: Icons.chevronRight; color: Util.alpha(root.fg, 0.45); font.family: root.family; font.pixelSize: Style.font.caption; textFormat: Text.PlainText }
+    Item {
+      id: slBar
+      objectName: "sliderBar"
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      width: sl.barW
+      height: Style.space(20)
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width; height: Style.space(4); radius: height / 2
+        color: Util.alpha(root.fg, 0.12)
+      }
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        width: slKnob.x + slKnob.width / 2; height: Style.space(4); radius: height / 2
+        color: Calm.accent
+      }
+      Rectangle {
+        id: slKnob
+        width: Style.space(16); height: width; radius: width / 2
+        anchors.verticalCenter: parent.verticalCenter
+        x: sl.frac * (slBar.width - width)
+        color: "white"
+        border.width: sl.focused ? 2 : 1
+        border.color: sl.focused ? Calm.a(Calm.accent, 0.8) : Calm.hair
+      }
+      MouseArea {
+        anchors.fill: parent
+        anchors.topMargin: -Style.space(6); anchors.bottomMargin: -Style.space(6)
+        cursorShape: Qt.PointingHandCursor
+        preventStealing: true
+        function place(mouse) {
+          var f = Math.max(0, Math.min(1, (mouse.x - slKnob.width / 2) / (slBar.width - slKnob.width)))
+          var v = sl.from + Math.round(f * (sl.to - sl.from) / sl.step) * sl.step
+          if (sl.row >= 0) root.pointAt(sl.row)
+          sl.moved(Math.max(sl.from, Math.min(sl.to, v)))
+        }
+        onPressed: function (mouse) { place(mouse) }
+        onPositionChanged: function (mouse) { if (pressed) place(mouse) }
+      }
     }
-    MouseArea {
-      anchors.fill: parent
-      enabled: stepValue.row >= 0
-      cursorShape: Qt.PointingHandCursor
-      onClicked: function (mouse) { root.stepRow(stepValue.row, mouse.x < width / 2 ? -1 : 1) }
+    Text {
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      width: sl.valueW
+      horizontalAlignment: Text.AlignRight
+      text: (sl.from < 0 && sl.value > 0 ? "+" : "") + sl.value + sl.suffix
+      textFormat: Text.PlainText
+      color: Util.alpha(root.fg, 0.6)
+      font.family: root.family
+      font.pixelSize: Style.space(15)
     }
   }
 
@@ -425,33 +517,44 @@ Item {
     property color fg: root.fg
     property string label: ""
     property bool danger: false
+    property string icon: ""
     // Standalone (Account) buttons carry their own row; inside a RowShell
     // they leave it at -1 and the row takes the click.
     property int row: -1
-    readonly property bool focused: row >= 0 && root.column === "content" && root.cursor === row
-    width: qbtnText.implicitWidth + Style.space(20)
-    height: Style.space(26)
-    radius: Style.space(6)
-    color: focused ? Style.selectedFillFor(fg, Color.accent) : Util.alpha(fg, 0.06)
-    border.width: danger || focused ? 1 : 0
-    border.color: danger ? Color.urgent : Color.accent
-    Text {
-      id: qbtnText
+    // A button with its own onClicked (not a row's click) sets this.
+    property bool standalone: false
+    signal clicked()
+    readonly property bool focused: row >= 0 && root.kbd && root.column === "content" && root.cursor === row
+    width: qbtnRow.implicitWidth + Style.space(28)
+    height: Style.space(32)
+    radius: height / 2
+    color: danger ? Calm.a(root.dangerColor, 0.1) : (focused ? Calm.a(Calm.accent, 0.12) : Calm.wash)
+    border.width: 1
+    border.color: danger ? Calm.a(root.dangerColor, 0.55) : (focused ? Calm.accent : Calm.hair)
+    Row {
+      id: qbtnRow
       anchors.centerIn: parent
-      text: qbtn.label
-      textFormat: Text.PlainText
-      color: qbtn.danger ? Color.urgent : (qbtn.focused ? Color.accent : qbtn.fg)
-      font.family: root.family
-      font.pixelSize: Style.font.caption
+      spacing: Style.space(7)
+      Icon { visible: qbtn.icon !== ""; name: qbtn.icon; size: Style.space(16); color: qbtnText.color; anchors.verticalCenter: parent.verticalCenter }
+      Text {
+        id: qbtnText
+        anchors.verticalCenter: parent.verticalCenter
+        text: qbtn.label
+        textFormat: Text.PlainText
+        color: qbtn.danger ? root.dangerColor : (qbtn.focused ? Calm.accent : qbtn.fg)
+        font.family: root.family
+        font.pixelSize: Style.space(15)
+        font.bold: true
+      }
     }
     MouseArea {
       // 32 px tall at least, like every other hit box in the panel.
       anchors.fill: parent
       anchors.topMargin: Math.min(0, (parent.height - Style.space(32)) / 2)
       anchors.bottomMargin: anchors.topMargin
-      enabled: qbtn.row >= 0
+      enabled: qbtn.row >= 0 || qbtn.standalone
       cursorShape: Qt.PointingHandCursor
-      onClicked: root.clickRow(qbtn.row)
+      onClicked: { if (qbtn.row >= 0) root.clickRow(qbtn.row); else qbtn.clicked() }
     }
   }
 
@@ -463,17 +566,31 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     height: backLabel.implicitHeight
+    anchors.leftMargin: Style.space(12)
 
+    Rectangle {
+      anchors.fill: backLabel
+      anchors.leftMargin: -Style.space(12); anchors.rightMargin: -Style.space(12)
+      anchors.topMargin: -Style.space(4); anchors.bottomMargin: -Style.space(4)
+      radius: height / 2
+      color: backHover.containsMouse ? Util.alpha(root.fg, 0.1) : Util.alpha(root.fg, 0.06)
+      border.width: 1
+      border.color: Calm.hair
+      MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+    }
     Text {
       id: backLabel
       objectName: "settingsBack"
-      text: "‹ Settings"
+      text: "Settings"
+      leftPadding: Style.space(18)
       textFormat: Text.PlainText
       color: root.fg
       font.family: root.family
       font.pixelSize: Style.font.title
+      Icon { name: "back"; size: Style.space(15); color: root.fg; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
       MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backRequested() }
     }
+    KeyHint { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; keys: "esc"; label: "close"; keyPx: Style.space(11); labelPx: Style.space(12) }
   }
 
   // ---- body: left section list + right rows -----------------------------
@@ -481,44 +598,51 @@ Item {
   Row {
     id: body
     anchors.top: backRow.bottom
-    anchors.topMargin: Style.space(14)
+    anchors.topMargin: Style.space(26)
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     spacing: Style.space(16)
 
-    Column {
+    Rectangle {
       id: nav
-      width: root.navWidth
-      height: parent.height
-      spacing: Style.space(2)
-      Repeater {
-        model: root.sections
-        delegate: Item {
-          required property var modelData
-          required property int index
-          width: nav.width
-          height: Style.space(30)
-          readonly property bool navFocused: root.column === "nav" && index === root.navIndex
-          Rectangle {
-            anchors.fill: parent
-            radius: Style.spacing.labelGap
-            color: navFocused ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
-          }
-          Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: modelData.label
-            textFormat: Text.PlainText
-            color: modelData.key === root.section ? Color.accent : Util.alpha(root.fg, 0.85)
-            font.family: root.family
-            font.pixelSize: Style.font.body
-            font.bold: modelData.key === root.section
-          }
-          MouseArea {
-            anchors.fill: parent
-            onClicked: { root.navIndex = index; root.column = "content" }
+      objectName: "settingsRail"
+      width: root.railWidth
+      height: railCol.implicitHeight + Style.space(16)
+      radius: width / 2
+      color: Util.alpha(root.fg, 0.05)
+      Column {
+        id: railCol
+        anchors.centerIn: parent
+        spacing: Style.space(6)
+        Repeater {
+          model: root.sections
+          delegate: Item {
+            required property var modelData
+            required property int index
+            objectName: "railItem_" + modelData.key
+            width: Style.space(40)
+            height: width
+            readonly property bool current: modelData.key === root.section
+            readonly property bool navFocused: root.column === "nav" && index === root.navIndex
+            Rectangle {
+              anchors.fill: parent
+              radius: width / 2
+              color: parent.current ? Calm.a(Calm.accent, 0.22) : (parent.navFocused ? Calm.a(Calm.accent, 0.12) : "transparent")
+              border.width: parent.current || parent.navFocused ? 1 : 0
+              border.color: parent.current ? Calm.a(Calm.accent, 0.5) : Calm.hair
+            }
+            Icon {
+              anchors.centerIn: parent
+              name: modelData.icon
+              size: Style.space(20)
+              color: parent.current ? Calm.accent : Util.alpha(root.fg, 0.6)
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { root.navIndex = index; root.column = "content" }
+            }
           }
         }
       }
@@ -529,93 +653,114 @@ Item {
       width: parent.width - nav.width - parent.spacing
       height: parent.height
       clip: true
+      readonly property real sectionTop: sectionTitle.height + Style.space(15)
+
+      // The section's name, big, like the mockup.
+      Text {
+        id: sectionTitle
+        objectName: "sectionTitle"
+        text: root.sectionLabel
+        textFormat: Text.PlainText
+        color: root.fg
+        font.family: root.family
+        font.pixelSize: Style.font.display
+        font.bold: true
+      }
 
       // ---- Account ----
       Column {
         visible: root.section === "account"
         width: parent.width
+        y: content.sectionTop
         spacing: Style.space(14)
 
-        Row {
-          visible: root.signedIn
-          spacing: Style.space(14)
-
-          // Centred on the row (never on the name column: a taller avatar
-          // would then start above the row and be cut flat by the clip).
-          RoundCover {
-            id: avatar
-            objectName: "accountAvatar"
-            width: Style.space(52)
-            height: width
+        // The mockup's card: a round avatar, who, and the account pills.
+        Rectangle {
+          width: parent.width
+          height: acctRow.implicitHeight + Style.space(32)
+          radius: Style.space(18)
+          color: Util.alpha(root.fg, 0.05)
+          border.width: 1
+          border.color: Calm.hair
+          Row {
+            id: acctRow
+            anchors.left: parent.left; anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            source: root.svc && root.svc.accountDetails.avatar ? root.svc.accountDetails.avatar : ""
-            fill: Util.alpha(root.fg, 0.12)
-            foreground: root.fg
-            glyph: root.svc ? root.initialsFor(root.svc.accountDetails.name) : "?"
-            fontFamily: root.family
-          }
+            anchors.margins: Style.space(18)
+            spacing: Style.space(16)
 
-          Column {
-            id: nameCol
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
-            Text {
-              text: root.svc ? (root.svc.accountDetails.name || "Signed in") : ""
-              textFormat: Text.PlainText
-              color: root.fg
-              font.family: root.family
-              font.pixelSize: Style.font.subtitle
+            // The real picture when there is one, else a person on the accent
+            // disc. Centred on the row, never cut by the clip.
+            Item {
+              id: avatar
+              objectName: "accountAvatar"
+              width: Style.space(48)
+              height: width
+              anchors.verticalCenter: parent.verticalCenter
+              readonly property url pic: root.signedIn && root.svc && root.svc.accountDetails.avatar ? root.svc.accountDetails.avatar : ""
+              RoundCover {
+                anchors.fill: parent
+                source: avatar.pic
+                fill: Calm.accent
+                foreground: root.fg
+                glyph: ""
+                fontFamily: root.family
+              }
+              Icon { visible: avatar.pic == ""; anchors.centerIn: parent; name: "user"; size: Style.space(24); color: "#15161a" }
             }
-            Text {
-              visible: root.svc && root.svc.accountDetails.email !== ""
-              text: root.svc ? root.svc.accountDetails.email : ""
-              textFormat: Text.PlainText
-              color: Util.alpha(root.fg, 0.6)
-              font.family: root.family
-              font.pixelSize: Style.font.caption
-            }
-            Text {
-              objectName: "accountHelp"
-              text: "Signed in to YouTube Music"
-              textFormat: Text.PlainText
-              color: Util.alpha(root.fg, 0.5)
-              font.family: root.family
-              font.pixelSize: Style.font.caption
-            }
-          }
-        }
-        Text {
-          visible: !root.signedIn
-          text: "Signed out"
-          textFormat: Text.PlainText
-          color: root.fg
-          font.family: root.family
-          font.pixelSize: Style.font.subtitle
-        }
 
-        Row {
-          visible: !root.signedIn
-          spacing: Style.space(8)
-          QuietButton {
-            objectName: "accountSignIn"
-            label: "Sign in"
-            row: 0
-          }
-        }
-        Row {
-          visible: root.signedIn
-          spacing: Style.space(8)
-          QuietButton {
-            objectName: "accountSwitch"
-            label: root.switchArmed ? "Press again to switch" : "Switch account"
-            danger: root.switchArmed
-            row: 0
-          }
-          QuietButton {
-            objectName: "accountSignOut"
-            label: root.signOutArmed ? "Press again to sign out" : "Sign out"
-            danger: root.signOutArmed
-            row: 1
+            Column {
+              id: nameCol
+              anchors.verticalCenter: parent.verticalCenter
+              width: parent.width - avatar.width - parent.spacing
+              spacing: Style.space(4)
+              Text {
+                objectName: "accountHelp"
+                width: parent.width
+                text: root.signedIn ? "Signed in to YouTube Music" : "Signed out"
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                color: root.fg
+                font.family: root.family
+                font.pixelSize: Style.space(15)
+                font.weight: Font.DemiBold
+              }
+              Text {
+                visible: root.signedIn && text !== ""
+                width: parent.width
+                elide: Text.ElideRight
+                text: !root.svc ? "" : (root.svc.accountDetails.name || "") + (root.svc.accountDetails.name && root.svc.accountDetails.email ? " · " : "") + (root.svc.accountDetails.email || "")
+                textFormat: Text.PlainText
+                color: Util.alpha(root.fg, 0.6)
+                font.family: root.family
+                font.pixelSize: Style.space(12.5)
+              }
+              Flow {
+                width: parent.width
+                spacing: Style.space(8)
+                topPadding: Style.space(4)
+                QuietButton {
+                  visible: !root.signedIn
+                  objectName: "accountSignIn"
+                  label: "Sign in"
+                  row: 0
+                }
+                QuietButton {
+                  visible: root.signedIn
+                  objectName: "accountSwitch"
+                  label: root.switchArmed ? "Press again to switch" : "Switch account"
+                  danger: root.switchArmed
+                  row: 0
+                }
+                QuietButton {
+                  visible: root.signedIn
+                  objectName: "accountSignOut"
+                  label: root.signOutArmed ? "Press again to sign out" : "Sign out"
+                  danger: root.signOutArmed
+                  row: 1
+                }
+              }
+            }
           }
         }
         Text {
@@ -629,7 +774,7 @@ Item {
           width: parent.width
           color: Util.alpha(root.fg, 0.5)
           font.family: root.family
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.space(12)
         }
         Text {
           visible: root.accountNote !== ""
@@ -645,69 +790,57 @@ Item {
       Column {
         visible: root.section === "sound"
         width: parent.width
-        spacing: Style.space(10)
+        y: content.sectionTop
+        spacing: 0
 
+        // Equalizer on/off, and the preset as a dropdown on the right.
         RowShell {
           objectName: "eqRow"
           label: "Equalizer"
           row: 0
           MiniToggle { active: root.svc ? !!root.svc.setting("eqEnabled", false) : false }
-        }
-
-        Item {
-          width: parent.width
-          height: presetRow.implicitHeight + Style.space(8)
-          Rectangle {
-            anchors.fill: parent
-            radius: Style.spacing.labelGap
-            color: root.column === "content" && root.cursor === 1 ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
-          }
-          MouseArea { anchors.fill: parent; onClicked: root.pointAt(1) }
-          Row {
-            id: presetRow
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(6)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(6)
-            Repeater {
-              model: Model.EQ_PRESET_ORDER
-              delegate: Chip {
-                required property string modelData
-                objectName: "eqPreset_" + modelData
-                label: Model.EQ_PRESET_LABELS[modelData]
-                active: root.svc && root.svc.setting("eqPreset", "flat") === modelData
-                onClicked: { root.pointAt(1); root.setEqPreset(modelData) }
-              }
-            }
+          Dropdown {
+            objectName: "eqPresetDrop"
+            row: 1
+            text: Model.EQ_PRESET_LABELS[root.settingOr("eqPreset", "flat")] || "Flat"
+            current: root.settingOr("eqPreset", "flat")
+            options: Model.EQ_PRESET_ORDER.map(function (k) { return { key: k, label: Model.EQ_PRESET_LABELS[k] } })
+            onPicked: function (key) { root.setEqPreset(key) }
           }
         }
 
+        // All 10 bands, each its own slider; the cell width comes from the
+        // room we have, so they always fit.
         Row {
-          spacing: Style.space(10)
+          id: bandRow
+          topPadding: Style.space(14)
+          bottomPadding: Style.space(14)
+          readonly property real cellW: Math.floor(parent.width / 10)
           Repeater {
             model: 10
             delegate: Item {
               id: bandCell
               required property int index
               readonly property real db: root.section === "sound" ? Model.eqBandDb(root.currentBands(), index) : 0
-              readonly property bool bandFocused: root.column === "content" && root.cursor === index + 2
-              width: bandCol.implicitWidth + Style.space(8)
+              readonly property bool bandFocused: root.kbd && root.column === "content" && root.cursor === index + 2
+              width: bandRow.cellW
               height: bandCol.implicitHeight + Style.space(8)
 
               Rectangle {
                 anchors.fill: parent
                 radius: Style.spacing.labelGap
-                color: bandCell.bandFocused ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
+                color: bandCell.bandFocused ? Calm.a(Calm.accent, 0.12) : "transparent"
               }
 
               Column {
                 id: bandCol
                 anchors.centerIn: parent
-                spacing: Style.space(4)
+                spacing: Style.space(8)
                 Item {
                   id: track
                   objectName: "eqBandTrack" + bandCell.index
-                  width: Style.space(18)
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  width: Style.space(20)
                   height: Style.space(90)
                   // Press or drag on the track: the knob goes where the
                   // pointer is (whole dB, -12..+12, like the arrow keys).
@@ -727,33 +860,32 @@ Item {
                   }
                   Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 2
-                    height: parent.height
-                    color: Util.alpha(root.fg, 0.15)
+                    width: Style.space(6); height: parent.height; radius: width / 2
+                    color: Util.alpha(root.fg, 0.12)
+                  }
+                  // The fill rises from the bottom to the knob, like the mockup.
+                  Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    width: Style.space(6); radius: width / 2
+                    height: parent.height - knob.y - knob.height / 2
+                    color: Calm.accent
                   }
                   Rectangle {
-                    width: Style.space(14); height: width; radius: width / 2
-                    color: bandCell.db !== 0 ? Color.accent : root.fg
+                    id: knob
+                    width: Style.space(20); height: width; radius: width / 2
+                    color: "white"
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: (parent.height / 2) - (bandCell.db / 12) * (parent.height / 2) - height / 2
-                    border.width: bandCell.bandFocused ? 2 : 0
-                    border.color: Util.alpha(Color.accent, 0.6)
+                    border.width: bandCell.bandFocused ? 2 : 1
+                    border.color: bandCell.bandFocused ? Calm.a(Calm.accent, 0.8) : Calm.hair
                   }
-                }
-                Text {
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  text: (bandCell.db > 0 ? "+" : "") + bandCell.db
-                  textFormat: Text.PlainText
-                  color: Util.alpha(root.fg, 0.6)
-                  font.family: root.family
-                  font.pixelSize: Style.font.caption
                 }
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter
                   text: Model.EQ_BAND_HZ[bandCell.index]
                   textFormat: Text.PlainText
-                  color: Util.alpha(root.fg, 0.45)
+                  color: Util.alpha(root.fg, 0.5)
                   font.family: root.family
                   font.pixelSize: Style.font.caption
                 }
@@ -765,13 +897,33 @@ Item {
         RowShell {
           label: "Preamp"
           row: 12
-          StepValue { objectName: "preampStep"; row: 12; value: (root.svc ? root.svc.setting("eqPreamp", 0) : 0) + " dB" }
+          SliderRow {
+            objectName: "preampSlider"
+            row: 12
+            from: -12; to: 0; step: 1
+            suffix: " dB"
+            value: root.settingOr("eqPreamp", 0)
+            onMoved: function (v) { root.svc.saveSetting("eqPreamp", v) }
+          }
         }
         RowShell {
           label: "Even out loudness"
-          help: "A compressor: quiet songs come up, loud ones do not clip"
+          help: "Quiet and loud songs sound alike"
           row: 13
           MiniToggle { active: root.svc ? !!root.svc.setting("eqLoudness", false) : false }
+        }
+        RowShell {
+          label: "Sleep timer"
+          row: 14
+          Dropdown {
+            row: 14
+            text: root.svc ? Model.sleepLabel(root.svc.sleepMode) : "Off"
+            options: Model.SLEEP_OPTIONS.map(function (k) { return { key: k, label: Model.sleepLabel(k) } })
+            onPicked: function (key) {
+              // The service only steps through its options; walk to the one asked for.
+              for (var n = 0; n < Model.SLEEP_OPTIONS.length && root.svc.sleepMode !== key; n++) root.svc.nudgeSleepMode(1)
+            }
+          }
         }
       }
 
@@ -779,40 +931,50 @@ Item {
       Column {
         visible: root.section === "playback"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell {
-          label: "Sleep timer"
-          help: "Fades the volume over 10 s, then pauses"
-          row: 0
-          StepValue { row: 0; value: root.svc ? Model.sleepLabel(root.svc.sleepMode) : "Off" }
-        }
-        RowShell {
           label: "When Solfa starts"
-          row: 1
-          StepValue { row: 1; value: root.svc && root.svc.setting("startPaused", false) ? "Resume paused" : "Resume playing" }
+          row: 0
+          Dropdown {
+            row: 0
+            text: root.settingOr("startPaused", false) ? "Resume paused" : "Resume playing"
+            options: [{ key: "play", label: "Resume playing" }, { key: "paused", label: "Resume paused" }]
+            onPicked: function (key) { root.svc.saveSetting("startPaused", key === "paused") }
+          }
         }
         RowShell {
           label: "Volume at start"
-          row: 2
-          StepValue { row: 2; value: root.svc && root.svc.setting("startVolume", "last") === "last" ? "Last used" : root.svc.setting("startVolume", "last") + "%" }
+          row: 1
+          Dropdown {
+            row: 1
+            text: root.settingOr("startVolume", "last") === "last" ? "Last used" : root.settingOr("startVolume", "last") + "%"
+            options: ["last", "25", "50", "75", "100"].map(function (k) { return { key: k, label: k === "last" ? "Last used" : k + "%" } })
+            onPicked: function (key) { root.svc.saveSetting("startVolume", key) }
+          }
         }
         RowShell {
           label: "Start with the shell"
-          row: 3
+          help: "Turns YouTube Music on at login"
+          row: 2
           MiniToggle { active: root.svc ? !!root.svc.setting("autostart", true) : true }
         }
         RowShell {
           label: "Browser for the engine"
-          help: "An absolute path to a Chromium-family browser (never a bare command)"
-          row: 4
-          StepValue { row: 4; value: Model.browserLabel(root.svc ? root.svc.setting("browser", "") : "") }
+          row: 3
+          Dropdown {
+            row: 3
+            text: Model.browserLabel(root.svc ? root.svc.setting("browser", "") : "")
+            options: root.svc ? Model.browserChoices(root.svc.browsers, root.svc.setting("browser", "")).map(function (k) { return { key: k, label: Model.browserLabel(k) } }) : []
+            onPicked: function (key) { root.svc.saveSetting("browser", key) }
+          }
         }
         RowShell {
           visible: root.braveEngine
           label: "Brave's ad blocker"
           help: "Lets Brave fetch its filter lists, so it can block adverts. Off keeps the engine from any background updates"
-          row: 5
+          row: 4
           MiniToggle { active: root.svc ? !!root.svc.setting("braveAdBlock", false) : false }
         }
       }
@@ -821,17 +983,26 @@ Item {
       Column {
         visible: root.section === "bar"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell { label: "Previous, play/pause and next in the bar"; row: 0
           MiniToggle { active: root.svc ? !!root.svc.setting("barControls", true) : true } }
         RowShell { label: "Song title in the bar"; row: 1
           MiniToggle { active: root.svc ? !!root.svc.setting("showTitle", true) : true } }
         RowShell { label: "Title width in the bar"; row: 2
-          StepValue { row: 2; value: (root.svc ? root.svc.setting("maxLabelWidth", 160) : 160) + " px" } }
+          SliderRow {
+            objectName: "titleWidthSlider"
+            barW: Style.space(100)
+            valueW: Style.space(36)
+            row: 2
+            from: 80; to: 400; step: 20
+            value: root.settingOr("maxLabelWidth", 160)
+            onMoved: function (v) { root.svc.saveSetting("maxLabelWidth", v) }
+          } }
         RowShell { label: "Show in the bar when nothing is loaded"; row: 3
           MiniToggle { active: root.svc ? !!root.svc.setting("showWhenIdle", true) : true } }
-        RowShell { label: "Notify when the song changes"; row: 4
+        RowShell { label: "Notify when the song changes"; help: "A small card with the cover"; row: 4
           MiniToggle { active: root.svc ? !!root.svc.setting("notify", true) : true } }
       }
 
@@ -839,19 +1010,52 @@ Item {
       Column {
         visible: root.section === "keys"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell {
           objectName: "globalKeysRow"
           label: "Global shortcuts"
-          help: "Super+M panel, Super+Alt+M play/pause, Super+Alt+N next, Super+Alt+B previous, Super+Alt+L like"
+          help: "Play, next, previous and like from anywhere"
           row: 0
           MiniToggle { active: root.svc ? !!root.svc.setting("globalKeys", true) : true }
         }
         RowShell {
-          label: "Every key"
+          objectName: "panelKeyRow"
+          label: "Panel key"
+          help: "Opens and closes Solfa. Super+Alt+M is used when it is free."
           row: 1
-          QuietButton { label: "All keys" }
+          Dropdown {
+            objectName: "panelKeyPicker"
+            row: 1
+            text: root.svc ? root.svc.panelKeyLabel : "Super+Alt+M"
+            options: (root.svc ? root.svc.panelKeyOptions : [""]).map(function (k) {
+              return { key: k, label: k === "" ? "Automatic" : Model.keyLabel(k) }
+            })
+            onPicked: function (key) { root.svc.saveSetting("panelKey", key) }
+          }
+        }
+        RowShell {
+          label: "Every key"
+          row: 2
+          QuietButton { label: "All keys"; icon: "keyboard" }
+        }
+        // The keys that work in the panel, two columns (the real bindings).
+        Grid {
+          objectName: "keyGrid"
+          width: parent.width
+          topPadding: Style.space(12)
+          columns: 2
+          rowSpacing: Style.space(10)
+          readonly property var keyList: [
+            [root.svc ? Model.keyChord(root.svc.panelKeyChosen ? root.svc.panelKeyChosen.keys : "SUPER + ALT + M") : "Super + Alt + M", "open panel"], [root.svc ? Model.keyChord(root.svc.playPauseKeyChosen ? root.svc.playPauseKeyChosen.keys : "SUPER + ALT + P") : "Super + Alt + P", "play / pause"], ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
+            ["f", "like"], ["/", "search"], ["tab", "next tab"], ["e", "play next"],
+            ["a", "add to queue"], ["R", "start radio"], ["[ ]", "section"], ["esc", "back"]
+          ]
+          Repeater {
+            model: parent.keyList
+            delegate: KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; keyPx: Style.space(11); labelPx: Style.space(12); width: content.width / 2 }
+          }
         }
       }
 
@@ -859,21 +1063,36 @@ Item {
       Column {
         visible: root.section === "advanced"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: 0
 
         RowShell { label: "Refresh the page when memory passes"; help: "Applies on next start"; row: 0
-          StepValue { row: 0; value: Model.recycleHeapMbFor(root.svc ? root.svc.setting("recycleHeapMb", 400) : 400) + " MB" } }
+          Dropdown {
+            row: 0
+            text: Model.recycleHeapMbFor(root.svc ? root.svc.setting("recycleHeapMb", 400) : 400) + " MB"
+            options: [200, 300, 400, 500, 600, 700].map(function (k) { return { key: String(k), label: k + " MB" } })
+            onPicked: function (key) { root.svc.saveSetting("recycleHeapMb", Number(key)) }
+          } }
         RowShell { label: "Refresh at least every"; help: "Applies on next start"; row: 1
-          StepValue { row: 1; value: Model.recycleHoursFor(root.svc ? root.svc.setting("recycleHours", 12) : 12) + " h" } }
-        RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 2
+          Dropdown {
+            row: 1
+            text: Model.recycleHoursFor(root.svc ? root.svc.setting("recycleHours", 12) : 12) + " hours"
+            options: [1, 2, 4, 6, 12, 24, 48, 72].map(function (k) { return { key: String(k), label: k + " hours" } })
+            onPicked: function (key) { root.svc.saveSetting("recycleHours", Number(key)) }
+          } }
+        RowShell { label: "Reduce motion"; help: "Stops springs, glows, comets and typing"; row: 2
+          MiniToggle { active: root.settingOr("reduceMotion", false) } }
+        RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 3
           QuietButton { label: "Clear" } }
-        RowShell { label: "Reset settings"; row: 3
+        RowShell { label: "Reset settings"; row: 4
           QuietButton { label: "Reset" } }
         RowShell {
           label: "Erase engine data"
           help: root.eraseArmed ? "Press again to erase. This signs you out." : (root.eraseNote !== "" ? root.eraseNote : "Deletes the profile; signs you out")
-          row: 4
-          QuietButton { label: root.eraseArmed ? "Press again" : "Erase"; danger: true }
+          row: 5
+          labelColor: root.dangerColor
+          QuietButton { visible: root.eraseArmed; standalone: true; label: "Keep"; onClicked: root.disarm() }
+          QuietButton { label: root.eraseArmed ? "Yes, erase" : "Erase"; icon: "trash"; danger: true }
         }
       }
 
@@ -881,10 +1100,124 @@ Item {
       Column {
         visible: root.section === "about"
         width: parent.width
-        spacing: Style.space(6)
+        y: content.sectionTop
+        spacing: Style.space(14)
 
-        Text { text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.body }
-        Text { text: "Engine: " + root.engineVersionText; textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.font.caption }
+        Rectangle {
+          width: parent.width
+          height: aboutCol.implicitHeight + Style.space(44)
+          radius: Style.space(18)
+          color: Util.alpha(root.fg, 0.05)
+          border.width: 1
+          border.color: Calm.hair
+          Column {
+            id: aboutCol
+            anchors.centerIn: parent
+            spacing: Style.space(10)
+            Logo { anchors.horizontalCenter: parent.horizontalCenter; size: Style.space(72) }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Solfa " + (root.svc ? (root.svc.solfaVersion || "0.1.0") : "0.1.0"); textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.space(16); font.bold: true }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Engine: " + root.engineLabel(root.engineVersionText); textFormat: Text.PlainText; color: Util.alpha(root.fg, 0.6); font.family: root.family; font.pixelSize: Style.space(12) }
+          }
+        }
+        Text {
+          width: parent.width
+          text: "A YouTube Music player for the Omarchy shell. The web app plays the audio. It is never seen and never takes focus."
+          textFormat: Text.PlainText
+          wrapMode: Text.WordWrap
+          color: Util.alpha(root.fg, 0.6)
+          font.family: root.family
+          font.pixelSize: Style.space(12.5)
+        }
+        Row {
+          spacing: Style.space(8)
+          Repeater {
+            model: [
+              { label: "Changelog", icon: "globe", url: "https://github.com/SirAllap/omarchy-solfa/releases", obj: "aboutChangelog" },
+              { label: "Report an issue", icon: "warn", url: "https://github.com/SirAllap/omarchy-solfa/issues/new", obj: "aboutReport" }
+            ]
+            delegate: Rectangle {
+              required property var modelData
+              objectName: modelData.obj
+              width: pillRow.implicitWidth + Style.space(32)
+              height: Style.space(36)
+              radius: height / 2
+              color: pillMa.containsMouse ? Util.alpha(root.fg, 0.1) : Util.alpha(root.fg, 0.06)
+              border.width: 1
+              border.color: Calm.hair
+              Row {
+                id: pillRow
+                anchors.centerIn: parent
+                spacing: Style.space(8)
+                Icon { name: modelData.icon; size: Style.space(16); color: root.fg; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: modelData.label; textFormat: Text.PlainText; color: root.fg; font.family: root.family; font.pixelSize: Style.font.body; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+              }
+              MouseArea { id: pillMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Qt.openUrlExternally(modelData.url) }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ---- the open dropdown's menu, above every row -----------------------
+
+  Item {
+    id: menuLayer
+    anchors.fill: parent
+    visible: root.menuSrc !== null
+    z: 50
+    MouseArea { anchors.fill: parent; onClicked: root.closeMenu() }
+    Rectangle {
+      id: menuBox
+      readonly property point pos: root.menuSrc ? root.menuSrc.mapToItem(root, 0, 0) : Qt.point(0, 0)
+      readonly property real srcW: root.menuSrc ? root.menuSrc.width : 0
+      readonly property real srcH: root.menuSrc ? root.menuSrc.height : 0
+      width: Math.max(Style.space(150), srcW)
+      height: menuCol.implicitHeight + Style.space(12)
+      x: Math.max(0, Math.min(root.width - width, pos.x + srcW - width))
+      y: Math.max(0, Math.min(pos.y + srcH + Style.space(6), root.height - height))
+      radius: Style.space(14)
+      color: Calm.raised
+      border.width: 1
+      border.color: Calm.hair
+      Column {
+        id: menuCol
+        anchors.fill: parent
+        anchors.margins: Style.space(6)
+        Repeater {
+          model: root.menuSrc ? root.menuSrc.options : []
+          delegate: Rectangle {
+            required property var modelData
+            objectName: "menuItem_" + modelData.key
+            readonly property bool chosen: root.menuSrc !== null && modelData.key === root.menuSrc.current
+            width: menuCol.width
+            height: Style.space(34)
+            radius: Style.space(10)
+            color: chosen ? Calm.a(Calm.accent, 0.22) : "transparent"
+            Text {
+              anchors.left: parent.left; anchors.leftMargin: Style.space(12)
+              anchors.verticalCenter: parent.verticalCenter
+              text: modelData.label
+              textFormat: Text.PlainText
+              color: parent.chosen ? Calm.accent : Calm.fg
+              font.family: root.family
+              font.pixelSize: Style.font.body
+            }
+            Icon {
+              visible: parent.chosen
+              anchors.right: parent.right; anchors.rightMargin: Style.space(12)
+              anchors.verticalCenter: parent.verticalCenter
+              name: "check"
+              size: Style.space(16)
+              color: Calm.accent
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { var key = modelData.key; var src = root.menuSrc; root.closeMenu(); if (src) src.picked(key) }
+            }
+          }
+        }
       }
     }
   }

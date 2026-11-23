@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib"
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
@@ -15,7 +16,7 @@ Item {
   property QtObject bar: null
   property var panel: null
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property string family: Calm.font
 
   property var page: null        // { id, params, title }
   property var info: null
@@ -209,119 +210,249 @@ Item {
     svc.request("play", args)
   }
 
+  // The mockup's pill button: 36 px, the primary one filled with the accent.
+  component Pill: Rectangle {
+    id: pill
+    property string text: ""
+    property string glyph: ""
+    property bool primary: false
+    property bool active: false   // a toggle that is on (Find, with its field open)
+    property string keyHint: ""   // a key that does the same, drawn as a KeyCap
+    property string tooltipText: ""
+    signal clicked()
+    height: Style.space(36)
+    width: pillRow.width + Style.space(30)
+    radius: height / 2
+    color: primary ? Calm.accent : active ? Calm.a(Calm.accent, 0.18) : pillMouse.containsMouse ? Calm.a(Calm.fg, 0.12) : Calm.wash
+    border.width: primary ? 0 : 1
+    border.color: active ? Calm.a(Calm.accent, 0.85) : Calm.hair
+    Row {
+      id: pillRow
+      anchors.centerIn: parent
+      spacing: Style.space(7)
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: pill.glyph
+        color: pill.primary ? Calm.onAccent : Calm.fg
+        font.pixelSize: Style.space(15)
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        visible: pill.text !== ""
+        text: pill.text
+        color: pill.primary ? Calm.onAccent : Calm.fg
+        font.family: view.family
+        font.pixelSize: Style.space(13)
+        font.weight: Font.DemiBold
+      }
+      KeyCap {
+        anchors.verticalCenter: parent.verticalCenter
+        visible: pill.keyHint !== ""
+        text: pill.keyHint
+      }
+    }
+    MouseArea {
+      id: pillMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: pill.clicked()
+    }
+    // A calm tip under the pill while the pointer rests on it.
+    Rectangle {
+      z: 10
+      visible: pill.tooltipText !== "" && pillMouse.containsMouse
+      y: pill.height + Style.space(6)
+      width: tipText.implicitWidth + Style.space(20)
+      height: Style.space(26)
+      radius: Style.space(8)
+      color: Calm.raised
+      border.width: 1
+      border.color: Calm.hair
+      Text {
+        id: tipText
+        anchors.centerIn: parent
+        text: pill.tooltipText
+        textFormat: Text.PlainText
+        color: Calm.fg
+        font.family: view.family
+        font.pixelSize: Style.space(12)
+      }
+    }
+  }
+
+  // The mockup's Back: a pill at the top left of the page, with its esc key.
   Row {
+    id: backRow
+    objectName: "backRow"
+    height: Style.space(36)
+    spacing: Style.space(8)
+    Pill {
+      objectName: "backButton"
+      glyph: Icons.back
+      text: "Back"
+      onClicked: if (view.panel) view.panel.back()
+    }
+    KeyCap { anchors.verticalCenter: parent.verticalCenter; text: "esc" }
+  }
+
+  Item {
     id: head
+    y: backRow.height + Style.space(12)
     width: parent.width
-    spacing: Style.space(12)
+    height: cover.height
 
     RoundCover {
       id: cover
-      width: Style.space(56)
+      width: Style.space(118)
       height: width
+      cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(20)
       source: view.info ? (view.info.thumb || "") : ""
-      foreground: view.fg
-      fill: Util.alpha(view.fg, 0.08)
-      fontFamily: view.family
+      foreground: Calm.fg
+      fill: Calm.a(Calm.fg, 0.08)
+      fontFamily: ""
       glyph: view.info && view.info.kind === "artist" ? Icons.artist : Icons.album
     }
 
     Column {
-      width: parent.width - cover.width - actions.width - parent.spacing * 2
+      x: cover.width + Style.space(20)  // mockup DetailView: 20 px between cover and text
+      width: parent.width - x
       anchors.verticalCenter: cover.verticalCenter
-      spacing: Style.space(2)
+      spacing: Style.space(4)
+      Text {
+        visible: !!view.info
+        text: view.info ? (view.info.kind === "artist" ? "ARTIST" : view.info.kind === "playlist" ? "PLAYLIST" : "ALBUM") : ""
+        color: Calm.accent
+        font.family: view.family
+        font.pixelSize: Style.space(11)
+        font.weight: Font.Bold
+        font.letterSpacing: 1.4
+      }
       Text {
         width: parent.width
         text: view.info && view.info.title ? view.info.title : (view.page ? view.page.title : "")
         textFormat: Text.PlainText
         elide: Text.ElideRight
-        color: view.fg
+        color: Calm.fg
         font.family: view.family
-        font.pixelSize: Style.font.title
-        font.bold: true
+        font.pixelSize: Style.space(24)
+        font.weight: Font.Bold
+        font.letterSpacing: -0.5
       }
       Text {
         width: parent.width
         text: !view.info ? (view.busy ? "Loading" : view.error)
-          : view.info.kind === "album" ? [Model.artistsText(view.info.artists), view.info.subtitle].filter(Boolean).join(" — ")
-          : view.info.kind === "playlist" ? [view.info.author, view.info.subtitle].filter(Boolean).join(" — ")
+          : view.info.kind === "album" ? [Model.artistsText(view.info.artists), view.info.subtitle].filter(Boolean).join(" · ")
+          : view.info.kind === "playlist" ? [view.info.author, view.info.subtitle].filter(Boolean).join(" · ")
           : (view.info.subtitle || "")
         textFormat: Text.PlainText
         elide: Text.ElideRight
-        color: Util.alpha(view.fg, 0.65)
+        color: Calm.a(Calm.fg, 0.64)
         font.family: view.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.space(12)
       }
-    }
-
-    Row {
-      id: actions
-      anchors.verticalCenter: cover.verticalCenter
-      spacing: Style.space(4)
-      Button {
-        visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
-        iconText: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
-        text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
-        fontFamily: view.family
-        foreground: view.fg
-        bordered: true
-        onClicked: view.playAll(false)
-      }
-      Button {
-        visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
-        iconText: Icons.shuffle
-        tooltipText: "Shuffle"
-        fontFamily: view.family
-        foreground: view.fg
-        onClicked: view.playAll(true)
-      }
-      Button {
-        objectName: "findButton"
-        visible: view.findable
-        iconText: Icons.search
-        tooltipText: view.info && view.info.kind === "album" ? "Find in this album (F)" : "Find in this playlist (F)"
-        fontFamily: view.family
-        foreground: view.fg
-        selected: view.finding
-        onClicked: if (view.finding) view.closeFind(); else view.startFind()
+      Row {
+        id: actions
+        topPadding: Style.space(8)
+        spacing: Style.space(8)
+        Pill {
+          visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
+          primary: true
+          glyph: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
+          text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
+          onClicked: view.playAll(false)
+        }
+        Pill {
+          visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
+          glyph: Icons.shuffle
+          text: "Shuffle"
+          onClicked: view.playAll(true)
+        }
+        Pill {
+          objectName: "findButton"
+          visible: view.findable
+          active: view.finding
+          glyph: Icons.search
+          keyHint: "F"
+          tooltipText: view.info && view.info.kind === "album" ? "Find in this album (F)" : "Find in this playlist (F)"
+          onClicked: if (view.finding) view.closeFind(); else view.startFind()
+        }
       }
     }
   }
 
+  // The find bar wears the redesign's search field: a 46 px pill, accent ring
+  // while it has focus, the count of matches on its right.
   Item {
     id: findBar
     objectName: "findBar"
     visible: view.finding
     anchors.top: head.bottom
-    anchors.topMargin: visible ? Style.space(10) : 0
+    anchors.topMargin: visible ? Style.space(14) : 0
     width: parent.width
-    height: visible ? findField.implicitHeight : 0
+    height: visible ? Style.space(46) : 0
 
-    TextField {
-      id: findField
-      objectName: "findField"
-      anchors.left: parent.left
-      anchors.right: findStatus.left
-      anchors.rightMargin: Style.space(8)
-      placeholderText: view.info && view.info.kind === "album" ? "Find in this album" : "Find in this playlist"
-      font.family: view.family
-      onTextEdited: view.typed()
-      onAccepted: view.fieldToList()
-      Keys.onEscapePressed: function (e) { view.escapeField(); e.accepted = true }
-      Keys.onDownPressed: function (e) { view.fieldToList(); e.accepted = true }
-    }
-    Text {
-      id: findStatus
-      objectName: "findStatus"
-      anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(150)
-      horizontalAlignment: Text.AlignRight
-      text: view.info && view.info.tracks ? Model.findStatus(view.query, view.rows.length, view.info.tracks.length, view.loadingAll, view.loadError !== "") : ""
-      textFormat: Text.PlainText
-      elide: Text.ElideLeft
-      color: Util.alpha(view.fg, 0.6)
-      font.family: view.family
-      font.pixelSize: Style.font.caption
+    Rectangle {
+      id: findBox
+      anchors.fill: parent
+      radius: height / 2
+      color: findField.activeFocus ? Calm.a(Calm.fg, 0.07) : Calm.wash
+      border.width: findField.activeFocus ? 1.5 : 1
+      border.color: findField.activeFocus ? Calm.a(Calm.accent, 0.85) : Calm.hair
+      Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 200 } }
+      Behavior on border.color { enabled: !Style.reduceMotion; ColorAnimation { duration: 200 } }
+
+      Text {
+        x: Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        text: Icons.search
+        color: findField.activeFocus ? Calm.accent : Calm.a(Calm.fg, 0.64)
+        font.pixelSize: Style.space(19)
+      }
+      Text {
+        x: Style.space(46)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: findField.text === ""
+        text: findField.placeholderText
+        color: Calm.a(Calm.fg, 0.36)
+        font.family: view.family
+        font.pixelSize: Style.space(14)
+      }
+      TextInput {
+        id: findField
+        objectName: "findField"
+        property string placeholderText: view.info && view.info.kind === "album" ? "Find in this album" : "Find in this playlist"
+        anchors.left: parent.left
+        anchors.leftMargin: Style.space(46)
+        anchors.right: findStatus.left
+        anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: parent.verticalCenter
+        clip: true
+        color: Calm.fg
+        selectionColor: Calm.a(Calm.accent, 0.5)
+        selectedTextColor: Calm.fg
+        font.family: view.family
+        font.pixelSize: Style.space(15)
+        onTextEdited: view.typed()
+        onAccepted: view.fieldToList()
+        Keys.onEscapePressed: function (e) { view.escapeField(); e.accepted = true }
+        Keys.onDownPressed: function (e) { view.fieldToList(); e.accepted = true }
+      }
+      Text {
+        id: findStatus
+        objectName: "findStatus"
+        anchors.right: parent.right
+        anchors.rightMargin: Style.space(18)
+        anchors.verticalCenter: parent.verticalCenter
+        width: Style.space(130)
+        horizontalAlignment: Text.AlignRight
+        text: view.info && view.info.tracks ? Model.findStatus(view.query, view.rows.length, view.info.tracks.length, view.loadingAll, view.loadError !== "") : ""
+        textFormat: Text.PlainText
+        elide: Text.ElideLeft
+        color: Calm.a(Calm.fg, 0.6)
+        font.family: view.family
+        font.pixelSize: Style.space(12)
+      }
     }
   }
 
@@ -329,13 +460,14 @@ Item {
     id: list
     objectName: "detailList"
     anchors.top: findBar.bottom
-    anchors.topMargin: Style.space(10)
+    anchors.topMargin: view.finding ? Style.space(10) : Style.space(20)  // mockup: list 20 px under the cover
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    panelOpen: !!(view.svc && view.svc.panelOpen)
     actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
     emptyText: view.busy ? "Loading" : view.error !== "" ? view.error
       : view.finding && view.query.trim() !== "" ? (view.loadingAll ? "No match yet" : "No song matches") : ""

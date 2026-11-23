@@ -2,6 +2,7 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 import "../lib/Icons.js" as Icons
+import "../lib"
 
 // Solfa's name, small and quiet, the gear (Settings) and the power button:
 // power closes Solfa (the engine; the music stops) and, once closed, starts
@@ -11,10 +12,15 @@ Row {
   id: root
 
   property var svc: null
-  property color foreground: Color.foreground
-  property string fontFamily: Style.font.family
+  property color foreground: Calm.fg
+  property string fontFamily: Calm.font
   property bool settingsOpen: false
+  // The header is two instances: the name (left) and the buttons (right).
+  property bool showLeft: true
+  property bool showRight: true
 
+  // Both instances build every child; only the one that shows a child names it,
+  // so a lookup by objectName finds exactly one.
   signal gearClicked()
 
   readonly property bool closed: svc ? svc.closed === true : false
@@ -26,11 +32,54 @@ Row {
   readonly property bool showSignIn: svc ? svc.ready && !svc.signedIn && !svc.signingIn : false
   readonly property bool showPremium: svc ? svc.ready && svc.premium : false
 
-  spacing: Style.space(4)
+  // One muted tone for the mark, the name's pill text and the icons.
+  readonly property color muted: Calm.accent
 
+  // 14 px between the name's parts; the right-hand icons sit 36 px apart (their box).
+  spacing: showLeft ? Style.space(14) : 0
+  height: Style.space(36)
+
+  Logo {
+    visible: root.showLeft
+    objectName: root.showLeft ? "brandLogo" : ""
+    anchors.verticalCenter: parent.verticalCenter
+    size: Style.space(36)
+  }
+  Text {
+    visible: root.showLeft
+    anchors.verticalCenter: parent.verticalCenter
+    text: "Solfa"
+    textFormat: Text.PlainText
+    color: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Style.space(22)
+    font.weight: Font.Bold
+  }
+  Rectangle {
+    id: premium
+    objectName: root.showLeft ? "premiumBadge" : ""
+    anchors.verticalCenter: parent.verticalCenter
+    visible: root.showLeft && root.showPremium
+    width: premiumText.implicitWidth + Style.space(20)
+    height: premiumText.implicitHeight + Style.space(4)
+    radius: height / 2
+    color: Calm.surface
+    border.width: 1
+    border.color: Calm.hair
+    Text {
+      id: premiumText
+      anchors.centerIn: parent
+      text: "Premium"
+      textFormat: Text.PlainText
+      color: root.muted
+      font.family: root.fontFamily
+      font.pixelSize: Style.space(12)
+      font.weight: Font.Medium
+    }
+  }
   HitButton {
     id: signIn
-    objectName: "signInButton"
+    objectName: root.showRight ? "signInButton" : ""
     anchors.verticalCenter: parent.verticalCenter
     minSize: Style.space(28)
     text: "Sign in"
@@ -38,72 +87,35 @@ Row {
     fontSize: Style.font.caption
     foreground: root.foreground
     bordered: true
-    visible: root.showSignIn
+    visible: root.showRight && root.showSignIn
     onClicked: if (root.svc) root.svc.signIn()
-  }
-  Rectangle {
-    id: premium
-    objectName: "premiumBadge"
-    anchors.verticalCenter: parent.verticalCenter
-    visible: root.showPremium
-    width: premiumText.implicitWidth + Style.space(12)
-    height: premiumText.implicitHeight + Style.space(4)
-    radius: Style.space(6)
-    color: Util.alpha(Color.accent, 0.16)
-    Text {
-      id: premiumText
-      anchors.centerIn: parent
-      text: "Premium"
-      textFormat: Text.PlainText
-      color: Color.accent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-    }
-  }
-  Text {
-    anchors.verticalCenter: parent.verticalCenter
-    opacity: 0.4
-    text: Icons.album
-    textFormat: Text.PlainText
-    color: root.foreground
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.caption
-  }
-  Text {
-    anchors.verticalCenter: parent.verticalCenter
-    opacity: 0.4
-    text: "Solfa"
-    textFormat: Text.PlainText
-    color: root.foreground
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.caption
   }
   HitButton {
     id: gear
-    objectName: "gearButton"
+    objectName: root.showRight ? "gearButton" : ""
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(28)
-    iconText: Icons.gear
-    iconSize: Style.font.body
-    foreground: root.settingsOpen ? Color.accent : root.foreground
+    minSize: Style.space(36)
+    iconText: ""
+    VIcon { anchors.centerIn: parent; name: "gear"; size: Style.space(22); stroke: 1.4; color: gear.foreground }
+    foreground: root.muted
     selected: root.settingsOpen
-    visible: root.reachable
-    opacity: root.settingsOpen || hot ? 1 : 0.45
+    visible: root.showRight && root.reachable
+    opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: "Settings"
     onClicked: root.gearClicked()
   }
   HitButton {
     id: power
-    objectName: "powerButton"
+    objectName: root.showRight ? "powerButton" : ""
     anchors.verticalCenter: parent.verticalCenter
-    minSize: Style.space(28)
-    iconText: Icons.power
-    iconSize: Style.font.body
-    foreground: root.closed ? Color.accent : root.foreground
+    minSize: Style.space(36)
+    iconText: ""
+    VIcon { anchors.centerIn: parent; name: "power"; size: Style.space(22); stroke: 1.4; color: power.foreground }
+    foreground: root.closed ? Calm.fg : root.muted
     selected: root.closed
-    visible: root.reachable
-    opacity: root.closed || hot ? 1 : 0.45
+    visible: root.showRight && root.reachable
+    opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: root.closed ? "Turn Solfa on" : "Turn Solfa off — the music stops"
     onClicked: if (root.svc) root.svc.toggleEngine()

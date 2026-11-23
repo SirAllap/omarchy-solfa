@@ -43,7 +43,7 @@ Removing the plugin takes down, within about 30 seconds:
 
 ## First run
 
-Open the panel (Super+M or a click) and choose **Sign in**.
+Open the panel (Super+Alt+M or a click) and choose **Sign in**.
 A Google window opens: sign in there. Solfa closes it and starts YouTube
 Music again, signed in (closing the window yourself works too). If YouTube
 Music comes back still signed out, the panel says so, and the next **Sign in**
@@ -53,7 +53,7 @@ with adverts.
 ## Keys
 
 Global (only where the key is free; turn off with the `globalKeys` setting):
-Super+M panel · Super+Alt+M play/pause · Super+Alt+N next · Super+Alt+B previous · Super+Alt+L like.
+Super+Alt+M panel · Super+Alt+P play/pause · Super+Alt+N next · Super+Alt+B previous · Super+Alt+L like.
 Media keys work through Chromium's own MPRIS player.
 
 In the panel: `space` play/pause, `n`/`p` next/previous, `,`/`.` seek 10 s,

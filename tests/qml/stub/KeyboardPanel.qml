@@ -14,6 +14,9 @@ Item {
   property var owner: null
   property bool open: false
   property Item focusTarget: null
+  // Like the shell's KeyboardPanel: a plugin may replace the border (settable),
+  // the radius and the background are fixed there (KeyboardPanel.qml:514, :517).
+  property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
@@ -37,8 +40,11 @@ Item {
     id: card
     objectName: "panelCard"
     anchors.fill: parent
+    property var borderSpec: root.borderSpec
     radius: Style.cornerRadius
     color: Color.popups.background
+    border.width: Border.top(borderSpec)
+    border.color: Border.color(borderSpec)
 
     Item {
       id: contentHolder

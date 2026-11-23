@@ -2,7 +2,9 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window
+import qs.Commons
 import "../lib/Icons.js" as Icons
+import "../lib/Motion.js" as Motion
 
 // A cover cut to a circle (the record motif of Solfa), with a glyph while
 // there is no picture. `dim` greys it out, for a paused song.
@@ -15,17 +17,68 @@ Item {
   property string glyph: Icons.note
   property string fontFamily: ""
   property bool dim: false
+  // The calm vinyl motif (rings and a label dot) in place of the glyph.
+  property bool motif: false
+  // Corner radius; below zero is a full circle (the bar's record cover).
+  property real cornerRadius: -1
+  readonly property real cr: cornerRadius >= 0 ? Math.min(cornerRadius, Math.min(width, height) / 2) : Math.min(width, height) / 2
+  // Life: while the panel is open and a song plays the cover breathes, and
+  // it can look toward a control (a critically damped spring, so a new look
+  // never jumps). All of it stops with the system's reduce-motion setting.
+  property bool breathe: false
+  property bool live: false
+  property bool reduceMotion: false   // the owner of the cover passes Style.reduceMotion
+  readonly property bool moving: !reduceMotion
+  property real gx: 0
+  property real gy: 0
+  property real pulse: 0
+  Behavior on gx { enabled: root.moving; SpringAnimation { spring: 4.5; damping: 1; epsilon: 0.01 } }
+  Behavior on gy { enabled: root.moving; SpringAnimation { spring: 4.5; damping: 1; epsilon: 0.01 } }
+  // Only a cover that breathes gets a transform: a plain one stays on the pixel grid.
+  scale: breathe ? 1 + 0.03 * pulse : 1
+  transform: breathe ? [moveBy] : []
+  Translate { id: moveBy; x: root.gx; y: root.gy }
+  SequentialAnimation on pulse {
+    running: root.breathe && root.live && root.moving
+    loops: Animation.Infinite
+    NumberAnimation { to: 1; duration: 2100; easing.type: Easing.InOutSine }
+    NumberAnimation { to: 0; duration: 2100; easing.type: Easing.InOutSine }
+  }
+  Timer { id: back; interval: 520; onTriggered: { root.gx = 0; root.gy = 0 } }
+  // Look toward `item` (any item in the same window), then settle back.
+  function lookAt(item) {
+    if (!root.moving || !root.live || !item) return
+    var p = item.mapToItem(root, item.width / 2, item.height / 2)
+    var g = Motion.gaze(p.x - width / 2, p.y - height / 2, Math.max(2, width * 0.09))
+    root.gx = g.x; root.gy = g.y
+    back.restart()
+  }
+  // After a quiet spell it glances elsewhere (a seeded direction), then rests.
+  property int glances: 0
+  Timer {
+    interval: Motion.idleMs; running: root.breathe && root.live && root.moving; repeat: true
+    onTriggered: {
+      root.glances += 1
+      var a = Motion.rand(root.glances + 40) * 6.283
+      root.gx = Math.cos(a) * root.width * 0.08; root.gy = Math.sin(a) * root.width * 0.08
+      back.restart()
+    }
+  }
 
   implicitWidth: 32
   implicitHeight: 32
 
   Rectangle {
     anchors.fill: parent
-    radius: width / 2
+    radius: root.cr
     color: root.fill
     visible: img.status !== Image.Ready
 
+    Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.62; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: Util.alpha(root.foreground, 0.16) }
+    Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.34; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: Util.alpha(root.foreground, 0.2) }
+    Rectangle { visible: root.motif; anchors.centerIn: parent; width: parent.width * 0.09; height: width; radius: width / 2; color: Util.alpha(root.foreground, 0.55) }
     Text {
+      visible: !root.motif
       anchors.centerIn: parent
       text: root.glyph
       textFormat: Text.PlainText
@@ -73,13 +126,16 @@ Item {
         var win = root.Window.window
         var dpr = (win && win.devicePixelRatio) || root.Screen.devicePixelRatio || 1
         var iw = Math.max(1, img.implicitWidth) / dpr, ih = Math.max(1, img.implicitHeight) / dpr
-        var k = Math.max(root.width / iw, root.height / ih)
+        var k = Math.max(root.width / iw, root.height / ih) * 1.03   // a hair over, so the edge never samples past the crop
         return PlanarTransform.fromAffineMatrix(k, 0, 0, k, (root.width - iw * k) / 2, (root.height - ih * k) / 2)
       }
-      PathAngleArc {
-        centerX: root.width / 2; centerY: root.height / 2
-        radiusX: root.width / 2; radiusY: root.height / 2
-        startAngle: 0; sweepAngle: 360
+      PathSvg {
+        path: {
+          var w = root.width, h = root.height, r = root.cr
+          return "M" + r + " 0H" + (w - r) + "A" + r + " " + r + " 0 0 1 " + w + " " + r + "V" + (h - r)
+            + "A" + r + " " + r + " 0 0 1 " + (w - r) + " " + h + "H" + r + "A" + r + " " + r + " 0 0 1 0 " + (h - r)
+            + "V" + r + "A" + r + " " + r + " 0 0 1 " + r + " 0Z"
+        }
       }
     }
   }

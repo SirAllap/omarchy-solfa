@@ -24,6 +24,7 @@
       "showWhenIdle": true,
       "notify": true,
       "globalKeys": true,
+      "panelKey": "",
       "autostart": true,
       "browser": "",
       "braveAdBlock": false,
@@ -35,7 +36,8 @@
       "startPaused": false,
       "startVolume": "last",
       "recycleHeapMb": 400,
-      "recycleHours": 12
+      "recycleHours": 12,
+      "reduceMotion": false
     },
     "schema": [
       { "key": "barControls", "type": "bool", "label": "Previous, play/pause and next in the bar", "defaultValue": true },
@@ -43,7 +45,7 @@
       { "key": "maxLabelWidth", "type": "number", "label": "Title width in the bar (px)", "defaultValue": 160 },
       { "key": "showWhenIdle", "type": "bool", "label": "Show in the bar when nothing is loaded", "defaultValue": true },
       { "key": "notify", "type": "bool", "label": "Notify when the song changes", "defaultValue": true },
-      { "key": "globalKeys", "type": "bool", "label": "Shortcuts: Super+M panel, Super+Alt+M play/pause, Super+Alt+N next, Super+Alt+B previous, Super+Alt+L like (only keys nobody else uses)", "defaultValue": true },
+      { "key": "globalKeys", "type": "bool", "label": "Shortcuts: panel key (Super+Alt+M, or a free fallback), Super+Alt+P play/pause, Super+Alt+N next, Super+Alt+B previous, Super+Alt+L like (only keys nobody else uses)", "defaultValue": true },
       { "key": "autostart", "type": "bool", "label": "Start YouTube Music with the shell", "defaultValue": true },
       { "key": "browser", "type": "string", "label": "Browser for the engine", "defaultValue": "", "description": "An absolute path to a Chromium-family browser executable, e.g. /usr/bin/brave. Empty: the first found of chromium, google-chrome-stable, brave, brave-browser, vivaldi-stable, microsoft-edge-stable." },
       { "key": "braveAdBlock", "type": "bool", "label": "With Brave, let its ad blocker fetch its filter lists", "defaultValue": false, "description": "Only for a Brave engine, and only worth it without Premium: Brave then updates its components in the background (more traffic, about 25 MB more memory)." },
@@ -55,7 +57,9 @@
       { "key": "startPaused", "type": "bool", "label": "When Solfa starts, resume paused instead of playing", "defaultValue": false },
       { "key": "startVolume", "type": "string", "label": "Volume when Solfa starts", "defaultValue": "last", "description": "\"last\" (the volume it had) or a 0-100 percent." },
       { "key": "recycleHeapMb", "type": "number", "label": "Refresh the page past this JS heap (MB)", "defaultValue": 400, "description": "Applies on the next start." },
-      { "key": "recycleHours", "type": "number", "label": "Refresh the page at least every (hours)", "defaultValue": 12, "description": "Applies on the next start." }
+      { "key": "recycleHours", "type": "number", "label": "Refresh the page at least every (hours)", "defaultValue": 12, "description": "Applies on the next start." },
+      { "key": "panelKey", "type": "string", "label": "Panel key", "defaultValue": "", "description": "Empty: Super+Alt+M when it is free, else the first free of Super+Shift+M, Super+Ctrl+M." },
+      { "key": "reduceMotion", "type": "boolean", "label": "Reduce motion", "defaultValue": false, "description": "Stops springs, glows, comets and typing." }
     ]
   }
 }

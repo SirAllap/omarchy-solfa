@@ -24,6 +24,11 @@ ShellRoot {
     // the hit-target test of the Skip ad pill next to its clock.
     property bool isAd: Quickshell.env("SOLFA_SCENE_AD") === "1"
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool isPlaying: true
     property string like: "LIKE"
     property string title: "Northern Lights"
@@ -101,7 +106,7 @@ ShellRoot {
         Views.RowList {
           id: list
           width: parent.width
-          height: 4 * Style.space(46)
+          height: 4 * Style.space(58)
           rows: Model.queueRows({ index: 0, items: [
             { videoId: "v1", title: "Northern Lights", artist: "The Examples", duration: 214 },
             { videoId: "v2", title: "A Much Longer Song Title That Needs Every Pixel It Can Get", artist: "The Examples", duration: 187 },
@@ -161,7 +166,7 @@ ShellRoot {
           var skipLabel = c.skippable === false ? "Can't skip yet" : "Skip ad"
           out.buttons.push({ label: skipLabel, tip: skipLabel, x: pa.x, y: pa.y, w: c.width, h: c.height, shown: c.opacity > 0 })
         }
-        if (c.elide === Text.ElideRight && c.font && c.font.pixelSize === Style.font.body && c.text.indexOf("Song") >= 0)
+        if (c.elide === Text.ElideRight && c.font && c.font.pixelSize === Style.space(14) && c.text.indexOf("Song") >= 0)
           out.titles.push({ text: c.text, w: c.width })
         win.boxes(c, out)
       }

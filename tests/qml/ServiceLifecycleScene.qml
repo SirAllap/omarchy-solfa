@@ -68,6 +68,17 @@ ShellRoot {
       scene.inject(scene.widgets[step.name], step.entry)
     } else if (step.do === "save") {
       scene.svc.saveSetting(step.key, step.value)
+    } else if (step.do === "panelKey") {
+      console.log("PANELKEY " + JSON.stringify({ label: scene.svc.panelKeyLabel, options: scene.svc.panelKeyOptions }))
+    } else if (step.do === "toggle") {
+      // shell.toggle on a bar-widget panel: Bar.findPanelWidget accepts the
+      // widget only if it has open(), close() and a defined 'opened', then
+      // shell.toggle calls close() when it is open and open() otherwise.
+      var t = scene.widgets[step.name]
+      var contract = typeof t.open === "function" && typeof t.close === "function" && t.opened !== undefined
+      var before = t.opened === true
+      if (before) t.close(); else t.open()
+      console.log("TOGGLE " + JSON.stringify({ contract: contract, before: before, after: t.opened === true }))
     } else if (step.do === "quit") {
       Qt.quit()
     }

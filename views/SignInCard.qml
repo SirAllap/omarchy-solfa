@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib"
 import qs.Ui
 import qs.Commons
 
@@ -10,8 +11,10 @@ Column {
 
   property var svc: null
   property QtObject bar: null
-  readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property string family: bar ? bar.fontFamily : Style.font.family
+  readonly property color fg: bar ? bar.foreground : Calm.fg
+  // The calm error tone of the mockup (Theme.err).
+  readonly property color err: Qt.rgba(0.725, 0.439, 0.486, 1)
+  readonly property string family: Calm.font
   // gated: the engine sits on a page other than YouTube Music.
   readonly property bool waiting: svc ? svc.gated : false
   readonly property bool shown: svc && svc.engine ? !!svc.engine.shown : false
@@ -25,18 +28,33 @@ Column {
   // The last sign-in window closed without the account in.
   readonly property bool failed: svc ? !!svc.signinError && !signingIn : false
 
-  spacing: Style.space(10)
+  spacing: 12
 
   // Something is happening while a sign-in runs: Solfa's disc breathes.
-  Text {
+  Item {
     id: pulse
     anchors.horizontalCenter: parent.horizontalCenter
-    visible: card.signingIn
-    text: String.fromCodePoint(0xF0025)  // the disc of Solfa's mark (Icons.album)
-    textFormat: Text.PlainText
-    color: Color.accent
-    font.family: card.family
-    font.pixelSize: Style.font.iconLarge * 1.8
+    width: 62
+    height: 62
+    readonly property bool bad: card.failed && !card.signingIn
+    // The calm tile.
+    Rectangle {
+      anchors.fill: parent
+      radius: 20
+      color: Calm.a(pulse.bad ? card.err : Calm.accent, 0.16)
+      border.width: 1
+      border.color: Calm.a(pulse.bad ? card.err : Calm.accent, 0.45)
+    }
+    // the disc of Solfa's mark while signing in, a person otherwise, a bang when it failed
+    Text {
+      anchors.centerIn: parent
+      text: card.signingIn ? String.fromCodePoint(0xF0025) : card.failed ? "!" : String.fromCodePoint(0xF0004)
+      textFormat: Text.PlainText
+      color: pulse.bad ? card.err : Calm.accent
+      font.family: card.family
+      font.pixelSize: 26
+      font.bold: pulse.bad
+    }
     // Drawn once as a smooth texture, so scaling does not shimmer.
     layer.enabled: true
     layer.smooth: true
@@ -70,7 +88,7 @@ Column {
     horizontalAlignment: Text.AlignHCenter
     color: card.fg
     font.family: card.family
-    font.pixelSize: Style.font.title
+    font.pixelSize: 18
     font.bold: true
   }
 
@@ -91,9 +109,9 @@ Column {
     textFormat: Text.PlainText
     wrapMode: Text.WordWrap
     horizontalAlignment: Text.AlignHCenter
-    color: Util.alpha(card.fg, 0.7)
+    color: Util.alpha(card.fg, 0.64)
     font.family: card.family
-    font.pixelSize: Style.font.body
+    font.pixelSize: 13
   }
 
   // Google's cookie question: the answer is the main thing here, its two
@@ -103,46 +121,54 @@ Column {
 
   Row {
     anchors.horizontalCenter: parent.horizontalCenter
-    spacing: Style.space(8)
+    spacing: 8
 
-    Button {
+    HitButton {
       visible: !card.shown && !card.broken && !card.signingIn && !card.asking
       text: "Sign in"
       fontFamily: card.family
-      foreground: card.fg
-      bordered: true
+      foreground: Calm.onAccent
+      background: Calm.accent
+      radius: height / 2
       onClicked: if (card.svc) card.svc.signIn()
     }
-    Button {
+    HitButton {
       // Closes the sign-in window; YouTube Music comes back signed out.
       // Not while the sign-in is being saved: cancelling then loses it.
       visible: card.signingIn && !card.saving
       text: "Cancel"
       fontFamily: card.family
-      foreground: card.fg
+      foreground: card.err
+      background: Util.alpha(card.err, 0.14)
+      radius: height / 2
       onClicked: if (card.svc) card.svc.hideWindow()
     }
-    Button {
+    HitButton {
       visible: card.shown
       text: "Hide the window"
       fontFamily: card.family
       foreground: card.fg
+      background: Util.alpha(card.fg, 0.08)
+      radius: height / 2
       onClicked: if (card.svc) card.svc.hideWindow()
     }
-    Button {
+    HitButton {
       // Hiding also takes the engine back to the app from a sign-in page.
       visible: card.waiting && card.google && !card.shown && !card.signingIn
       text: "Back to YouTube Music"
       fontFamily: card.family
       foreground: card.fg
+      background: Util.alpha(card.fg, 0.08)
+      radius: height / 2
       onClicked: if (card.svc) card.svc.hideWindow()
     }
-    Button {
+    HitButton {
       visible: card.broken
       text: "Try again"
       fontFamily: card.family
-      foreground: card.fg
-      bordered: true
+      foreground: Calm.onAccent
+      background: Calm.accent
+      radius: height / 2
       onClicked: if (card.svc) card.svc.restartEngine()
     }
   }
@@ -151,7 +177,7 @@ Column {
   Column {
     anchors.horizontalCenter: parent.horizontalCenter
     visible: card.asking
-    spacing: Style.space(10)
+    spacing: 10
 
     Text {
       anchors.horizontalCenter: parent.horizontalCenter
@@ -159,51 +185,53 @@ Column {
       textFormat: Text.PlainText
       color: card.fg
       font.family: card.family
-      font.pixelSize: Style.font.body
+      font.pixelSize: 13
       font.bold: true
     }
     Row {
       anchors.horizontalCenter: parent.horizontalCenter
-      spacing: Style.space(12)
-      Button {
+      spacing: 12
+      HitButton {
         text: "Reject all"
         fontFamily: card.family
-        foreground: Color.accent
+        foreground: Calm.accent
         bordered: true
+        radius: height / 2
         onClicked: if (card.svc) card.svc.answerCookies(false)
       }
-      Button {
+      HitButton {
         text: "Accept all"
         fontFamily: card.family
-        foreground: Color.accent
+        foreground: Calm.accent
         bordered: true
+        radius: height / 2
         onClicked: if (card.svc) card.svc.answerCookies(true)
       }
     }
     Rectangle {
       anchors.horizontalCenter: parent.horizontalCenter
-      width: Style.space(220)
+      width: 220
       height: 1
       color: Util.alpha(card.fg, 0.2)
     }
     Row {
       anchors.horizontalCenter: parent.horizontalCenter
-      spacing: Style.space(4)
+      spacing: 4
       Text {
         anchors.verticalCenter: parent.verticalCenter
         text: "Or:"
         textFormat: Text.PlainText
         color: Util.alpha(card.fg, 0.55)
         font.family: card.family
-        font.pixelSize: Style.font.caption
+        font.pixelSize: 11
       }
-      Button {
+      HitButton {
         text: "Sign in with Google"
         fontFamily: card.family
         foreground: Util.alpha(card.fg, 0.75)
         onClicked: if (card.svc) card.svc.signIn()
       }
-      Button {
+      HitButton {
         text: "Answer in the window"
         fontFamily: card.family
         foreground: Util.alpha(card.fg, 0.75)

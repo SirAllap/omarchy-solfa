@@ -75,13 +75,10 @@ class PanelSettings(unittest.TestCase):
         self.assertFalse(s["hero"], "no now-playing hero or transport under Settings")
         self.assertFalse(s["tabs"], "no tabs under Settings")
         self.assertTrue(s["settings"])
-        self.assertTrue(s["brand"], "the brand corner (gear, power) stays")
+        self.assertFalse(s["brand"], "no gear or power under Settings: only the back pill and esc close")
 
-    def test_the_back_row_sits_on_the_top_row_with_the_brand_corner(self):
-        s = self.state["open"]
-        self.assertTrue(s["back"])
-        self.assertLessEqual(s["backTop"], s["brandTop"] + 24, s)
-        self.assertLessEqual(abs(s["backMid"] - s["brandMid"]), 8, s)
+    def test_the_back_row_is_there(self):
+        self.assertTrue(self.state["open"]["back"])
 
     def test_off_shows_only_the_way_back_on(self):
         s = self.state["off"]
@@ -101,14 +98,12 @@ class PanelSettings(unittest.TestCase):
 
 
 class PanelFooterSource(unittest.TestCase):
-    def test_settings_hints_give_way_to_a_message_in_the_footer(self):
-        # A message ("YouTube Music is not ready yet") shares the footer's
-        # strip with the key hints: showing both drew one over the other.
+    def test_settings_has_no_key_hint_footer(self):
+        # The mockup's Settings has no footer: no hints row, and the strip is 0 high.
         with open(os.path.join(ROOT, "Panel.qml")) as f:
             src = f.read()
-        row = src[src.index("Settings has its own, fixed hints"):]
-        row = row[:row.index("Repeater")]
-        self.assertIn('visible: root.settingsOpen && root.flash === ""', row)
+        self.assertNotIn("Settings has its own, fixed hints", src)
+        self.assertIn("height: root.settingsOpen ? 0 : Style.space(32)", src)
 
 
 if __name__ == "__main__":
