@@ -459,7 +459,6 @@ Item {
   // What the panel reads to grow its height: the list wants room for this
   // many rows (6 tracks at 58 px + 8 px gap), and says how tall it is now.
   readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
-  readonly property real listH: list.height
 
   RowList {
     id: list

@@ -37,24 +37,34 @@ Panel {
 
   // A playlist / album page grows the card so its track list gets ~6 rows,
   // down to the free screen height under the bar, and shrinks back on Back.
-  // Same 200 ms OutCubic as the view change; none with reduce motion.
+  // The target comes from the row count and the fixed header height, never from
+  // a measured list, so the grow starts on the same frame as the page change:
+  // one motion. A critically damped feel (BezierSpline 0.2,0,0,1): 320 ms
+  // grow, 240 ms shrink; none with reduce motion.
   property real growth: 0
   readonly property real baseH: panel.cappedContentHeight(Style.space(780))
   readonly property real maxGrow: panel.availableCardHeight > 0 ? Math.max(0, panel.availableCardHeight - baseH) : Style.space(400)
-  // Imperative on purpose: listH - growth is the list's height at the base
-  // size, so a binding on growth itself would be a loop.
+  // The stage's height with no page open: measured at rest, never mid-motion.
+  property real stageRest: 0
   function syncGrowth() {
-    var tgt = pages.length > 0 && !settingsOpen
-      ? Math.min(maxGrow, Math.max(0, detailView.wantListH - (detailView.listH - growth))) : 0
+    var tgt = 0
+    if (pages.length > 0 && !settingsOpen) {
+      var n = detailView.rows.length > 0 ? Math.min(detailView.rows.length, 6) : 6   // 6 while it loads
+      // The stage at rest (no page, no growth) minus the fixed header above the list.
+      var baseList = (stageRest > 0 ? stageRest : stage.height - growth) - Style.space(36 + 12 + 118 + 20)
+      tgt = Math.min(maxGrow, Math.max(0, n * Style.space(66) - baseList))
+    }
     if (Style.reduceMotion) { growAnim.stop(); growth = tgt; return }
     if (Math.abs((growAnim.running ? growAnim.to : growth) - tgt) < 0.5) return
-    growAnim.stop(); growAnim.from = growth; growAnim.to = tgt; growAnim.restart()
+    growAnim.stop(); growAnim.from = growth; growAnim.to = tgt
+    growAnim.duration = tgt > growth ? 320 : 240
+    growAnim.restart()
   }
-  NumberAnimation { id: growAnim; target: root; property: "growth"; duration: 200; easing.type: Easing.OutCubic; onRunningChanged: if (!running) Qt.callLater(root.syncGrowth) }
-  onPagesChanged: Qt.callLater(syncGrowth)
-  onSettingsOpenChanged: Qt.callLater(syncGrowth)
-  onMaxGrowChanged: Qt.callLater(syncGrowth)
-  Connections { target: detailView; function onWantListHChanged() { Qt.callLater(root.syncGrowth) } function onListHChanged() { Qt.callLater(root.syncGrowth) } }
+  NumberAnimation { id: growAnim; target: root; property: "growth"; duration: 320; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+  onPagesChanged: syncGrowth()
+  onSettingsOpenChanged: syncGrowth()
+  onMaxGrowChanged: syncGrowth()
+  Connections { target: detailView; function onWantListHChanged() { root.syncGrowth() } }
 
   // One line of key hints, laid out left to right: a hint that would run past
   // availW is dropped whole, and so is everything after it. Fades on opacity.
@@ -793,6 +803,7 @@ Panel {
 
         // The view change: the old view fades out and the new one in, each
         // sliding a few px, on one 200 ms OutCubic clock (instant with reduce motion).
+        onHeightChanged: if (root.pages.length === 0 && root.growth === 0 && height > 0) root.stageRest = height
         property var last: root.view
         property var prev: null
         property real mix: 1
