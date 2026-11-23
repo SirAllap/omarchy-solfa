@@ -281,8 +281,24 @@ Item {
     }
   }
 
+  // The mockup's Back: a pill at the top left of the page, with its esc key.
+  Row {
+    id: backRow
+    objectName: "backRow"
+    height: Style.space(36)
+    spacing: Style.space(8)
+    Pill {
+      objectName: "backButton"
+      glyph: Icons.back
+      text: "Back"
+      onClicked: if (view.panel) view.panel.back()
+    }
+    KeyCap { anchors.verticalCenter: parent.verticalCenter; text: "esc" }
+  }
+
   Item {
     id: head
+    y: backRow.height + Style.space(12)
     width: parent.width
     height: cover.height
 

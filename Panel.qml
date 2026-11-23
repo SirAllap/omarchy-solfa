@@ -664,7 +664,7 @@ Panel {
       // The tab bar's pill: a faint rounded track, and one accent pill that
       // glides under the open tab (a still pill under reduce-motion).
       Rectangle {
-        visible: tabRow.visible && root.pages.length === 0
+        visible: tabRow.visible
         x: tabRow.x - Style.space(4); y: tabRow.y - Style.space(4)
         width: tabRow.width + Style.space(8); height: tabRow.height + Style.space(8)
         radius: height / 2
@@ -673,7 +673,7 @@ Panel {
       }
       Rectangle {
         id: tabPill
-        visible: tabRow.visible && root.pages.length === 0
+        visible: tabRow.visible
         x: tabRow.x + tabRow.pillX - Style.space(60) * (1 - Motion.spatial(keys.tms, 110, 200)); y: tabRow.y
         opacity: Motion.effects(keys.tms, 110, 160)
         width: tabRow.pillW; height: tabRow.height
@@ -696,11 +696,12 @@ Panel {
         // index. The pill (x and width), each tab's width and each label's
         // fade all read it, so they land together. A critically damped
         // spring (about 260 ms, no overshoot); a new click re-aims it mid-glide.
-        readonly property bool hasActive: root.pages.length === 0
+        // A page keeps its parent tab lit: the strip looks the same in every view.
+        readonly property bool hasActive: true
         readonly property int target: { for (var i = 0; i < root.tabs.length; i++) if (root.tabs[i].key === root.tab) return i; return 0 }
         property real pos: target
         Behavior on pos { enabled: !Style.reduceMotion; SpringAnimation { spring: 11; damping: 1; epsilon: 0.001 } }
-        // 1 while a tab is open, 0 while a detail page covers the bar.
+        // 1 while a tab is open.
         property real act: hasActive ? 1 : 0
         Behavior on act { enabled: !Style.reduceMotion; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         property var labelWs: []
@@ -797,21 +798,6 @@ Panel {
               QC.ToolTip.text: String(tabBtn.index + 1)
             }
           }
-        }
-      }
-
-      Row {
-        anchors.verticalCenter: tabRow.verticalCenter
-        anchors.right: parent.right
-        spacing: Style.space(6)
-        visible: root.pages.length > 0 && !root.settingsOpen
-        Views.HitButton {
-          iconText: Icons.back
-          text: "Back"
-          fontFamily: root.family
-          foreground: root.fg
-          fontSize: Style.font.caption
-          onClicked: root.back()
         }
       }
 

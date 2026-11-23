@@ -197,7 +197,7 @@ class AdSkipButtonWithoutASkipButton(unittest.TestCase):
 
 
 class PanelUsesHitButtons(unittest.TestCase):
-    """The tabs, Back and the footer's "?" are the same HitButton the scene measures."""
+    """The tabs and the footer's "?" are the same HitButton the scene measures."""
 
     def test_panel_controls(self):
         with open(os.path.join(ROOT, "Panel.qml")) as f:
@@ -208,7 +208,10 @@ class PanelUsesHitButtons(unittest.TestCase):
         # Read the height inside the tab delegate, not anywhere in the file (the toast has its own).
         self.assertRegex(src, r"id: tabBtn[\s\S]*?height: Style\.space\(38\)")
         self.assertRegex(src, r"id: tabMouse\s*anchors\.fill: parent")
-        self.assertRegex(src, r"Views\.HitButton \{\s*iconText: Icons\.back")
+        # Back is the page's own pill (views/DetailView.qml), under the tabs, never over one.
+        self.assertNotRegex(src, r"iconText: Icons\.back")
+        with open(os.path.join(ROOT, "views", "DetailView.qml")) as f:
+            self.assertRegex(f.read(), r"objectName: \"backButton\"[\s\S]*?text: \"Back\"")
         self.assertRegex(src, r"Views\.HitButton \{\s*id: allKeysButton")
         self.assertNotRegex(src, r"\bButton \{")
 
