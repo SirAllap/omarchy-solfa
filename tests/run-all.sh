@@ -86,6 +86,7 @@ run share-link python3 tests/test_share_link.py
 run find-in-playlist python3 tests/test_find_in_playlist.py
 run queue-more python3 tests/test_queue_more.py
 run widget-move python3 tests/test_widget_move.py
+run signin-bridge-down python3 tests/test_signin_bridge_down.py
 if command -v omarchy >/dev/null 2>&1; then run manifest omarchy plugin validate .; fi
 echo "solfa in /run/user leftovers: $(ls "/run/user/$(id -u)" 2>/dev/null | grep -c solfa || true)"
 if ((${#failed[@]})); then echo "FAILED: ${failed[*]}"; exit 1; fi
