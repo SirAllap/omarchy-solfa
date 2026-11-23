@@ -456,6 +456,11 @@ Item {
     }
   }
 
+  // What the panel reads to grow its height: the list wants room for this
+  // many rows (6 tracks at 58 px + 8 px gap), and says how tall it is now.
+  readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
+  readonly property real listH: list.height
+
   RowList {
     id: list
     objectName: "detailList"
@@ -475,5 +480,30 @@ Item {
     onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
     onHeaderActivated: function (i) { var r = view.rows[i]; if (r.more) view.panel.openPage({ browseId: r.more, title: r.header }, r.moreParams) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
+  }
+
+  // Soft fade where rows run under the list's edges, so none is cut hard:
+  // the card colour fades in over the last ~16 px; the top one only once scrolled.
+  Rectangle {
+    objectName: "detailFadeTop"
+    anchors.left: list.left; anchors.right: list.right; anchors.top: list.top
+    height: Style.space(16)
+    opacity: list.contentY > 1 ? 1 : 0
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
+    gradient: Gradient {
+      GradientStop { position: 0; color: Calm.surface }
+      GradientStop { position: 1; color: Qt.rgba(Calm.surface.r, Calm.surface.g, Calm.surface.b, 0) }
+    }
+  }
+  Rectangle {
+    objectName: "detailFadeBottom"
+    anchors.left: list.left; anchors.right: list.right; anchors.bottom: list.bottom
+    height: Style.space(16)
+    opacity: list.atYEnd ? 0 : 1
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
+    gradient: Gradient {
+      GradientStop { position: 0; color: Qt.rgba(Calm.surface.r, Calm.surface.g, Calm.surface.b, 0) }
+      GradientStop { position: 1; color: Calm.surface }
+    }
   }
 }

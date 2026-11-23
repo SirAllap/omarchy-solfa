@@ -35,6 +35,27 @@ Panel {
     : tab === "queue" ? queueView : tab === "search" ? searchView : tab === "library" ? libraryView : tab === "history" ? historyView : lyricsView
   property bool allKeys: false
 
+  // A playlist / album page grows the card so its track list gets ~6 rows,
+  // down to the free screen height under the bar, and shrinks back on Back.
+  // Same 200 ms OutCubic as the view change; none with reduce motion.
+  property real growth: 0
+  readonly property real baseH: panel.cappedContentHeight(Style.space(780))
+  readonly property real maxGrow: panel.availableCardHeight > 0 ? Math.max(0, panel.availableCardHeight - baseH) : Style.space(400)
+  // Imperative on purpose: listH - growth is the list's height at the base
+  // size, so a binding on growth itself would be a loop.
+  function syncGrowth() {
+    var tgt = pages.length > 0 && !settingsOpen
+      ? Math.min(maxGrow, Math.max(0, detailView.wantListH - (detailView.listH - growth))) : 0
+    if (Style.reduceMotion) { growAnim.stop(); growth = tgt; return }
+    if (Math.abs((growAnim.running ? growAnim.to : growth) - tgt) < 0.5) return
+    growAnim.stop(); growAnim.from = growth; growAnim.to = tgt; growAnim.restart()
+  }
+  NumberAnimation { id: growAnim; target: root; property: "growth"; duration: 200; easing.type: Easing.OutCubic; onRunningChanged: if (!running) Qt.callLater(root.syncGrowth) }
+  onPagesChanged: Qt.callLater(syncGrowth)
+  onSettingsOpenChanged: Qt.callLater(syncGrowth)
+  onMaxGrowChanged: Qt.callLater(syncGrowth)
+  Connections { target: detailView; function onWantListHChanged() { Qt.callLater(root.syncGrowth) } function onListHChanged() { Qt.callLater(root.syncGrowth) } }
+
   // One line of key hints, laid out left to right: a hint that would run past
   // availW is dropped whole, and so is everything after it. Fades on opacity.
   component HintLine: Item {
@@ -362,7 +383,7 @@ Panel {
       ? panel.fittedContentHeight(hero.implicitHeight + gate.implicitHeight + Style.space(20))
       : root.svc && root.svc.closed && !root.settingsOpen
       ? panel.fittedContentHeight(hero.implicitHeight + offCard.implicitHeight + Style.space(28))
-      : panel.cappedContentHeight(Style.space(780))
+      : panel.cappedContentHeight(Style.space(780) + root.growth)
 
     // A plain Item, not a FocusScope: a scope hands focus back to the child
     // that had it, so the search field would keep the keys after Enter.
