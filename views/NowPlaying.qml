@@ -107,7 +107,7 @@ Column {
         id: titleBox
         width: parent.width
         height: titleGhost.implicitHeight
-        readonly property string full: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : (root.svc.starting ? "Starting YouTube Music" : "Nothing playing"))
+        readonly property string full: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : (root.svc && root.svc.starting ? "Starting YouTube Music" : "Nothing playing"))
         readonly property bool typing: root.live && !Style.reduceMotion && root.hasTrack
         property real shown: full.length
         // the title crossfades as it changes (the letters then write in)

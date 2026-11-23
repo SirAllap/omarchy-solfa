@@ -50,7 +50,7 @@ Item {
       if (!r.ok) { view.error = Model.errorText(r.error); return }
       view.error = ""
       // Starting: the engine's first (empty) queue is not the answer; keep what was shown.
-      if (!!view.svc.starting && view.queue && view.rows.length > 0 && !(r.data.items || []).length) return
+      if (view.svc && !!view.svc.starting && view.queue && view.rows.length > 0 && !(r.data.items || []).length) return
       var keep = view.follow || (view.current && view.current.item ? view.current.item.videoId : "")
       view.follow = ""
       view.queue = r.data
