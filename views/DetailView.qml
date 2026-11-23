@@ -140,6 +140,10 @@ Item {
     var page = view.page
     var title = view.info.title || (page ? page.title : "")
     var listId = view.info.playlistId
+    // Where the row was and what followed it, for the undo (from the whole
+    // list, not the found rows).
+    var rec = Model.removalRecord(view.info, sid)
+    var undo = rec ? Object.assign({ playlistId: Model.bareListId(listId), videoId: row.item.videoId, setVideoId: sid, title: title }, rec) : null
     svc.request("playlist.remove", { playlistId: listId, videoId: row.item.videoId, setVideoId: sid }, function (r) {
       delete view.removing[sid]
       if (!r.ok) { svc.report(r.error); return }
@@ -148,7 +152,7 @@ Item {
       if (view.page === page) {
         view.info = Model.withoutTrack(view.info, sid)
         list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
-        if (view.panel) view.panel.say(Model.removedMessage(title))
+        if (view.panel) view.panel.say(Model.removedMessage(title), undo)
       }
       // Other pages of it, and Now Playing when this row is the song playing.
       if (view.panel) view.panel.trackRemoved(listId, sid)
@@ -165,6 +169,22 @@ Item {
     view.info = d
     if (view.page) view.page.info = Model.withoutTrack(view.page.info, setVideoId)
     list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
+  }
+
+  // A row put back by an undo (Panel.trackRestored): it comes back into the
+  // list where it was, and the cursor stays on the song it was on.
+  function trackRestored(playlistId, track, before, placed) {
+    if (!view.info || view.info.kind !== "playlist" || Model.bareListId(view.info.playlistId) !== Model.bareListId(playlistId)) return
+    var d = Model.withTrackRestored(view.info, track, before, placed)
+    if (d === view.info) return
+    var keep = view.current
+    // A row back in the middle is not a page added at the end: the found
+    // rows are worked out again from the whole list.
+    view.findCache.query = null
+    view.info = d
+    if (view.page) view.page.info = Model.withTrackRestored(view.page.info, track, before, placed)
+    var at = Model.rowIndex(view.rows, keep)
+    if (at >= 0) list.cursor = at
   }
 
   // ---- find in this playlist

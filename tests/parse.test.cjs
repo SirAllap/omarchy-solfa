@@ -140,12 +140,23 @@ test("a playlist of the user's own is editable; Liked songs, albums and other pe
   assert.equal(P.playlist({ continuationContents: {} }).editable, false)
 })
 
-test("a playlist removal: only STATUS_SUCCEEDED is a removal", () => {
-  assert.equal(P.playlistRemoveResult({ status: "STATUS_SUCCEEDED" }), true)
-  assert.equal(P.playlistRemoveResult(F("playlist-edit-added")), true)
-  assert.equal(P.playlistRemoveResult({ status: "STATUS_FAILED" }), false)
-  assert.equal(P.playlistRemoveResult({}), false)
-  assert.equal(P.playlistRemoveResult(null), false)
+test("a playlist removal or move: only STATUS_SUCCEEDED is done", () => {
+  assert.equal(P.playlistEditSucceeded({ status: "STATUS_SUCCEEDED" }), true)
+  assert.equal(P.playlistEditSucceeded(F("playlist-edit-added")), true)
+  assert.equal(P.playlistEditSucceeded({ status: "STATUS_FAILED" }), false)
+  assert.equal(P.playlistEditSucceeded({}), false)
+  assert.equal(P.playlistEditSucceeded(null), false)
+})
+
+test("a song added again (the undo of a removal): the new row's setVideoId", () => {
+  const added = F("playlist-edit-added")
+  const id = added.playlistEditResults[0].playlistEditVideoAddedResultData.setVideoId
+  assert.ok(id)
+  assert.equal(P.playlistAddedSetVideoId(added), id)
+  assert.equal(P.playlistAddedSetVideoId(Object.assign({}, added, { status: "STATUS_FAILED" })), "")
+  assert.equal(P.playlistAddedSetVideoId(F("playlist-edit-duplicate")), "")
+  assert.equal(P.playlistAddedSetVideoId({ status: "STATUS_SUCCEEDED" }), "", "no result, no row")
+  assert.equal(P.playlistAddedSetVideoId(null), "")
 })
 
 test("filter params decode to the filter they name", () => {

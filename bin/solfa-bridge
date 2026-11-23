@@ -464,6 +464,15 @@ def a_set_video(v):
     return v
 
 
+def check_restore(a):
+    """playlist.restore: the song, its playlist, and the rows that followed it (at most 5, nearest first)."""
+    only(a, "playlistId", "videoId", "before")
+    before = a.get("before")
+    if not isinstance(before, list) or len(before) > 5:
+        raise BadArgs("before")
+    return {"playlistId": a_list(a.get("playlistId")), "videoId": a_video(a.get("videoId")), "before": [a_set_video(s) for s in before]}
+
+
 def a_params(v):
     if not isinstance(v, str) or not PARAMS.fullmatch(v):
         raise BadArgs("params")
@@ -682,6 +691,7 @@ PAGE_OPS = {
                                 **({"force": a_bool(a["force"], "force")} if "force" in a else {})}, 15),
     "playlist.remove": (lambda a: {"playlistId": a_list(only(a, "playlistId", "videoId", "setVideoId").get("playlistId")), "videoId": a_video(a.get("videoId")),
                                    "setVideoId": a_set_video(a.get("setVideoId"))}, 15),
+    "playlist.restore": (check_restore, 30),
     "eq.set": (check_eq, 5),
     "account.info": (check_none, 10),
 }

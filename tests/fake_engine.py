@@ -198,7 +198,7 @@ def page_op(op, a):
     if op == "search":
         return {"top": None, "songs": [{"kind": "song", "videoId": "BBBBBBBBBBB", "title": "Result for " + a["q"]}],
                 "videos": [], "albums": [], "artists": [], "playlists": [], "other": [], "continuation": ""}, None
-    if op in ("like", "library", "account.info", "playlist.options", "playlist.add", "playlist.create", "playlist.remove") and not state["signedIn"]:
+    if op in ("like", "library", "account.info", "playlist.options", "playlist.add", "playlist.create", "playlist.remove", "playlist.restore") and not state["signedIn"]:
         return None, "signin-required"
     if op == "playlist.options":
         return {"playlists": [{"id": "PLfixture1", "title": "Road trip", "count": "12 tracks", "recent": True}]}, None
@@ -211,6 +211,10 @@ def page_op(op, a):
         if a["playlistId"].replace("VL", "", 1) == "LM":
             return None, "failed"
         return {"removed": True}, None
+    if op == "playlist.restore":
+        if a["playlistId"].replace("VL", "", 1) == "LM":
+            return None, "failed"
+        return {"setVideoId": "RESTOREDSET0001", "placed": True}, None
     if op == "account.info":
         # An invented account (never a real one): Alex Example, alex@example.com.
         return {"name": "Alex Example", "email": "alex@example.com",

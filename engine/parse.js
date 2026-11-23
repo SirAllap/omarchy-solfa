@@ -806,9 +806,18 @@ var SolfaParse = (function () {
     return c && typeof c.shortUrl === "string" ? c.shortUrl : ""
   }
 
-  // `browse/edit_playlist` for one removed song: true only when it says so.
-  function playlistRemoveResult(res) {
+  // `browse/edit_playlist` for one removed or moved song: true only when it
+  // says so.
+  function playlistEditSucceeded(res) {
     return !!res && res.status === "STATUS_SUCCEEDED"
+  }
+
+  // `browse/edit_playlist` for one added song: the new row's setVideoId, or
+  // "" when it was not added.
+  function playlistAddedSetVideoId(res) {
+    if (!playlistEditSucceeded(res)) return ""
+    var id = dig(res, ["playlistEditResults", 0, "playlistEditVideoAddedResultData", "setVideoId"])
+    return typeof id === "string" ? id : ""
   }
 
   return {
@@ -841,7 +850,8 @@ var SolfaParse = (function () {
     cleanShareUrl: cleanShareUrl,
     shareEntity: shareEntity,
     sharePanelUrl: sharePanelUrl,
-    playlistRemoveResult: playlistRemoveResult,
+    playlistEditSucceeded: playlistEditSucceeded,
+    playlistAddedSetVideoId: playlistAddedSetVideoId,
     SEARCH_FILTERS: SEARCH_FILTERS
   }
 })()

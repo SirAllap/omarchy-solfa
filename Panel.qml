@@ -169,7 +169,7 @@ Panel {
   property var removingRows: ({})   // the same, while the request is out
   readonly property string playingList: Model.playingListId(svc ? svc.player : null)
   readonly property var playingRemoval: svc && svc.hasTrack && svc.signedIn
-    ? Model.playingRemoval(svc.player, root.listInfo[root.playingList] || null, root.removedRows) : null
+    ? Model.playingRemoval(svc.player, root.listInfo[root.playingList] || null, root.removedRows, root.renamedRows) : null
   // Otherwise the same button takes the song playing out of the queue.
   readonly property int playingQueueIndex: svc && svc.hasTrack ? Model.playingQueueIndex(svc.player) : -1
   property bool queueRemoving: false
@@ -181,6 +181,7 @@ Panel {
       root.listInfo = ({})
       root.listAsked = ({})
       root.listEpoch++
+      root.undoable = null
       root.checkPlayingList()
     }
   }
@@ -217,12 +218,91 @@ Panel {
     var key = Model.rowKey(t.playlistId, t.setVideoId)
     if (root.removingRows[key]) return
     root.removingRows[key] = true
+    // Read before the row goes: what an undo needs. A row the panel has
+    // not loaded is put back at the end.
+    var rec = Model.removalRecord(root.listPage(t.playlistId), t.setVideoId)
+      || { index: -1, before: [], last: false, continuation: "",
+           row: { kind: "song", videoId: t.videoId, title: svc.title, artists: svc.player.artists || [], album: null, duration: svc.duration, thumb: "", setVideoId: t.setVideoId } }
     svc.request("playlist.remove", { playlistId: t.playlistId, videoId: t.videoId, setVideoId: t.setVideoId }, function (r) {
       delete root.removingRows[key]
       if (!r.ok) { svc.report(r.error); return }
       root.trackRemoved(t.playlistId, t.setVideoId)
-      root.say(Model.removedMessage(t.title))
+      root.say(Model.removedMessage(t.title), Object.assign({ playlistId: t.playlistId, videoId: t.videoId, setVideoId: t.setVideoId, title: t.title }, rec))
     })
+  }
+
+  // The freshest page of a playlist the panel holds: the one on screen,
+  // else one kept below it, else the one looked up for Now Playing.
+  function listPage(playlistId) {
+    var id = Model.bareListId(playlistId)
+    var on = detailView.info
+    if (root.view === detailView && on && on.kind === "playlist" && Model.bareListId(on.playlistId) === id) return on
+    for (var i = root.pages.length - 1; i >= 0; i--) {
+      var inf = root.pages[i].info
+      if (inf && inf.kind === "playlist" && Model.bareListId(inf.playlistId) === id) return inf
+    }
+    return root.listInfo[id] || null
+  }
+
+  // ---- undo of the last removal from a playlist
+
+  // The removal the notice on screen offers to undo: its playlist, video,
+  // old setVideoId and title, with Model.removalRecord's place. Only the
+  // last one, only while its notice shows, and once (`undoSent`).
+  property var undoable: null
+  property bool undoSent: false
+  readonly property int undoMs: 8000
+  // Rows put back (rowKey of the old setVideoId -> the new one): the queue
+  // entry of a song that was put back still names its old row.
+  property var renamedRows: ({})
+
+  // u, or Undo on the notice: the song goes back where it was, as a new row.
+  // False when there is nothing to undo.
+  function undoRemoval() {
+    var u = root.undoable
+    if (!u || root.undoSent || root.flash === "" || !svc) return false
+    root.undoSent = true
+    var epoch = root.listEpoch
+    var restore = function (before, known) {
+      svc.request("playlist.restore", { playlistId: u.playlistId, videoId: u.videoId, before: before }, function (r) {
+        if (epoch !== root.listEpoch) return
+        if (!r.ok) { svc.report(r.error); return }
+        // Put back with no row known after it, and not known to be the
+        // last one: it is at the end, wherever it was.
+        var placed = !!r.data.placed && known
+        root.trackRestored(u, r.data.setVideoId, before, placed)
+        root.say(Model.restoredMessage(u.title, placed))
+      })
+    }
+    if ((u.before || []).length || u.last) restore(u.before, true)
+    else if (u.continuation) {
+      // It was the last row loaded: the rows after it open the next page.
+      svc.request("browse", { id: "VL" + u.playlistId, continuation: u.continuation }, function (r) {
+        if (epoch !== root.listEpoch) return
+        var next = r.ok && r.data && r.data.tracks ? r.data.tracks.slice(0, 3).map(function (t) { return t.setVideoId || "" }).filter(Boolean) : []
+        restore(next, next.length > 0 || (r.ok && !!r.data && !r.data.continuation))
+      })
+    } else restore([], false)
+    return true
+  }
+
+  // A row came back (new setVideoId): every page of the playlist kept here
+  // shows it again, and Now Playing's button holds again for its entry.
+  function trackRestored(u, setVideoId, before, placed) {
+    var id = Model.bareListId(u.playlistId)
+    // An entry may name a row that came back before and went again: it
+    // follows the row to its newest setVideoId.
+    var names = Object.assign({}, root.renamedRows)
+    for (var k in names) if (k.indexOf(id + "/") === 0 && names[k] === u.setVideoId) names[k] = setVideoId
+    names[Model.rowKey(id, u.setVideoId)] = setVideoId
+    root.renamedRows = names
+    var row = Object.assign({}, u.row, { setVideoId: setVideoId })
+    if (root.listInfo[id]) root.rememberList(id, Model.withTrackRestored(root.listInfo[id], row, before, placed))
+    for (var i = 0; i < root.pages.length; i++) {
+      var p = root.pages[i]
+      if (p.info && p.info.kind === "playlist" && Model.bareListId(p.info.playlistId) === id) p.info = Model.withTrackRestored(p.info, row, before, placed)
+    }
+    detailView.trackRestored(id, row, before, placed)
   }
 
   // The next song starts and the one that was playing leaves the queue:
@@ -262,8 +342,16 @@ Panel {
     })
   }
 
-  function say(text) { root.flash = text; flashTimer.restart() }
-  Timer { id: flashTimer; interval: 2600; onTriggered: root.flash = "" }
+  // `undo`: a removal from a playlist this notice offers to undo (longer on
+  // screen). Any other notice takes the offer away.
+  function say(text, undo) {
+    root.undoable = undo || null
+    root.undoSent = false
+    root.flash = text
+    flashTimer.interval = undo ? root.undoMs : 2600
+    flashTimer.restart()
+  }
+  Timer { id: flashTimer; interval: 2600; onTriggered: { root.flash = ""; root.undoable = null } }
 
   // Only the open panel shows an error (there is one panel per bar, and a
   // closed one would swallow it).
@@ -419,6 +507,7 @@ Panel {
       case "R": if (cur && cur.item && cur.item.videoId) root.runAction("radio", cur); else if (svc.hasTrack) { svc.radioFor(svc.player); root.say("Radio from " + svc.title) } break
       case "S": root.saveRow(cur); break
       case "c": root.copyLink(); break
+      case "u": if (!root.undoRemoval()) handled = false; break
       case "g": root.openArtist(cur); break
       case "o": root.openAlbum(cur); break
       case "[": if (v === searchView) searchView.cycleFilter(-1); else if (v === libraryView) libraryView.cycleSection(-1); break
@@ -960,7 +1049,28 @@ Panel {
           anchors.centerIn: parent
           spacing: Style.space(8)
           Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.check; textFormat: Text.PlainText; color: Calm.accent; font.family: Style.font.family; font.pixelSize: Style.font.icon }
-          Text { anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, keys.width - Style.space(100)); elide: Text.ElideRight; text: root.flash; textFormat: Text.PlainText; color: Calm.fg; font.family: Calm.font; font.pixelSize: Style.font.body; font.weight: Font.DemiBold }
+          Text { anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, keys.width - Style.space(100) - (undoPill.visible ? undoPill.width + toastRow.spacing : 0)); elide: Text.ElideRight; text: root.flash; textFormat: Text.PlainText; color: Calm.fg; font.family: Calm.font; font.pixelSize: Style.font.body; font.weight: Font.DemiBold }
+          // Undo, while the notice of a removal from a playlist shows (or u).
+          Rectangle {
+            id: undoPill
+            objectName: "undoButton"
+            anchors.verticalCenter: parent.verticalCenter
+            visible: !!root.undoable && !root.undoSent
+            width: undoRow.implicitWidth + Style.space(16)
+            height: Style.space(26)
+            radius: height / 2
+            color: undoMouse.containsMouse ? Calm.a(Calm.accent, 0.28) : Calm.a(Calm.accent, 0.16)
+            border.width: 1
+            border.color: Calm.a(Calm.accent, 0.6)
+            Row {
+              id: undoRow
+              anchors.centerIn: parent
+              spacing: Style.space(6)
+              Text { anchors.verticalCenter: parent.verticalCenter; text: "Undo"; textFormat: Text.PlainText; color: Calm.fg; font.family: Calm.font; font.pixelSize: Style.font.body; font.weight: Font.DemiBold }
+              Views.KeyCap { anchors.verticalCenter: parent.verticalCenter; text: "u" }
+            }
+            MouseArea { id: undoMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.undoRemoval() }
+          }
         }
       }
 

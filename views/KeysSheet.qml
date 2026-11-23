@@ -32,7 +32,7 @@ Item {
       ["x / Delete", "Remove"], ["J / K", "Move down / up"] ] },
     { title: "Library", rows: [
       ["[ / ]", "Filter / section"], ["g", "Go to artist"], ["o", "Go to album"], ["w", "YouTube window"], ["i", "Sign in"],
-      ["x", "Remove from playlist"] ] },
+      ["x", "Remove from playlist"], ["u", "Undo the removal"] ] },
     { title: "Anywhere", rows: [
       [sheet.panelKey, "Open / close Solfa"], [sheet.playPauseKey, "Play / pause"],
       ["Super + Alt + N", "Next"], ["Super + Alt + B", "Previous"], ["Super + Alt + L", "Like"] ] }

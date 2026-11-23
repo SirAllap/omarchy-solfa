@@ -595,6 +595,45 @@ test("removing a song from a playlist: only a user's own, never Liked songs, one
   assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "J / K" && /queue/.test(h[1])))
 })
 
+test("the undo of a removal: where the row was, what followed it, and where it goes back", () => {
+  const t = (n, set) => ({ videoId: "V000000000" + n, title: "Song " + n, setVideoId: set })
+  const page = { kind: "playlist", editable: true, playlistId: "PLmine", title: "Road trip", continuation: "",
+    tracks: [t(1, "S1"), t(2, "S2"), t(3, "S3"), t(4, "S4"), t(5, "S5"), t(6, "S6")] }
+  // Up to three rows after it, nearest first.
+  deep(M.removalRecord(page, "S2"), { index: 1, row: t(2, "S2"), before: ["S3", "S4", "S5"], last: false, continuation: "" })
+  deep(M.removalRecord(page, "S5").before, ["S6"])
+  // The last row of a page that has everything: nothing to move before.
+  deep(M.removalRecord(page, "S6"), { index: 5, row: t(6, "S6"), before: [], last: true, continuation: "" })
+  // The last row loaded of a longer list: the next page has the rows after it.
+  deep(M.removalRecord(Object.assign({}, page, { continuation: "fixture-next" }), "S6"), { index: 5, row: t(6, "S6"), before: [], last: false, continuation: "fixture-next" })
+  assert.equal(M.removalRecord(page, "nope"), null)
+  assert.equal(M.removalRecord(page, ""), null)
+  assert.equal(M.removalRecord(null, "S1"), null)
+
+  // Back as a new row, before the first of the rows that followed it the page still has.
+  const gone = M.withoutTrack(page, "S2")
+  const back = Object.assign({}, t(2, "N2"))
+  deep(M.withTrackRestored(gone, back, ["S3", "S4"], true).tracks.map((x) => x.setVideoId), ["S1", "N2", "S3", "S4", "S5", "S6"])
+  deep(M.withTrackRestored(M.withoutTrack(gone, "S3"), back, ["S3", "S4"], true).tracks.map((x) => x.setVideoId), ["S1", "N2", "S4", "S5", "S6"], "S3 gone too: before S4")
+  // At the end: it was the last row, or it came back at the end; only on a page that has everything.
+  deep(M.withTrackRestored(gone, back, [], true).tracks.map((x) => x.setVideoId).slice(-1), ["N2"])
+  deep(M.withTrackRestored(gone, back, ["S3"], false).tracks.map((x) => x.setVideoId).slice(-1), ["N2"])
+  const longer = Object.assign({}, gone, { continuation: "fixture-next" })
+  assert.equal(M.withTrackRestored(longer, back, ["S3"], false), longer, "the end is on a page not loaded")
+  assert.equal(M.withTrackRestored(longer, back, ["S9"], true), longer, "its place is on a page not loaded")
+  assert.equal(M.withTrackRestored(gone, back, ["S9"], true), gone, "none of the rows after it here: not guessed")
+  // Already there, or nothing to put back: the same object.
+  const done = M.withTrackRestored(gone, back, ["S3"], true)
+  assert.equal(M.withTrackRestored(done, back, ["S3"], true), done)
+  assert.equal(M.withTrackRestored(gone, Object.assign({}, back, { setVideoId: "" }), ["S3"], true), gone)
+  assert.equal(M.withTrackRestored(null, back, ["S3"], true), null)
+  assert.equal(gone.tracks.length, 5, "the original is left alone")
+
+  assert.equal(M.restoredMessage("Road trip", true), "Restored to Road trip")
+  assert.equal(M.restoredMessage("Road trip", false), "Restored to the end of Road trip")
+  assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "u" && /undo/.test(h[1])))
+})
+
 test("Now Playing's remove: only the song playing from a playlist of the user's, by its own row, once", () => {
   const playing = { videoId: "AAAAAAAAAAA", playlistId: "PLmine", setVideoId: "S3", ad: false }
   const mine = { kind: "playlist", editable: true, playlistId: "PLmine", title: "Road trip",
@@ -651,6 +690,11 @@ test("Now Playing's remove: only the song playing from a playlist of the user's,
   assert.equal(M.playingQueueIndex(null), -1)
   assert.match(M.errorText("moved"), /queue changed/)
   assert.match(M.errorText("last"), /Nothing comes after/)
+  // Put back by an undo: a new row, which the queue entry still names by the old one.
+  const renamed = { "PLmine/S3": "N3" }
+  const backList = Object.assign({}, mine, { tracks: [mine.tracks[0], mine.tracks[1], { videoId: "AAAAAAAAAAA", setVideoId: "N3" }] })
+  deep(M.playingRemoval(playing, backList, { "PLmine/S3": true }, renamed), { playlistId: "PLmine", videoId: "AAAAAAAAAAA", setVideoId: "N3", title: "Road trip" })
+  assert.equal(M.playingRemoval(playing, backList, { "PLmine/N3": true }, renamed), null, "the new row taken out again")
   assert.equal(M.rowKey("VLPLmine", "S3"), "PLmine/S3")
   assert.equal(M.bareListId("VLPLmine"), "PLmine")
   assert.equal(M.bareListId(undefined), "")

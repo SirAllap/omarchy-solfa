@@ -1029,6 +1029,56 @@ test("playlist.remove sends the row's setVideoId, without the VL prefix, and nee
   }
 })
 
+test("playlist.restore adds the song again and moves it before the first row that followed it", async () => {
+  const ADDED = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "innertube", "playlist-edit-added.json"), "utf8"))
+  const NEW = ADDED.playlistEditResults[0].playlistEditVideoAddedResultData.setVideoId
+  const edits = (p) => p.requests.filter((x) => x.endpoint === "browse/edit_playlist").map((x) => ({ playlistId: x.body.playlistId, actions: plain(x.body.actions) }))
+  // moves: what each move answers, in order (true: done).
+  const page = (moves, addOk = true) => {
+    const left = moves.slice()
+    return makePage({ signedIn: true, replies: { "browse/edit_playlist": (body) => {
+      const a = body.actions[0].action
+      if (a === "ACTION_ADD_VIDEO") return addOk ? ADDED : { status: "STATUS_FAILED" }
+      if (a === "ACTION_MOVE_VIDEO_BEFORE") return { status: left.shift() ? "STATUS_SUCCEEDED" : "STATUS_FAILED" }
+      return {}
+    } } })
+  }
+  const args = { playlistId: "VLPLabc", videoId: "AAAAAAAAAAA", before: ["SUCC1", "SUCC2"] }
+  let p = page([true])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", args)), { setVideoId: NEW, placed: true })
+  assert.deepEqual(edits(p), [
+    { playlistId: "PLabc", actions: [{ action: "ACTION_ADD_VIDEO", addedVideoId: "AAAAAAAAAAA", dedupeOption: "DEDUPE_OPTION_SKIP" }] },
+    { playlistId: "PLabc", actions: [{ action: "ACTION_MOVE_VIDEO_BEFORE", setVideoId: NEW, movedSetVideoIdSuccessor: "SUCC1" }] }
+  ])
+  // The first row after it is gone: the next one.
+  p = page([false, true])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", args)), { setVideoId: NEW, placed: true })
+  assert.deepEqual(edits(p).slice(1).map((b) => b.actions[0].movedSetVideoIdSuccessor), ["SUCC1", "SUCC2"])
+  // No move works: back, but at the end.
+  p = page([false, false])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", args)), { setVideoId: NEW, placed: false })
+  // It was the last row: added, not moved.
+  p = page([])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", Object.assign({}, args, { before: [] }))), { setVideoId: NEW, placed: true })
+  assert.equal(edits(p).length, 1)
+  // The add fails: an error, and no move.
+  p = page([true], false)
+  await p.settle()
+  await assert.rejects(p.call("playlist.restore", args), /failed/)
+  assert.equal(edits(p).length, 1)
+  // Liked songs, and a signed-out page: nothing sent.
+  await assert.rejects(p.call("playlist.restore", Object.assign({}, args, { playlistId: "LM" })), /failed/)
+  assert.equal(edits(p).length, 1)
+  const out = makePage()
+  await out.settle()
+  await assert.rejects(out.call("playlist.restore", args), /signin-required/)
+  assert.equal(edits(out).length, 0)
+})
+
 test("the account event says Premium only for a signed-in subscriber", async () => {
   const account = async (opts) => {
     const p = makePage(opts)

@@ -88,6 +88,7 @@ run queue-more python3 tests/test_queue_more.py
 run remove-from-playlist python3 tests/test_remove_from_playlist.py
 run remove-playing python3 tests/test_remove_playing.py
 run remove-while-finding python3 tests/test_remove_while_finding.py
+run undo-remove python3 tests/test_undo_remove.py
 run widget-move python3 tests/test_widget_move.py
 run signin-bridge-down python3 tests/test_signin_bridge_down.py
 if command -v omarchy >/dev/null 2>&1; then run manifest omarchy plugin validate .; fi

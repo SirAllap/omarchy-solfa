@@ -665,6 +665,33 @@
     return { removed: true }
   }
 
+  // ---------------------------------------------------------------- playlist edits
+
+  // The browse/edit_playlist actions Remove and its undo send, in one place:
+  // shaped after YouTube Music's own requests (as ytmusicapi and YouTube.js
+  // send them). If YouTube changes one, this is what to fix.
+  var EDIT = {
+    // One row, by its setVideoId (the video too, as the site sends it).
+    remove: function (setVideoId, videoId) { return { action: "ACTION_REMOVE_VIDEO", setVideoId: setVideoId, removedVideoId: videoId } },
+    // The song again, as a new row at the end. SKIP: the playlist may hold
+    // another copy of it, and the undo must add it all the same.
+    add: function (videoId) { return { action: "ACTION_ADD_VIDEO", addedVideoId: videoId, dedupeOption: "DEDUPE_OPTION_SKIP" } },
+    // A row moved to just before another one.
+    moveBefore: function (setVideoId, successor) { return { action: "ACTION_MOVE_VIDEO_BEFORE", setVideoId: setVideoId, movedSetVideoIdSuccessor: successor } }
+  }
+
+  function editPlaylist(playlistId, action) {
+    return innertube("browse/edit_playlist", { playlistId: playlistId, actions: [action] })
+  }
+
+  // A playlist's id as edit_playlist takes it (no "VL"); Liked songs is not
+  // one to edit this way.
+  function editableList(playlistId) {
+    var id = String(playlistId).replace(/^VL/, "")
+    if (id === "LM") fail("failed")
+    return id
+  }
+
   // Now Playing's "Remove from queue": the song playing leaves the queue.
   // The app will not drop the entry it plays, so the player moves on to the
   // next one first, then that entry goes. `index` is the entry the panel saw
@@ -1187,14 +1214,30 @@
     // that is in twice keeps its other copy. Liked songs has its own unlike.
     "playlist.remove": async function (args) {
       needSignIn()
-      var id = String(args.playlistId).replace(/^VL/, "")
-      if (id === "LM") fail("failed")
-      var res = await innertube("browse/edit_playlist", {
-        playlistId: id,
-        actions: [{ action: "ACTION_REMOVE_VIDEO", setVideoId: args.setVideoId, removedVideoId: args.videoId }]
-      })
-      if (!P.playlistRemoveResult(res)) fail("failed")
+      var id = editableList(args.playlistId)
+      if (!P.playlistEditSucceeded(await editPlaylist(id, EDIT.remove(args.setVideoId, args.videoId)))) fail("failed")
       return { removed: true }
+    },
+
+    // The undo of "Remove from playlist". YouTube Music has none: the song
+    // is added again (a new row, so a new setVideoId), then moved before
+    // the first row that followed it and is still there. `before`: the
+    // setVideoIds of the rows that followed it, nearest first; empty, it
+    // was the last row and stays at the end. { setVideoId, placed }: placed
+    // false, it came back but at the end. A failed add changes nothing.
+    "playlist.restore": async function (args) {
+      needSignIn()
+      var id = editableList(args.playlistId)
+      var added = P.playlistAddedSetVideoId(await editPlaylist(id, EDIT.add(args.videoId)))
+      if (!added) fail("failed")
+      var before = args.before || []
+      if (!before.length) return { setVideoId: added, placed: true }
+      for (var i = 0; i < before.length; i++) {
+        try {
+          if (P.playlistEditSucceeded(await editPlaylist(id, EDIT.moveBefore(added, before[i])))) return { setVideoId: added, placed: true }
+        } catch (e) { /* that row may be gone: the next one */ }
+      }
+      return { setVideoId: added, placed: false }
     },
 
     "eq.set": function (args) {

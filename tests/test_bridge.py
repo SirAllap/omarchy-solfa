@@ -229,7 +229,13 @@ class BridgeTest(unittest.TestCase):
                ("playlist.remove", {"playlistId": "PLabc", "videoId": "x", "setVideoId": "ABCDEF0123"}),
                ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": ""}),
                ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": "a b"}),
-               ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123", "extra": 1})]
+               ("playlist.remove", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123", "extra": 1}),
+               ("playlist.restore", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA"}),
+               ("playlist.restore", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "before": "SET1"}),
+               ("playlist.restore", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "before": ["a b"]}),
+               ("playlist.restore", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "before": ["S1", "S2", "S3", "S4", "S5", "S6"]}),
+               ("playlist.restore", {"playlistId": "PLabc", "videoId": "x", "before": []}),
+               ("playlist.restore", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "before": [], "extra": 1})]
         for op, args in bad:
             r = c.call(op, args)
             self.assertFalse(r["ok"], (op, args))
@@ -273,6 +279,15 @@ class BridgeTest(unittest.TestCase):
         args = {"playlistId": "VLPLfixture1", "videoId": "AAAAAAAAAAA", "setVideoId": "ABCDEF0123"}
         self.assertEqual(c.call("playlist.remove", args)["data"], {"removed": True})
         self.assertIn({"op": "playlist.remove", "args": args}, self.page_log())
+
+    def test_playlist_restore_reaches_the_page_with_the_rows_after_it(self):
+        c = self.start(FAKE_SIGNED_IN="1")
+        self.wait_ready(c)
+        args = {"playlistId": "VLPLfixture1", "videoId": "AAAAAAAAAAA", "before": ["SET0002", "SET0003"]}
+        self.assertEqual(c.call("playlist.restore", args)["data"], {"setVideoId": "RESTOREDSET0001", "placed": True})
+        self.assertIn({"op": "playlist.restore", "args": args}, self.page_log())
+        last = dict(args, before=[])
+        self.assertTrue(c.call("playlist.restore", last)["ok"])
 
     def test_queue_remove_playing_reaches_the_page_with_its_index(self):
         c = self.start()
