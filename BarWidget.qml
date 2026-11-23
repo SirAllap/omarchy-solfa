@@ -100,6 +100,16 @@ BarWidget {
     // animation, tint or alpha of its own, so the three never differ by a shade.
     color: Calm.surface
   }
+  // While the panel is open the pill opens straight down into the card: its bottom half
+  // is squared off (same colour), so the bridge's curves start at the pill's two ends.
+  Rectangle {
+    visible: root.opened && !root.closed
+    x: (parent.width - width) / 2
+    y: (parent.height + root.pillHeight) / 2 - height
+    width: body.implicitWidth + 2 * root.pillPad
+    height: root.pillHeight / 2
+    color: Calm.surface
+  }
 
   Row {
     id: body

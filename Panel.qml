@@ -350,23 +350,22 @@ Panel {
           id: bridge
           property Item card: null
           readonly property real cx: panel.anchorScreenPos.x + panel.anchorW / 2
-          readonly property real pillW: Math.max(Style.space(60), panel.anchorW)
+          readonly property real pillW: panel.anchorW                // the pill's full width, end to end
           readonly property real pillBottom: panel.barThickness - Style.space(2)
-          readonly property real ov: Style.space(3)          // overlap into the pill and the card: no dark line
+          readonly property real ov: 1                               // 1 px into the pill and into the card: no seam
           readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
           readonly property real q: Math.max(0, Math.min(1, p))
-          // The top spans the whole pill (inset a little for its rounded ends), the
-          // neck pinches slightly, and the foot flares wider than the pill each side.
-          readonly property real a: (pillW / 2 - Style.space(8)) * q
-          readonly property real b: (pillW / 2 + Style.space(22)) * q
-          readonly property real n: (pillW / 2 - Style.space(12)) * Math.max(0, p)  // neck half-width (wobbles)
+          // The flare out of each end of the pill into the card top: a big concave
+          // arc (about 16 px wide, as tall as the gap), like two drops merging.
+          readonly property real rxMax: Style.space(18)
+          readonly property real rx: Style.space(16) * Math.max(0, p)
           visible: !!card && card.visible && root.opened && gapH > 0.5 && q > 0.01
           opacity: card ? card.opacity : 0
-          x: cx - Math.max(a, b)
+          x: cx - pillW / 2 - rxMax
           y: pillBottom - ov
           z: card ? card.z - 0.5 : 0
-          width: 2 * Math.max(a, b)
+          width: pillW + 2 * rxMax
           height: gapH + 2 * ov
           preferredRendererType: Shape.CurveRenderer
           layer.enabled: true
@@ -376,22 +375,14 @@ Panel {
             fillColor: Calm.surface
             strokeWidth: -1
             readonly property real m: bridge.width / 2
-            readonly property real h: bridge.height
-            startX: m - bridge.a; startY: 0
-            PathLine { x: sp.m + bridge.a; y: 0 }
-            PathCubic { x: sp.m + bridge.n; y: sp.h / 2
-              control1X: sp.m + bridge.n; control1Y: sp.h * 0.12
-              control2X: sp.m + bridge.n; control2Y: sp.h * 0.35 }
-            PathCubic { x: sp.m + bridge.b; y: sp.h
-              control1X: sp.m + bridge.n; control1Y: sp.h * 0.65
-              control2X: sp.m + bridge.n; control2Y: sp.h * 0.88 }
-            PathLine { x: sp.m - bridge.b; y: sp.h }
-            PathCubic { x: sp.m - bridge.n; y: sp.h / 2
-              control1X: sp.m - bridge.n; control1Y: sp.h * 0.88
-              control2X: sp.m - bridge.n; control2Y: sp.h * 0.65 }
-            PathCubic { x: sp.m - bridge.a; y: 0
-              control1X: sp.m - bridge.n; control1Y: sp.h * 0.35
-              control2X: sp.m - bridge.n; control2Y: sp.h * 0.12 }
+            readonly property real hw: bridge.pillW / 2
+            startX: m - hw; startY: 0
+            PathLine { x: sp.m + sp.hw; y: 0 }
+            PathArc { x: sp.m + sp.hw + bridge.rx; y: bridge.height
+              radiusX: Math.max(0.01, bridge.rx); radiusY: bridge.height; direction: PathArc.Counterclockwise }
+            PathLine { x: sp.m - sp.hw - bridge.rx; y: bridge.height }
+            PathArc { x: sp.m - sp.hw; y: 0
+              radiusX: Math.max(0.01, bridge.rx); radiusY: bridge.height; direction: PathArc.Counterclockwise }
           }
         }
       }
