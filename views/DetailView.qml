@@ -307,7 +307,7 @@ Item {
       width: Style.space(view.compact ? 56 : 118)
       height: width
       cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(20)
-      source: view.info ? (view.info.thumb || "") : ""
+      source: (view.info && view.info.thumb) || (view.page ? (view.page.thumb || "") : "")
       foreground: Calm.fg
       fill: Calm.a(Calm.fg, 0.08)
       fontFamily: ""
@@ -321,9 +321,10 @@ Item {
       anchors.verticalCenter: cover.verticalCenter
       spacing: Style.space(4)
       Text {
-        visible: !!view.info && !view.compact
+        readonly property string kind: view.info ? view.info.kind : (view.page ? view.page.kind : "")
+        visible: (!!view.info || kind !== "") && !view.compact
         height: visible ? implicitHeight : 0
-        text: view.info ? (view.info.kind === "artist" ? "ARTIST" : view.info.kind === "playlist" ? "PLAYLIST" : "ALBUM") : ""
+        text: kind === "artist" ? "ARTIST" : kind === "playlist" ? "PLAYLIST" : kind === "album" ? "ALBUM" : ""
         color: Calm.accent
         font.family: view.family
         font.pixelSize: Style.space(11)
@@ -343,7 +344,7 @@ Item {
       }
       Text {
         width: parent.width
-        text: !view.info ? (view.busy ? "Loading" : view.error)
+        text: !view.info ? (view.busy ? (view.page && view.page.subtitle ? view.page.subtitle : "") : view.error)
           : view.info.kind === "album" ? [Model.artistsText(view.info.artists), view.info.subtitle].filter(Boolean).join(" · ")
           : view.info.kind === "playlist" ? [view.info.author, view.info.subtitle].filter(Boolean).join(" · ")
           : (view.info.subtitle || "")
@@ -464,7 +465,7 @@ Item {
   // rows fill the grown height: never a tall empty card with a word in the middle.
   // Short screens (set by the Panel): a smaller cover and no kind label, so more rows fit.
   readonly property bool compact: !!(panel && panel.compactHead === true)
-  readonly property int skeletonRows: busy && rows.length === 0 && page && page.count > 0 ? Math.min(page.count, 6) : 0
+  readonly property int skeletonRows: busy && rows.length === 0 && page ? (page.count > 0 ? Math.min(page.count, 6) : 6) : 0
   readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
 
   RowList {
@@ -489,11 +490,15 @@ Item {
     onAtYEndChanged: if (atYEnd) view.loadMore()
   }
 
-  Column {
+  Item {
+   id: skeletonBox
+   anchors.fill: list
+   clip: true
+   visible: view.skeletonRows > 0
+   Column {
     objectName: "detailSkeleton"
-    visible: view.skeletonRows > 0
-    anchors.top: list.top
-    anchors.left: list.left; anchors.right: list.right
+    anchors.top: parent.top
+    anchors.left: parent.left; anchors.right: parent.right
     spacing: Style.space(8)
     Repeater {
       model: view.skeletonRows
@@ -510,6 +515,7 @@ Item {
         Rectangle { x: Style.space(80); y: Style.space(33); width: parent.width * 0.26; height: Style.space(11); radius: height / 2; color: Calm.wash }
       }
     }
+   }
   }
 
   // Soft fade where rows run under the list's edges, so none is cut hard:

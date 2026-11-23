@@ -165,7 +165,9 @@ Panel {
 
   function openPage(item, params) {
     if (!item || !item.browseId) return
-    var p = { id: item.browseId, title: item.title || "", params: params || "" }
+    var p = { id: item.browseId, title: item.title || "", params: params || "",
+      // what the tile already shows: the header uses it from the first frame
+      thumb: item.thumb || "", kind: item.kind || "", subtitle: item.subtitle || "" }
     // The tile's "63 songs" / "63 canciones": a row count known before the page loads.
     var cm = /(\d[\d.,]*)\s+(songs?|tracks?|canciones|canci[oó]n|pistas?|titres?|titel|brani)/i.exec(item.subtitle || "")
     if (cm) p.count = parseInt(cm[1].replace(/[.,]/g, ""), 10)

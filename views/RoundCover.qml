@@ -98,9 +98,11 @@ Item {
     cache: true
     smooth: true
     mipmap: true
-    // Decode at the size it is drawn (HiDPI included), not at 544 px.
-    sourceSize.width: Math.ceil(root.width * 2)
-    sourceSize.height: Math.ceil(root.height * 2)
+    // Two decode sizes, so a tile and the page header opened from it ask the pixmap
+    // cache for the same image (no second fetch): small covers (rows, bar) 128 px,
+    // larger ones (tiles, page covers) 512 px.
+    sourceSize.width: root.width * 2 <= 128 ? 128 : 512
+    sourceSize.height: root.width * 2 <= 128 ? 128 : 512
     visible: false
   }
 
