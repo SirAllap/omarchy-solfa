@@ -49,6 +49,8 @@ Item {
     svc.request("queue", {}, function (r) {
       if (!r.ok) { view.error = Model.errorText(r.error); return }
       view.error = ""
+      // Starting: the engine's first (empty) queue is not the answer; keep what was shown.
+      if (!!view.svc.starting && view.queue && view.rows.length > 0 && !(r.data.items || []).length) return
       var keep = view.follow || (view.current && view.current.item ? view.current.item.videoId : "")
       view.follow = ""
       view.queue = r.data
@@ -180,7 +182,7 @@ Item {
   // The calm error tone of the mockup (Theme.err).
   readonly property color err: Qt.rgba(0.725, 0.439, 0.486, 1)
   readonly property string family: Calm.font
-  readonly property bool loading: !!svc && queue === null && error === ""
+  readonly property bool loading: !!svc && error === "" && (queue === null || (!!svc.starting && rows.length === 0))
   readonly property bool failed: rows.length === 0 && error !== ""
   readonly property bool empty: rows.length === 0 && !loading && !failed
 

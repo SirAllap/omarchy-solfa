@@ -15,6 +15,8 @@ Column {
   readonly property color fg: Calm.fg
   readonly property string family: Calm.font
   readonly property bool hasTrack: svc ? svc.hasTrack : false
+  // The player layout: held while Solfa starts, so nothing jumps when the track lands.
+  readonly property bool full: hasTrack || !!(svc && svc.starting)
   // Width kept free at the top right (the panel puts Solfa's name there).
   property real reserveRight: 0
   // Room for the header row (name, buttons) the panel draws over the top.
@@ -105,7 +107,7 @@ Column {
         id: titleBox
         width: parent.width
         height: titleGhost.implicitHeight
-        readonly property string full: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : "Nothing playing")
+        readonly property string full: root.hasTrack ? root.svc.title : (root.svc && root.svc.engineLine ? root.svc.engineLine : (root.svc.starting ? "Starting YouTube Music" : "Nothing playing"))
         readonly property bool typing: root.live && !Style.reduceMotion && root.hasTrack
         property real shown: full.length
         // the title crossfades as it changes (the letters then write in)
@@ -245,7 +247,11 @@ Column {
     // The bar's line sits mid-way in its slider box: cover to line 28, line to times 8.
     topPadding: Style.space(28) - Style.space(20) - seek.height / 2
     spacing: Style.space(8) - seek.height / 2
-    visible: root.hasTrack
+    // The full layout holds from the start of turn-on, quiet until a track is there.
+    visible: root.full
+    enabled: root.hasTrack
+    opacity: root.hasTrack ? 1 : 0.35
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
     PanelSlider {
       id: seek
@@ -376,7 +382,10 @@ Column {
     id: controls
     width: parent.width
     height: transport.height + Style.space(20) + volumeRow.height
-    visible: root.hasTrack
+    visible: root.full
+    enabled: root.hasTrack
+    opacity: root.hasTrack ? 1 : 0.35
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
     readonly property real slot: Style.space(48)
     readonly property real playSlot: Style.space(62)

@@ -188,7 +188,31 @@ Item {
   // evaluated), and the bridge would be started, or asked to quit, under
   // defaults nobody chose.
   onSettingsChanged: { if (root.settingsLoaded) root.maybeRestartBridge(); root.sendEq(); root.sendStart() }
-  onReadyChanged: if (root.ready) root.sendEq()
+  onReadyChanged: {
+    if (root.ready) { root.sendEq(); root.settled = false; root.queueEmpty = false; settleTimer.restart(); root.probeQueue() }
+    else { settleTimer.stop(); root.settled = false }
+  }
+
+  // ---- the start-up phase: ONE state from the engine coming up until the
+  // first real track, or a final "nothing to play". The engine says "ready"
+  // and an empty queue BEFORE it brings the saved song back, so ready+empty
+  // is not final: it must hold still for settleMs. Meanwhile the panel keeps
+  // its full player layout (quiet) and the last queue it knew.
+  readonly property int settleMs: 3000
+  property bool settled: false
+  property bool queueEmpty: false
+  readonly property bool starting: bridgeUp && !closed && !gated && !hasTrack && !(ready && settled && queueEmpty)
+  Timer {
+    id: settleTimer
+    interval: root.settleMs
+    onTriggered: { root.settled = true; root.probeQueue() }
+  }
+  function probeQueue() {
+    root.request("queue", {}, function (r) {
+      root.queueEmpty = !r.ok || !r.data || ((r.data.items || []).length === 0 && (r.data.automix || []).length === 0)
+    })
+  }
+  onQueueChanged: if (root.ready && !root.hasTrack) root.probeQueue()
 
   // The variables for a bridge, all read from `snapshot` (the settings as
   // they are at this moment), so the launch key and the variables can never

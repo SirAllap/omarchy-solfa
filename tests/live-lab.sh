@@ -7,6 +7,7 @@
 #   tests/live-lab.sh shot  LABEL        # grim -> ~/Documents/.../app/lab-LABEL*.png
 #   tests/live-lab.sh stop
 #
+# tests/live-lab.sh frames LABEL [N] [GAP_S]   N raw grabs; FRAME_GEOM="x,y wxh" (logical px) crops them so they are fast
 # SCALE=1.25 (default) | 1 | 1.5 | 2     OPEN=0 skips opening the panel
 # LAB_STATE=playing (default) | idle | off   what the pill shows: the fake engine's song / no song / the
 #                                            engine stopped through the bridge socket (engine.stop), as the panel's off switch does
@@ -275,6 +276,15 @@ cmd_open() {  # open the panel (OPEN=0 start leaves it closed): the "open" half 
   sleep 2
 }
 
+cmd_frames() {  # frames LABEL N INTERVAL_S: N raw grabs (no analysis), lab-LABEL-01.png ...: a turn-on strip
+  load_private; assert_private
+  local label="${1:-}" n="${2:-12}" gap="${3:-0.5}" i
+  [ -n "$label" ] || die "usage: frames LABEL [N] [INTERVAL_S]"
+  mkdir -p "$OUTDIR"
+  local where=(-o LAB-1); [ -n "${FRAME_GEOM:-}" ] && where=(-g "$FRAME_GEOM")
+  for i in $(seq -w 1 "$n"); do priv grim "${where[@]}" "$OUTDIR/lab-$label-$i.png" || die "grim failed"; sleep "$gap"; done
+}
+
 cmd_stop() {
   [ -s "$PIDS" ] || { echo "nothing to stop"; return; }
   local name pid
@@ -296,6 +306,7 @@ case "${1:-}" in
   open)  shift; cmd_open "$@" ;;
   engine-stop) cmd_engine_stop ;;
   engine-start) cmd_engine_start ;;
+  frames) shift; cmd_frames "$@" ;;
   stop)  cmd_stop ;;
   *) echo "usage: $0 start [WORKTREE] | shot LABEL | open [close] | stop" >&2; exit 2 ;;
 esac

@@ -72,7 +72,12 @@ state = {
 # FAKE_PLAYER=idle: the app is up, signed in, and nothing is playing (no video id): the bar's
 # "Nothing playing" pill. Default (or "playing"): the song above. The "off" look is not the
 # engine's: it is the bridge started with SOLFA_NO_LAUNCH=1 (live-lab LAB_STATE=off).
-if os.environ.get("FAKE_PLAYER") == "idle":
+# FAKE_PLAYER=turnon: the real turn-on sequence. The app comes up ready with no
+# song and an empty queue, and only FAKE_TURNON_MS later (default 1800) the saved song and its queue
+# arrive (a player push, then a queue event).
+TURNON = os.environ.get("FAKE_PLAYER") == "turnon"
+TRACK = dict(state["player"])
+if os.environ.get("FAKE_PLAYER") in ("idle", "turnon"):
     state["player"].update(videoId="", title="", artists=[], playing=False, duration=0, position=0, canNext=False, canPrev=False)
 # The bridge's own end of the pipe: exactly one at a time (a pipe is not a
 # listening socket), set once run_pipe() has the transport up.
@@ -212,6 +217,11 @@ def page_op(op, a):
         return {"name": "Alex Example", "email": "alex@example.com",
                 "avatar": "https://lh3.googleusercontent.com/a/fixture=s64-c-mo"}, None
     if op == "queue":
+        if TURNON and not state.get("restored"):
+            return {"items": [], "automix": [], "index": -1, "more": False, "version": state["queueVersion"]}, None
+        if TURNON:
+            items = [{"kind": "song", "videoId": TRACK["videoId"], "title": TRACK["title"], "artists": TRACK["artists"], "duration": 200}]
+            return {"items": items, "automix": [], "index": 0, "more": False, "version": state["queueVersion"]}, None
         return {"items": [], "automix": [], "index": 0, "more": False, "version": state["queueVersion"]}, None
     if op == "queue.more":
         # The canned queue is empty: there is no next page to add.
@@ -506,6 +516,14 @@ async def main():
     if "--remote-debugging-pipe" not in args:
         await signin_window()
     take_lock()
+    if TURNON:
+        def restored():
+            state["restored"] = True
+            state["queueVersion"] += 1
+            state["player"].update(TRACK, at=0)
+            emit_event("player", state["player"])
+            emit_event("queue", {"version": state["queueVersion"]})
+        asyncio.get_running_loop().call_later(int(os.environ.get("FAKE_TURNON_MS", "1800")) / 1000, restored)
     if os.environ.get("FAKE_WONT_CLOSE") == "1":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)  # a browser that will not go
     await run_pipe()
