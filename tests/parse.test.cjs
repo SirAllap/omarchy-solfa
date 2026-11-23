@@ -233,6 +233,25 @@ test("a song/video twin in the queue plays its primary", () => {
   assert.equal(P.panelVideo(wrapped).videoId, P.panelVideo(inner).videoId)
 })
 
+test("a queue entry from a playlist names the playlist and its row there", () => {
+  // Shaped like a song queued by playing a playlist: the row's
+  // playlistSetVideoId beside the playlist's id in the watch endpoint.
+  const fromList = JSON.parse(JSON.stringify(P.queueEntries(F("queue"))[0]))
+  const r = fromList.playlistPanelVideoRenderer
+  r.playlistSetVideoId = "0123456789ABCDEF"
+  Object.assign(r.navigationEndpoint.watchEndpoint, { playlistId: "PLinventedPlaylist01", playlistSetVideoId: "0123456789ABCDEF", index: 4 })
+  const t = P.panelVideo(fromList)
+  assert.equal(t.playlistId, "PLinventedPlaylist01")
+  assert.equal(t.setVideoId, "0123456789ABCDEF")
+  // In a song/video pair, the primary's row.
+  const other = JSON.parse(JSON.stringify(P.queueEntries(F("queue"))[1]))
+  other.playlistPanelVideoRenderer.playlistSetVideoId = "FEDCBA9876543210"
+  const pair = { playlistPanelVideoWrapperRenderer: { primaryRenderer: fromList, counterpart: [{ counterpartRenderer: other }] } }
+  assert.equal(P.panelVideo(pair).setVideoId, "0123456789ABCDEF")
+  // Queued on its own (get_queue): no row of any playlist.
+  assert.equal(P.panelVideo(P.queueEntries(F("queue"))[0]).setVideoId, "")
+})
+
 test("suggestions are plain queries", () => {
   const s = P.suggestions(F("suggest"))
   assert.ok(s.length >= 3 && s.every((x) => typeof x === "string" && x.length))

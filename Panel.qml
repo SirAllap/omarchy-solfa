@@ -50,6 +50,7 @@ Panel {
     if (svc && !svc.hasTrack && tab === "queue") tab = "search"
     // With autostart off, opening the panel is what starts YouTube Music.
     if (svc && svc.bridgeUp && svc.engine.status === "stopped") svc.startEngine()
+    checkPlayingList()
     Qt.callLater(function () {
       root.focusKeys()
       if (root.view && root.view.shown) root.view.shown()
@@ -76,7 +77,8 @@ Panel {
 
   function openPage(item, params) {
     if (!item || !item.browseId) return
-    var p = { id: item.browseId, title: item.title || "", params: params || "" }
+    // `epoch`: the account the page was opened under (listEpoch).
+    var p = { id: item.browseId, title: item.title || "", params: params || "", epoch: root.listEpoch }
     pages = pages.concat([p])
     detailView.open(p)
     focusKeys()
@@ -104,6 +106,88 @@ Panel {
   function closeSave() {
     root.saveItem = null
     focusKeys()
+  }
+
+  // ---- the song playing, out of its playlist (Now Playing's remove button)
+
+  // The playlists the songs played from were looked up in (bare id -> the
+  // page's info, as browse gives it): whether the user may edit one, and
+  // its title. One browse per playlist, and none while a page of it is
+  // already open here. Forgotten when the account changes (sign-out,
+  // switch): another account may not own the same playlist.
+  property var listInfo: ({})
+  property var listAsked: ({})      // bare id -> true while its browse is out
+  property int listEpoch: 0         // bumped when listInfo is forgotten
+  // Rows taken out this session (Model.rowKey): the song keeps playing and
+  // stays queued, still naming its row, so its button must not come back.
+  property var removedRows: ({})
+  property var removingRows: ({})   // the same, while the request is out
+  readonly property string playingList: Model.playingListId(svc ? svc.player : null)
+  readonly property var playingRemoval: svc && svc.hasTrack && svc.signedIn
+    ? Model.playingRemoval(svc.player, root.listInfo[root.playingList] || null, root.removedRows) : null
+
+  onPlayingListChanged: checkPlayingList()
+  Connections {
+    target: root.svc
+    function onSignedInChanged() {
+      root.listInfo = ({})
+      root.listAsked = ({})
+      root.listEpoch++
+      root.checkPlayingList()
+    }
+  }
+
+  function checkPlayingList() {
+    var id = root.playingList
+    if (!root.opened || !id || !svc || !svc.signedIn || root.listInfo[id] || root.listAsked[id]) return
+    // A page of it open here, under this account, says as much.
+    for (var i = root.pages.length - 1; i >= 0; i--) {
+      var inf = root.pages[i].info
+      if (inf && root.pages[i].epoch === root.listEpoch && inf.kind === "playlist" && Model.bareListId(inf.playlistId) === id) { root.rememberList(id, inf); return }
+    }
+    root.listAsked[id] = true
+    var epoch = root.listEpoch
+    svc.request("browse", { id: "VL" + id }, function (r) {
+      if (epoch !== root.listEpoch) return
+      delete root.listAsked[id]
+      if (r.ok && r.data) root.rememberList(id, r.data)
+    })
+  }
+  function rememberList(id, info) {
+    var all = Object.assign({}, root.listInfo)
+    all[id] = info
+    root.listInfo = all
+  }
+
+  // No confirmation, as on the playlist's page: the song leaves the
+  // playlist it plays from, keeps playing, and stays in the queue.
+  function removePlaying() {
+    var t = root.playingRemoval
+    if (!t || !svc) return
+    var key = Model.rowKey(t.playlistId, t.setVideoId)
+    if (root.removingRows[key]) return
+    root.removingRows[key] = true
+    svc.request("playlist.remove", { playlistId: t.playlistId, videoId: t.videoId, setVideoId: t.setVideoId }, function (r) {
+      delete root.removingRows[key]
+      if (!r.ok) { svc.report(r.error); return }
+      root.trackRemoved(t.playlistId, t.setVideoId)
+      root.say(Model.removedMessage(t.title))
+    })
+  }
+
+  // A row left a playlist (from its page or from Now Playing): no page of
+  // it kept here shows it any more, and Now Playing's button goes for it.
+  function trackRemoved(playlistId, setVideoId) {
+    var id = Model.bareListId(playlistId)
+    var gone = Object.assign({}, root.removedRows)
+    gone[Model.rowKey(id, setVideoId)] = true
+    root.removedRows = gone
+    if (root.listInfo[id]) root.rememberList(id, Model.withoutTrack(root.listInfo[id], setVideoId))
+    for (var i = 0; i < root.pages.length; i++) {
+      var p = root.pages[i]
+      if (p.info && p.info.kind === "playlist" && Model.bareListId(p.info.playlistId) === id) p.info = Model.withoutTrack(p.info, setVideoId)
+    }
+    detailView.trackRemoved(id, setVideoId)
   }
 
   function say(text) { root.flash = text; flashTimer.restart() }
@@ -322,7 +406,9 @@ Panel {
         svc: root.svc
         bar: root.bar
         reserveRight: brand.width
+        removal: root.playingRemoval
         onSaveRequested: root.saveRow(null)
+        onRemoveRequested: root.removePlaying()
       }
 
       // Solfa's name and the power button, top right: far from play.

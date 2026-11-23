@@ -57,7 +57,8 @@ state = {
     "player": {"videoId": "AAAAAAAAAAA", "title": "First Light", "artists": [{"name": "Mira Solvent", "id": "UCfixture"}],
                "album": None, "thumb": "", "kind": "song", "duration": 200, "position": 12, "at": 0, "playing": True,
                "buffering": False, "ended": False, "ad": False, "volume": 100, "muted": False, "repeat": "NONE",
-               "shuffle": False, "like": "INDIFFERENT", "index": 0, "canNext": True, "canPrev": True},
+               "shuffle": False, "like": "INDIFFERENT", "index": 0, "canNext": True, "canPrev": True,
+               "playlistId": "", "setVideoId": ""},
     "queueVersion": 1,
     "navigations": [],
     # Google cookies in the jar: (name, domain, path). A consent answer is

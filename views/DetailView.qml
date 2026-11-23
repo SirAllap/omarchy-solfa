@@ -79,16 +79,32 @@ Item {
     view.removing[sid] = true
     var page = view.page
     var title = view.info.title || (page ? page.title : "")
-    svc.request("playlist.remove", { playlistId: view.info.playlistId, videoId: row.item.videoId, setVideoId: sid }, function (r) {
+    var listId = view.info.playlistId
+    svc.request("playlist.remove", { playlistId: listId, videoId: row.item.videoId, setVideoId: sid }, function (r) {
       delete view.removing[sid]
       if (!r.ok) { svc.report(r.error); return }
       if (page) page.info = Model.withoutTrack(page.info, sid)
-      if (view.page !== page) return
       var at = list.cursor   // the list moves it when its rows change
-      view.info = Model.withoutTrack(view.info, sid)
-      list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
-      if (view.panel) view.panel.say(Model.removedMessage(title))
+      if (view.page === page) {
+        view.info = Model.withoutTrack(view.info, sid)
+        list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
+        if (view.panel) view.panel.say(Model.removedMessage(title))
+      }
+      // Other pages of it, and Now Playing when this row is the song playing.
+      if (view.panel) view.panel.trackRemoved(listId, sid)
     })
+  }
+
+  // A row of the playlist on screen left it from elsewhere (Now Playing's
+  // button): it goes from the list as if removed here, without a reload.
+  function trackRemoved(playlistId, setVideoId) {
+    if (!view.info || view.info.kind !== "playlist" || Model.bareListId(view.info.playlistId) !== Model.bareListId(playlistId)) return
+    var d = Model.withoutTrack(view.info, setVideoId)
+    if (d === view.info) return
+    var at = list.cursor
+    view.info = d
+    if (view.page) view.page.info = Model.withoutTrack(view.page.info, setVideoId)
+    list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
   }
 
   // Keys only a playlist of the user's has (the queue's x is in QueueView).

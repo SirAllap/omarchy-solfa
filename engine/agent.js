@@ -269,6 +269,11 @@
       album: matches ? cur.album : null,
       thumb: matches && cur.thumb ? cur.thumb : (videoId ? "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg" : ""),
       kind: matches ? cur.kind : "song",
+      // The list the song plays from and, when that is a playlist, its row
+      // there: Now Playing's "Remove from playlist" needs both, and only
+      // for the queue entry that is really playing.
+      playlistId: matches ? cur.playlistId : "",
+      setVideoId: matches ? cur.setVideoId : "",
       // The queue's own length for this song wins whenever it has one: the
       // player only knows as much of the song as it has streamed (0:49, then
       // 1:1x, for a 3-minute song), and after a seek near the end it can
@@ -451,7 +456,7 @@
   // Everything but the clock: a change here is worth a push.
   function keyOf(s) {
     return [s.videoId, s.title, s.playing, s.buffering, s.ended, s.ad, s.adSkippable, s.volume, s.muted, s.repeat, s.shuffle, s.like,
-      s.index, s.canNext, Math.round(s.duration), s.thumb, Math.round(s.adDuration)].join("\u0001")
+      s.index, s.canNext, Math.round(s.duration), s.thumb, Math.round(s.adDuration), s.playlistId, s.setVideoId].join("\u0001")
   }
 
   function schedule(isSeek) {

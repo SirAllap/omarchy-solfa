@@ -20,6 +20,11 @@ Column {
 
   // The save-to-playlist button was pressed (the panel opens the picker).
   signal saveRequested()
+  // The song playing as a row of a playlist of the user's, when it plays
+  // from one (Panel.qml works it out, Model.playingRemoval): the remove
+  // button is there only then. Its button was pressed: removeRequested.
+  property var removal: null
+  signal removeRequested()
 
   Row {
     width: parent.width
@@ -302,6 +307,20 @@ Column {
         tooltipText: root.svc && !root.svc.signedIn ? "Sign in to save to a playlist" : "Save to a playlist (S)"
         onClicked: root.saveRequested()
       }
+      // Takes the song playing out of the playlist it plays from; it keeps
+      // playing. Only for a playlist of the user's, and never on an advert.
+      HitButton {
+        objectName: "removeButton"
+        anchors.verticalCenter: parent.verticalCenter
+        minSize: controls.slot
+        visible: !!(root.removal && root.svc && root.svc.signedIn && !root.svc.isAd)
+        iconText: Icons.removePlaylist
+        iconSize: controls.glyph
+        foreground: root.fg
+        fontFamily: root.family
+        tooltipText: root.removal ? "Remove from " + (root.removal.title || "this playlist") : ""
+        onClicked: root.removeRequested()
+      }
     }
 
     Row {
@@ -319,12 +338,14 @@ Column {
         tooltipText: root.svc && root.svc.muted ? "Unmute (m)" : "Mute (m)"
         onClicked: if (root.svc) root.svc.toggleMute()
       }
-      // On a narrow card the slider gives way before it runs into the
+      // On a narrow card, or with more buttons in the row (remove), the
+      // slider narrows first, then gives way before it runs into the
       // transport buttons; m and the volume keys still work.
       PanelSlider {
+        readonly property real room: controls.width - transport.width - controls.volumeSlot - Style.space(24)
         anchors.verticalCenter: parent.verticalCenter
-        visible: controls.width >= transport.width + controls.volumeSlot + width + Style.space(24)
-        width: Style.space(110)
+        visible: room >= Style.space(64)
+        width: Math.max(Style.space(64), Math.min(Style.space(110), room))
         bar: root.bar
         minimum: 0
         maximum: 100

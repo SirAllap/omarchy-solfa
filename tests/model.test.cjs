@@ -482,3 +482,46 @@ test("removing a song from a playlist: only a user's own, never Liked songs, one
   assert.match(x[0][1], /playlist/)
   assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "J / K" && /queue/.test(h[1])))
 })
+
+test("Now Playing's remove: only the song playing from a playlist of the user's, by its own row, once", () => {
+  const playing = { videoId: "AAAAAAAAAAA", playlistId: "PLmine", setVideoId: "S3", ad: false }
+  const mine = { kind: "playlist", editable: true, playlistId: "PLmine", title: "Road trip",
+    tracks: [{ videoId: "AAAAAAAAAAA", setVideoId: "S1" }, { videoId: "BBBBBBBBBBB", setVideoId: "S2" }, { videoId: "AAAAAAAAAAA", setVideoId: "S3" }] }
+  const but = (o, extra) => Object.assign({}, o, extra)
+  // The playlist worth a look: a "PL" list with the entry's row, nothing else.
+  assert.equal(M.playingListId(playing), "PLmine")
+  assert.equal(M.playingListId(but(playing, { playlistId: "VLPLmine" })), "PLmine")
+  assert.equal(M.playingListId(but(playing, { setVideoId: "" })), "", "no row: nothing to remove, nothing asked")
+  assert.equal(M.playingListId(but(playing, { playlistId: "" })), "")
+  assert.equal(M.playingListId(but(playing, { playlistId: "LM" })), "", "Liked songs")
+  assert.equal(M.playingListId(but(playing, { playlistId: "RDAMPLPLmine" })), "", "the radio after a playlist")
+  assert.equal(M.playingListId(but(playing, { playlistId: "RDAMVMAAAAAAAAAAA" })), "", "a song's radio")
+  assert.equal(M.playingListId(but(playing, { playlistId: "OLAK5uy_album" })), "", "an album")
+  assert.equal(M.playingListId(but(playing, { ad: true })), "", "an advert")
+  assert.equal(M.playingListId(but(playing, { videoId: "" })), "")
+  assert.equal(M.playingListId(null), "")
+
+  deep(M.playingRemoval(playing, mine, {}), { playlistId: "PLmine", videoId: "AAAAAAAAAAA", setVideoId: "S3", title: "Road trip" })
+  deep(M.playingRemoval(playing, but(mine, { playlistId: "VLPLmine" }), null), { playlistId: "PLmine", videoId: "AAAAAAAAAAA", setVideoId: "S3", title: "Road trip" })
+  // A row the page has not loaded (a long playlist): the queue's word is enough.
+  deep(M.playingRemoval(but(playing, { setVideoId: "S999" }), mine, {}).setVideoId, "S999")
+  // Every one of these must keep the button away.
+  assert.equal(M.playingRemoval(but(playing, { setVideoId: "" }), mine, {}), null, "no setVideoId")
+  assert.equal(M.playingRemoval(playing, but(mine, { editable: false }), {}), null, "someone else's playlist")
+  assert.equal(M.playingRemoval(playing, but(mine, { editable: undefined }), {}), null, "not known to be editable")
+  assert.equal(M.playingRemoval(playing, null, {}), null, "not looked up yet")
+  assert.equal(M.playingRemoval(but(playing, { playlistId: "LM" }), but(mine, { playlistId: "LM" }), {}), null, "Liked songs")
+  assert.equal(M.playingRemoval(but(playing, { playlistId: "RDAMPLPLmine" }), mine, {}), null, "the radio after the playlist")
+  assert.equal(M.playingRemoval(but(playing, { playlistId: "OLAK5uy_album" }), but(mine, { playlistId: "OLAK5uy_album" }), {}), null, "an album")
+  assert.equal(M.playingRemoval(but(playing, { playlistId: "OLAK5uy_album" }), but(mine, { kind: "album", playlistId: "OLAK5uy_album" }), {}), null, "an album page")
+  assert.equal(M.playingRemoval(playing, but(mine, { kind: "album" }), {}), null, "a page that is not a playlist")
+  assert.equal(M.playingRemoval(playing, but(mine, { playlistId: "PLother" }), {}), null, "the page of another playlist")
+  assert.equal(M.playingRemoval(but(playing, { playlistId: "PLother" }), mine, {}), null, "a song playing from another list")
+  assert.equal(M.playingRemoval(but(playing, { ad: true }), mine, {}), null, "an advert")
+  assert.equal(M.playingRemoval(but(playing, { setVideoId: "S2" }), mine, {}), null, "the page gives that row to another song")
+  assert.equal(M.playingRemoval(playing, mine, { "PLmine/S3": true }), null, "taken out already")
+  assert.notEqual(M.playingRemoval(playing, mine, { "PLmine/S1": true, "PLother/S3": true }), null, "another row, or the same setVideoId in another list")
+  assert.equal(M.rowKey("VLPLmine", "S3"), "PLmine/S3")
+  assert.equal(M.bareListId("VLPLmine"), "PLmine")
+  assert.equal(M.bareListId(undefined), "")
+})

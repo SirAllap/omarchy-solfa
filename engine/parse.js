@@ -315,7 +315,10 @@ var SolfaParse = (function () {
   }
 
   // playlistPanelVideoRenderer (the queue), also inside a wrapper that pairs
-  // a song with its music-video twin: the primary one is what plays.
+  // a song with its music-video twin: the primary one is what plays. A song
+  // queued from a playlist carries its row there (`playlistSetVideoId`, the
+  // same value the playlist's page gives that row) next to the playlist's
+  // id in its watch endpoint.
   function panelVideo(r, opts) {
     opts = opts || {}
     if (!r) return null
@@ -339,6 +342,7 @@ var SolfaParse = (function () {
       duration: seconds(text(r.lengthText)),
       thumb: bestThumb(dig(r, ["thumbnail", "thumbnails"]) || [], opts.thumbPx || 120),
       playlistId: we.playlistId || "",
+      setVideoId: r.playlistSetVideoId || "",
       radio: menuEndpoints(r).radio || null
     })
   }

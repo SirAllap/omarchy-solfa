@@ -926,6 +926,31 @@ test("a song's duration is the queue's full length while the player only knows w
   assert.equal((await p.call("state")).player.duration, 49)
 })
 
+test("the player names the playlist the song plays from and its row there, for the entry that plays only", async () => {
+  const fromList = (videoId, title, setVideoId) => {
+    const e = entry(videoId, title)
+    e.playlistPanelVideoRenderer.playlistSetVideoId = setVideoId
+    Object.assign(e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint, { playlistId: "PLinventedPlaylist01", playlistSetVideoId: setVideoId })
+    return e
+  }
+  const p = makePage({ items: [fromList("AAAAAAAAAAA", "First Light", "0123456789ABCDEF"), entry("BBBBBBBBBBB", "Second Wind")] })
+  await p.settle()
+  let s = (await p.call("state")).player
+  assert.equal(s.playlistId, "PLinventedPlaylist01")
+  assert.equal(s.setVideoId, "0123456789ABCDEF")
+  assert.equal(p.emitted.filter((e) => e.t === "player").pop().data.setVideoId, "0123456789ABCDEF", "pushed too")
+  // The player on another song than the queue's entry: nothing borrowed from it.
+  p.player.current = "ZZZZZZZZZZZ"
+  s = (await p.call("state")).player
+  assert.equal(s.playlistId, "")
+  assert.equal(s.setVideoId, "")
+  // A song queued on its own: no row.
+  p.player.nextVideo()
+  s = (await p.call("state")).player
+  assert.equal(s.videoId, "BBBBBBBBBBB")
+  assert.equal(s.setVideoId, "")
+})
+
 test("snapshot during an ad reports adPosition/adDuration, and zeroes the regular clock", async () => {
   const p = makePage()
   await p.settle()
