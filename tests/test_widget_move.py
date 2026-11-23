@@ -146,7 +146,7 @@ def make_stubs(stubs, log, key_file):
         os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
 
 
-def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0):
+def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0, stub_panel=False):
     """Returns (bridge, stub_calls, log)."""
     work = tempfile.mkdtemp(prefix="solfa-wm-")
     # AF_UNIX paths are short (108 bytes): the runtime dir is a short one
@@ -159,7 +159,16 @@ def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0):
         key_file = os.path.join(work, "launch-key")
         make_stubs(stubs, stublog, key_file)
         patched_service(os.path.join(cfg, "Service.qml"), stubs)
-        for name, target in (("Ui", os.path.join(SHELL_DIR, "Ui")), ("Commons", os.path.join(SHELL_DIR, "Commons")),
+        ui = os.path.join(SHELL_DIR, "Ui")
+        if stub_panel:
+            # The shell's KeyboardPanel is a layer-shell window, which an offscreen
+            # Quickshell cannot make: swap it for tests/qml/stub, a plain card.
+            ui = os.path.join(cfg, "UiStub")
+            os.makedirs(ui)
+            for name in os.listdir(os.path.join(SHELL_DIR, "Ui")):
+                src = os.path.join(HERE, "qml", "stub", name) if name == "KeyboardPanel.qml" else os.path.join(SHELL_DIR, "Ui", name)
+                os.symlink(src, os.path.join(ui, name))
+        for name, target in (("Ui", ui), ("Commons", os.path.join(SHELL_DIR, "Commons")),
                              ("views", os.path.join(ROOT, "views")), ("lib", os.path.join(ROOT, "lib")),
                              ("BarWidget.qml", os.path.join(ROOT, "BarWidget.qml")),
                              ("Panel.qml", os.path.join(ROOT, "Panel.qml")),
