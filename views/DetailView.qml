@@ -35,7 +35,22 @@ Item {
   readonly property bool inputFocused: finding && findField.activeFocus
   // Rows come from the filtered tracks, so a row's index is its place in
   // the list on screen, not in info.tracks: always go through `rows`.
-  readonly property var rows: !info ? [] : info.tracks ? Model.trackRows(finding ? Model.filterTracks(info.tracks, query) : info.tracks) : Model.sectionRows(info.sections, info.kind === "artist" ? 6 : 0)
+  readonly property var rows: !info ? [] : info.tracks ? Model.trackRows(finding ? matchedTracks() : info.tracks) : Model.sectionRows(info.sections, info.kind === "artist" ? 6 : 0)
+  // Find: a page that arrives only adds to info.tracks, so only the new
+  // tracks are filtered and appended to the last result. A new query or a
+  // different list starts again. Plain cache: not a binding input.
+  readonly property var findCache: ({ query: null, first: null, n: 0, out: [] })
+  function matchedTracks() {
+    var tracks = info.tracks, c = findCache
+    var same = c.query === query && c.n <= tracks.length && c.first === tracks[0]
+    var out = same ? c.out.concat(Model.filterTracks(tracks.slice(c.n), query)) : Model.filterTracks(tracks, query)
+    c.query = query; c.first = tracks[0]; c.n = tracks.length; c.out = out
+    return out
+  }
+  // Find stops fetching at this many pages or songs, whichever comes first.
+  readonly property int findMaxPages: 20
+  readonly property int findMaxTracks: 2000
+  property int findPages: 0
   property alias cursor: list.cursor
   readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
   readonly property var hints: inputFocused ? [["↵ ↓", "to the list"], ["esc", query === "" ? "close" : "clear"]]
@@ -94,6 +109,12 @@ Item {
         if (view.panel) view.panel.say(view.loadError)
       }
       if (!view.loadingAll) return
+      view.findPages++
+      if (r.ok && view.info.continuation && (view.findPages >= view.findMaxPages || view.info.tracks.length >= view.findMaxTracks)) {
+        view.loadingAll = false
+        view.loadError = "Only the first " + view.info.tracks.length + " songs were loaded"
+        return
+      }
       // An empty page or the same token again would loop for ever.
       if (!r.ok || got.length === 0 || view.info.continuation === token || !view.info.continuation) view.loadingAll = false
       else view.loadMore()
@@ -106,6 +127,7 @@ Item {
     if (!view.findable) return
     view.finding = true
     view.loadError = ""
+    view.findPages = 0
     findField.forceActiveFocus()
     findField.selectAll()
     if (view.info.continuation) { view.loadingAll = true; view.loadMore() }
