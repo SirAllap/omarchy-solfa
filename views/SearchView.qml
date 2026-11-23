@@ -137,6 +137,7 @@ Item {
       }
       TextInput {
         id: field
+        objectName: "searchField"
         anchors.left: parent.left
         anchors.leftMargin: Style.space(46)
         anchors.right: clearButton.left

@@ -32,6 +32,8 @@ Column {
   signal saveRequested()
   // The Radio chip was pressed (the panel starts it and says "Radio from <title>", as key R does).
   signal radioRequested()
+  // The share button was pressed (the panel copies the song's link).
+  signal shareRequested()
 
   Row {
     width: parent.width
@@ -485,6 +487,22 @@ Column {
         fontFamily: root.family
         tooltipText: root.svc && !root.svc.signedIn ? "Sign in to save to a playlist" : "Save to a playlist (S)"
         onClicked: root.saveRequested()
+      }
+      HitButton {
+        opacity: root.eff(145, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(145, 180)) }
+        objectName: "shareButton"
+        onPressedDown: function (it) { cover.lookAt(it) }
+        anchors.verticalCenter: parent.verticalCenter
+        minSize: controls.slot
+        visible: !!(root.svc && !root.svc.isAd)
+        enabled: root.hasTrack
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: "share"; size: Style.space(22); color: root.fg; stroke: 1.7 }
+        foreground: root.fg
+        fontFamily: root.family
+        tooltipText: root.hasTrack ? "Copy link (c)" : "Nothing to share"
+        onClicked: root.shareRequested()
       }
     }
 
