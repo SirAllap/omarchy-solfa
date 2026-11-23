@@ -58,12 +58,16 @@ QtObject {
   }
   readonly property color _shellAccent: valid(Commons.Color.accent) ? Commons.Color.accent : darkAccent
   readonly property color _accent0: Math.abs(lum(_shellAccent) - lum(surface)) > 0.2 ? _shellAccent : (light ? mix(darkAccent, ink, 0.35) : darkAccent)
-  // Accent is also the ink of the card's small icons (gear, power) and links: kept at 4.5:1 on the
-  // card, moved toward the text colour only as far as it needs.
-  readonly property color accent: {
-    for (var t = 0; t <= 1.0001; t += 0.05) { var m = mix(_accent0, fg, t); if (reads(m, surface)) return m }
+  // Accent as a fill or an icon/large glyph: the theme's own colour while it reaches 3:1 on the
+  // card (WCAG non-text contrast); only below that is it moved toward the text colour, as little
+  // as it takes. The hue is never changed otherwise.
+  function _accentAt(min) {
+    for (var t = 0; t <= 1.0001; t += 0.05) { var m = mix(_accent0, fg, t); if (ratio(m, surface) >= min) return m }
     return fg
   }
+  readonly property color accent: _accentAt(3)
+  // Accent as small TEXT (links, labels): 4.5:1 on the card.
+  readonly property color accentText: _accentAt(4.5)
   // Ink on an accent fill (primary buttons, the active chip).
   readonly property color onAccent: lum(accent) > 0.5 ? Qt.rgba(0.051, 0.055, 0.067, 1) : Qt.rgba(1, 1, 1, 1)
   readonly property color hair: a(fg, light ? 0.14 : 0.075)

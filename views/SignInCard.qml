@@ -194,7 +194,7 @@ Column {
       HitButton {
         text: "Reject all"
         fontFamily: card.family
-        foreground: Calm.accent
+        foreground: Calm.accentText
         bordered: true
         radius: height / 2
         onClicked: if (card.svc) card.svc.answerCookies(false)
@@ -202,7 +202,7 @@ Column {
       HitButton {
         text: "Accept all"
         fontFamily: card.family
-        foreground: Calm.accent
+        foreground: Calm.accentText
         bordered: true
         radius: height / 2
         onClicked: if (card.svc) card.svc.answerCookies(true)

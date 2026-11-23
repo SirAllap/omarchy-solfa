@@ -83,7 +83,11 @@ class PanelSettings(unittest.TestCase):
     def test_off_shows_only_the_way_back_on(self):
         s = self.state["off"]
         self.assertEqual({k: s[k] for k in ("offCard", "turnOn", "tabs", "hero")},
-                         {"offCard": True, "turnOn": True, "tabs": False, "hero": True})
+                         {"offCard": True, "turnOn": None, "tabs": False, "hero": True})  # turnOn None: no Turn on pill exists
+
+    def test_off_circle_is_the_turn_on_button(self):
+        self.assertTrue(self.state["off"]["power"])
+        self.assertEqual(self.state["off"]["startsAfterClick"], 2, "Enter made 1, the click on the circle made 2")
 
     def test_enter_turns_solfa_on_when_off(self):
         self.assertEqual(self.state["off"]["startsAfterEnter"], 1)

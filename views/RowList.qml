@@ -106,7 +106,7 @@ ListView {
         visible: !!cell.modelData.more
         text: "Show all"
         textFormat: Text.PlainText
-        color: headerMouse.containsMouse ? Calm.accent : Util.alpha(list.fg, 0.45)
+        color: headerMouse.containsMouse ? Calm.accentText : Util.alpha(list.fg, 0.45)
         font.family: list.family
         font.pixelSize: Style.font.caption
         font.underline: headerMouse.containsMouse

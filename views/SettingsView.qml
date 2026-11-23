@@ -541,7 +541,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: qbtn.label
         textFormat: Text.PlainText
-        color: qbtn.danger ? root.dangerColor : (qbtn.focused ? Calm.accent : qbtn.fg)
+        color: qbtn.danger ? root.dangerColor : (qbtn.focused ? Calm.accentText : qbtn.fg)
         font.family: root.family
         font.pixelSize: Style.space(15)
         font.bold: true
@@ -1199,7 +1199,7 @@ Item {
               anchors.verticalCenter: parent.verticalCenter
               text: modelData.label
               textFormat: Text.PlainText
-              color: parent.chosen ? Calm.accent : Calm.fg
+              color: parent.chosen ? Calm.accentText : Calm.fg
               font.family: root.family
               font.pixelSize: Style.font.body
             }
