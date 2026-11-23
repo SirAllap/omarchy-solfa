@@ -24,7 +24,14 @@ QS = shutil.which(os.environ.get("QS_TOOL", "qs"))
 def render(workdir, scale="1"):
     cfg = os.path.join(workdir, "scene")
     os.mkdir(cfg)
-    for name, target in (("Ui", os.path.join(SHELL_DIR, "Ui")), ("Commons", os.path.join(SHELL_DIR, "Commons")),
+    # The shell's KeyboardPanel is a layer-shell window an offscreen Quickshell cannot make: the
+    # tests' plain-card stub stands in, so the bar pill's click can really open the panel.
+    ui = os.path.join(cfg, "UiStub")
+    os.makedirs(ui)
+    for name in os.listdir(os.path.join(SHELL_DIR, "Ui")):
+        src = os.path.join(HERE, "qml", "stub", name) if name == "KeyboardPanel.qml" else os.path.join(SHELL_DIR, "Ui", name)
+        os.symlink(src, os.path.join(ui, name))
+    for name, target in (("Ui", ui), ("Commons", os.path.join(SHELL_DIR, "Commons")),
                          ("views", os.path.join(ROOT, "views")), ("lib", os.path.join(ROOT, "lib")),
                          ("SolfaBar.qml", os.path.join(ROOT, "BarWidget.qml")), ("Panel.qml", os.path.join(ROOT, "Panel.qml")),
                          ("shell.qml", os.path.join(HERE, "qml", "ClosedScene.qml"))):
@@ -39,7 +46,7 @@ def render(workdir, scale="1"):
     run = subprocess.run([QS, "-p", os.path.join(cfg, "shell.qml"), "--no-color"], env=env,
                          capture_output=True, text=True, timeout=60)
     found = {"log": (run.stdout + run.stderr)[-3000:]}
-    for key in ("STATE", "CLICKS"):
+    for key in ("STATE", "CLICKS", "PILLCLICK"):
         m = re.search(key + r" (\{.*\})", run.stdout + run.stderr)
         found[key] = json.loads(m.group(1)) if m else None
     return found
@@ -66,6 +73,12 @@ class Closed(unittest.TestCase):
         self.assertTrue(s["barRunning"]["controls"])
         self.assertEqual(s["barClosed"]["label"], "Solfa", "no stale song")
         self.assertFalse(s["barClosed"]["controls"], "no transport on a closed Solfa")
+
+    def test_a_click_on_the_off_pill_opens_the_panel_and_leaves_solfa_off(self):
+        p = self.found["PILLCLICK"]
+        self.assertIsNotNone(p, "the pill click was not logged:\n" + self.found["log"])
+        self.assertTrue(p["opened"], "the panel did not open: " + str(p))
+        self.assertEqual(p["calls"], [], "a click on the pill must not start or toggle the engine: " + str(p))
 
     def test_the_power_button_is_lit_when_closed_and_starts_solfa(self):
         s = self.found["STATE"]

@@ -72,7 +72,7 @@ class RemoveFromPlaylist(unittest.TestCase):
         self.assertEqual(m["rows"], 4)
         self.assertEqual(m["buttons"], 4)
         self.assertEqual(m["tip"], "Remove from this playlist (x)")
-        self.assertEqual(m["hints"], ["\u21b5", "x", "e", "esc"])
+        self.assertEqual(m["hints"], ["\u21b5", "x", "F", "e", "esc"])
 
     def test_x_removes_the_row_under_the_cursor_with_its_own_ids_and_says_so(self):
         x = self.state["x"]

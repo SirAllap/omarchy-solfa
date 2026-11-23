@@ -6,9 +6,9 @@ import Quickshell
 // driven the way the Omarchy shell drives them: one Service, a bar widget
 // that is built, handed `bar` and then `settings` (in that order), and
 // destroyed and built again when another widget in the bar moves.
-// tests/test_widget_move.py gives it a fake bridge and a list of steps in
-// SOLFA_SCENE_STEPS; every step is logged, and the fake bridge logs what it
-// is asked (a bridge.quit among it).
+// tests/test_widget_move.py and tests/test_signin_bridge_down.py give it a
+// fake bridge and a list of steps in SOLFA_SCENE_STEPS; every step is logged,
+// and the fake bridge logs what it is asked (a bridge.quit among it).
 ShellRoot {
   id: scene
 
@@ -68,6 +68,20 @@ ShellRoot {
       scene.inject(scene.widgets[step.name], step.entry)
     } else if (step.do === "save") {
       scene.svc.saveSetting(step.key, step.value)
+    } else if (step.do === "panelKey") {
+      console.log("PANELKEY " + JSON.stringify({ label: scene.svc.panelKeyLabel, options: scene.svc.panelKeyOptions }))
+    } else if (step.do === "toggle") {
+      // shell.toggle on a bar-widget panel: Bar.findPanelWidget accepts the
+      // widget only if it has open(), close() and a defined 'opened', then
+      // shell.toggle calls close() when it is open and open() otherwise.
+      var t = scene.widgets[step.name]
+      var contract = typeof t.open === "function" && typeof t.close === "function" && t.opened !== undefined
+      var before = t.opened === true
+      if (before) t.close(); else t.open()
+      console.log("TOGGLE " + JSON.stringify({ contract: contract, before: before, after: t.opened === true }))
+    } else if (step.do === "signIn") {
+      console.log("SIGNIN bridgeUp=" + scene.svc.bridgeUp)
+      scene.svc.signIn()
     } else if (step.do === "quit") {
       Qt.quit()
     }

@@ -67,7 +67,7 @@ class RemovePlaying(unittest.TestCase):
     def setUp(self):
         self.assertIsNotNone(self.state, "the scene did not render:\n" + self.found["log"])
 
-    def test_the_button_sits_after_save_left_of_the_volume_and_names_the_playlist(self):
+    def test_the_button_sits_after_save_and_share_and_names_the_playlist(self):
         o = self.state["open"]
         self.assertTrue(o["shown"])
         self.assertEqual(o["browsed"], ["VLPLmine"], "one look at the playlist the song plays from")
@@ -76,10 +76,19 @@ class RemovePlaying(unittest.TestCase):
         # Save, Share where the panel has it, then this one, last in the row.
         share = ["shareButton"] if "shareButton" in lay["fromSave"] else []
         self.assertEqual(lay["fromSave"], ["saveButton"] + share + ["removeButton"])
-        self.assertTrue(lay["leftOfVolume"], lay)
-        self.assertTrue(lay["sliderShown"], "the volume slider still fits")
-        self.assertGreaterEqual(lay["sliderWidth"], 64)
         self.assertEqual(lay["tip"], "Remove from Road trip")
+
+    def test_the_row_of_eight_takes_no_more_room_than_the_row_of_seven(self):
+        lay = self.state["open"]["layout"]
+        plain = self.state["hidden"]["noRow"]["rowWidth"]
+        self.assertLessEqual(lay["rowWidth"], plain, (lay["rowWidth"], plain))
+        boxes = lay["boxes"]
+        for (x, w, h), (nx, _, _) in zip(boxes, boxes[1:]):
+            self.assertLessEqual(x + w, nx, ("hit boxes overlap", boxes))
+        for x, w, h in boxes:
+            self.assertGreaterEqual(min(w, h), 38, ("a transport button under 38 px", boxes))
+        self.assertTrue(lay["sliderShown"], "the volume line under it is untouched")
+        self.assertGreaterEqual(lay["sliderWidth"], 48)
 
     def test_the_playlist_is_looked_up_once(self):
         self.assertEqual(self.state["pushes"]["browsed"], ["VLPLmine"])

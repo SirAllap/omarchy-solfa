@@ -233,6 +233,22 @@ test("a song/video twin in the queue plays its primary", () => {
   assert.equal(P.panelVideo(wrapped).videoId, P.panelVideo(inner).videoId)
 })
 
+test("a queue page asked with a continuation: its playable entries and the next token", () => {
+  const [a, b] = P.queueEntries(F("queue"))
+  const unplayable = JSON.parse(JSON.stringify(a))
+  unplayable.playlistPanelVideoRenderer.unplayableText = { runs: [{ text: "Video unavailable" }] }
+  const twin = { playlistPanelVideoWrapperRenderer: { primaryRenderer: b, counterpart: [{ counterpartRenderer: a }] } }
+  const page = (contents, continuations) => ({ continuationContents: { playlistPanelContinuation: { contents, continuations } } })
+  const p = P.queuePage(page([a, unplayable, { automixPreviewVideoRenderer: {} }, twin],
+    [{ nextContinuationData: { continuation: "fixture-page-3" } }]))
+  assert.deepEqual(p.entries, [a, twin], "the unplayable song and the non-entry are left out")
+  assert.equal(p.continuation, "fixture-page-3")
+  // A radio names its token differently; the last page has none.
+  assert.equal(P.queuePage(page([a], [{ nextRadioContinuationData: { continuation: "fixture-radio-2" } }])).continuation, "fixture-radio-2")
+  assert.deepEqual(P.queuePage(page([b])), { entries: [b], continuation: "" })
+  assert.deepEqual(P.queuePage({}), { entries: [], continuation: "" })
+})
+
 test("a queue entry from a playlist names the playlist and its row there", () => {
   // Shaped like a song queued by playing a playlist: the row's
   // playlistSetVideoId beside the playlist's id in the watch endpoint.
@@ -343,4 +359,91 @@ test("library playlists: the grid pages behind a continuation, and each page par
   const last = P.gridPage(F("library-playlists-cont2"), { thumbPx: 240 })
   assert.equal(last.items.length, 1)
   assert.equal(last.continuation, "", "the last page carries no token")
+})
+
+// ------------------------------------------------------------------ share link
+
+test("the share panel's Copy link row is read from the real shape (copyLinkRenderer.shortUrl)", () => {
+  // Captured from share/get_share_panel (see tests/make-fixtures.py); `si` is invented.
+  const raw = P.sharePanelUrl(F("share-panel"))
+  assert.equal(raw, "https://music.youtube.com/watch?v=AAAAAAAAAAA&si=FAKEsiTOKEN12345&drli=1")
+  assert.equal(P.cleanShareUrl(raw, "AAAAAAAAAAA"), "https://music.youtube.com/watch?v=AAAAAAAAAAA")
+  assert.equal(P.sharePanelUrl({}), "")
+  assert.equal(P.sharePanelUrl(null), "")
+})
+
+test("cleaning a share link keeps `v` and nothing else, always on music.youtube.com", () => {
+  const want = "https://music.youtube.com/watch?v=AAAAAAAAAAA"
+  const clean = (u, id = "AAAAAAAAAAA") => P.cleanShareUrl(u, id)
+  assert.equal(clean("https://music.youtube.com/watch?v=AAAAAAAAAAA&si=abc123XYZ"), want)
+  assert.equal(clean("https://music.youtube.com/watch?si=abc&v=AAAAAAAAAAA&feature=shared&list=RDAMVMAAAAAAAAAAA&t=42s&drli=1&utm_x=1"), want)
+  assert.equal(clean("https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLxyz&index=3&t=10"), want)
+  assert.equal(clean("https://youtube.com/watch?v=AAAAAAAAAAA#t=5"), want)
+  assert.equal(clean("https://youtu.be/AAAAAAAAAAA?si=abc&t=3"), want)
+  assert.equal(clean("https://youtu.be/AAAAAAAAAAA/"), want)
+  assert.equal(clean("HTTPS://Music.YouTube.com/watch?v=AAAAAAAAAAA&x=1"), want)
+  assert.equal(clean("  https://music.youtube.com/watch?v=AAAAAAAAAAA&si=a \n"), want)
+  assert.equal(clean("https://music.youtube.com/watch?v=Aa_-Aa_-Aa_", "Aa_-Aa_-Aa_"), "https://music.youtube.com/watch?v=Aa_-Aa_-Aa_")
+  assert.equal(clean("https://music.youtube.com/watch?v=AAAAAAAAAAA"), want, "already clean stays so")
+})
+
+test("cleaning refuses what is not a link to the song asked for", () => {
+  const no = (u, id = "AAAAAAAAAAA") => assert.equal(P.cleanShareUrl(u, id), "", String(u))
+  // other hosts, look-alikes, userinfo, ports, other schemes
+  no("https://evil.example/watch?v=AAAAAAAAAAA")
+  no("https://music.youtube.com.evil.example/watch?v=AAAAAAAAAAA")
+  no("https://evilmusic.youtube.com/watch?v=AAAAAAAAAAA")
+  no("https://music.youtube.com@evil.example/watch?v=AAAAAAAAAAA")
+  no("https://evil.example@music.youtube.com/watch?v=AAAAAAAAAAA")
+  no("https://music.youtube.com:8443/watch?v=AAAAAAAAAAA")
+  no("http://music.youtube.com/watch?v=AAAAAAAAAAA")
+  no("javascript:alert(1)")
+  no("//music.youtube.com/watch?v=AAAAAAAAAAA")
+  no("https://m.youtube.com/watch?v=AAAAAAAAAAA")
+  no("https://wa.me/?text=https%3A//music.youtube.com/watch%3Fv%3DAAAAAAAAAAA")
+  // another song, no song, two songs, a bad id
+  no("https://music.youtube.com/watch?v=BBBBBBBBBBB")
+  no("https://youtu.be/BBBBBBBBBBB")
+  no("https://music.youtube.com/watch?list=PLxyz")
+  no("https://music.youtube.com/watch?v=AAAAAAAAAAA&v=BBBBBBBBBBB")
+  no("https://music.youtube.com/watch?v=AAAAAAAAAAAB")
+  no("https://music.youtube.com/watch?v=AAAAAAAAAA")
+  no("https://music.youtube.com/watch?v=AAAAAAAAAA%2F")
+  no("https://music.youtube.com/watch?xv=AAAAAAAAAAA")
+  // other pages, other paths
+  no("https://music.youtube.com/playlist?list=PLxyz&v=AAAAAAAAAAA")
+  no("https://music.youtube.com/watch/x?v=AAAAAAAAAAA")
+  no("https://youtu.be/AAAAAAAAAAA/extra")
+  no("https://youtu.be/")
+  no("https://youtu.be/watch?v=AAAAAAAAAAA")
+  // not a string, or the song asked for is not an id
+  no(undefined)
+  no(null)
+  no(42)
+  no("")
+  no("https://music.youtube.com/watch?v=AAAAAAAAAAA", "short")
+  no("https://music.youtube.com/watch?v=AAAAAAAAAAA", null)
+  no("https://music.youtube.com/watch?v=%ZZ", "%ZZ")
+})
+
+test("the plain link of a song is built from its id alone", () => {
+  assert.equal(P.shareUrl("AAAAAAAAAAA"), "https://music.youtube.com/watch?v=AAAAAAAAAAA")
+  assert.equal(P.shareUrl("x"), "")
+  assert.equal(P.shareUrl("AAAAAAAAAAA&si=1"), "")
+  assert.equal(P.shareUrl(null), "")
+})
+
+test("the share entity is the one on the Share menu item of the entry for that song", () => {
+  const entry = (id, entity) => ({ playlistPanelVideoRenderer: { videoId: id, menu: { menuRenderer: { items: [
+    { menuNavigationItemRenderer: { navigationEndpoint: { watchEndpoint: { videoId: id } } } },
+    { menuNavigationItemRenderer: { navigationEndpoint: { shareEntityEndpoint: { serializedShareEntity: entity, sharePanelType: "SHARE_PANEL_TYPE_UNIFIED_SHARE_PANEL" } } } }
+  ] } } } })
+  const queue = [entry("AAAAAAAAAAA", "ENTITY-A"), entry("BBBBBBBBBBB", "ENTITY-B")]
+  assert.equal(P.shareEntity(queue, "BBBBBBBBBBB"), "ENTITY-B")
+  assert.equal(P.shareEntity({ contents: [{ playlistPanelRenderer: { contents: queue } }] }, "AAAAAAAAAAA"), "ENTITY-A", "inside a next reply too")
+  assert.equal(P.shareEntity(queue, "CCCCCCCCCCC"), "", "no entry for that song")
+  assert.equal(P.shareEntity([{ playlistPanelVideoRenderer: { videoId: "AAAAAAAAAAA" } }], "AAAAAAAAAAA"), "", "an entry without a Share item")
+  assert.equal(P.shareEntity([entry("AAAAAAAAAAA", "x".repeat(600))], "AAAAAAAAAAA"), "", "an absurd entity is not sent")
+  assert.equal(P.shareEntity(F("queue").queueDatas.map((d) => d.content), "AAAAAAAAAAA"), "", "a queue fixture with no menus")
+  assert.equal(P.shareEntity(null, "AAAAAAAAAAA"), "")
 })

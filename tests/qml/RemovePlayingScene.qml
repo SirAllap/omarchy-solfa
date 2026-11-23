@@ -178,7 +178,8 @@ ShellRoot {
     function after(cb) { settle.pending = cb; settle.restart() }
 
     // Where the button sits: in the transport row, after Save (and Share,
-    // where there is one), its last button, left of the volume.
+    // where there is one), its last button; the boxes of the row's buttons
+    // left to right; the volume line under it.
     function layout() {
       var b = win.button(), save = win.find(stage, "saveButton")
       var mute = win.byTip(stage, "Mute (m)")
@@ -188,12 +189,16 @@ ShellRoot {
       return {
         sameRow: save.parent === row,
         fromSave: visibleKids.slice(visibleKids.indexOf(save)).map(function (k) { return k.objectName }),
-        leftOfVolume: b.mapToItem(stage, b.width, 0).x <= mute.mapToItem(stage, 0, 0).x,
+        rowWidth: Math.round(row.width),
+        // In the row's own frame: the opening's scale and slide do not count.
+        boxes: visibleKids.map(function (k) { return [Math.round(k.x), Math.round(k.width), Math.round(k.height)] }),
         sliderShown: mute.parent.children[1].visible,
         sliderWidth: Math.round(mute.parent.children[1].width),
         tip: b.tooltipText
       }
     }
+    // The transport row's width, whatever it holds.
+    function rowWidth() { return Math.round(win.find(stage, "saveButton").parent.width) }
 
     Timer {
       interval: 300
@@ -270,7 +275,7 @@ ShellRoot {
                         var b0 = win.browsed().length
                         win.play(c[1][0], c[1][1], c[1][2], c[1][3])
                         win.after(function () {
-                          st.hidden[c[0]] = { shown: win.shown(), browsed: win.browsed().slice(b0) }
+                          st.hidden[c[0]] = { shown: win.shown(), browsed: win.browsed().slice(b0), rowWidth: win.rowWidth() }
                           fakeSvc.isAd = false
                           step(i + 1)
                         })

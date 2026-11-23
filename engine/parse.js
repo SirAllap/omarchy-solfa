@@ -663,6 +663,25 @@ var SolfaParse = (function () {
     return out
   }
 
+  // `next` asked with a queue continuation → the page's entries for the
+  // app's store and the token for the page after it ("" at the end). The
+  // songs the app itself leaves out of a page (unplayable ones, or anything
+  // that is not a queue entry) are left out here too.
+  function queuePage(data) {
+    var c = (data && data.continuationContents && data.continuationContents.playlistPanelContinuation) || {}
+    var entries = (c.contents || []).filter(function (e) {
+      var r = e && (e.playlistPanelVideoRenderer || dig(e, ["playlistPanelVideoWrapperRenderer", "primaryRenderer", "playlistPanelVideoRenderer"]))
+      return !!r && !r.unplayableText
+    })
+    var next = ""
+    var conts = c.continuations || []
+    for (var i = 0; i < conts.length && !next; i++) {
+      var d = conts[i] && (conts[i].nextRadioContinuationData || conts[i].nextContinuationData)
+      if (d && d.continuation) next = String(d.continuation)
+    }
+    return { entries: entries, continuation: next }
+  }
+
   // `account/account_menu` → the signed-in account, for Settings > Account.
   function accountInfo(data) {
     var header = collect(data, "activeAccountHeaderRenderer")[0] || {}
@@ -711,6 +730,74 @@ var SolfaParse = (function () {
     return "failed"
   }
 
+  // ------------------------------------------------------------------ share
+
+  var SHARE_ID = /^[A-Za-z0-9_-]{11}$/
+  var SHARE_HOSTS = { "music.youtube.com": 1, "www.youtube.com": 1, "youtube.com": 1, "youtu.be": 1 }
+
+  // The link Solfa hands out for a song: nothing but its id, on YouTube Music.
+  function shareUrl(videoId) {
+    return typeof videoId === "string" && SHARE_ID.test(videoId) ? "https://music.youtube.com/watch?v=" + videoId : ""
+  }
+
+  // A link YouTube Music gave for `videoId`, cut down to what is safe to
+  // pass on: an allow-list, not a list of what to remove. Only https on
+  // YouTube's own hosts; the id comes from `v` (or the path of youtu.be) and
+  // must be the song asked about; the result is always the canonical
+  // https://music.youtube.com/watch?v=<id>, so `si` (who shared it),
+  // `feature`, `list`, `t`, `drli` and whatever YouTube adds later are gone.
+  // "" when the link is not one of those.
+  function cleanShareUrl(url, videoId) {
+    if (typeof url !== "string" || !SHARE_ID.test(String(videoId))) return ""
+    var m = /^https:\/\/([^\/?#]+)(\/[^?#]*)?(?:\?([^#]*))?(?:#.*)?$/i.exec(url.trim())
+    if (!m) return ""
+    var host = m[1].toLowerCase()
+    if (!Object.prototype.hasOwnProperty.call(SHARE_HOSTS, host)) return ""
+    var path = m[2] || ""
+    var id = ""
+    if (host === "youtu.be") {
+      var seg = /^\/([^\/]+)\/?$/.exec(path)
+      id = seg ? seg[1] : ""
+    } else {
+      if (path !== "/watch") return ""
+      var found = []
+      var pairs = (m[3] || "").split("&")
+      for (var i = 0; i < pairs.length; i++) {
+        var eq = pairs[i].indexOf("=")
+        if (eq > 0 && pairs[i].slice(0, eq) === "v") {
+          try { found.push(decodeURIComponent(pairs[i].slice(eq + 1))) } catch (e) { return "" }
+        }
+      }
+      if (found.length !== 1) return ""
+      id = found[0]
+    }
+    return SHARE_ID.test(id) && id === videoId ? shareUrl(id) : ""
+  }
+
+  // The `serializedShareEntity` of a song's "Share" menu item, found in a
+  // `next` reply or in the app's queue items: the one of the entry whose
+  // videoId is `videoId`. "" when there is none.
+  function shareEntity(data, videoId) {
+    var rs = collect(data, "playlistPanelVideoRenderer")
+    for (var i = 0; i < rs.length; i++) {
+      if (!rs[i] || rs[i].videoId !== videoId) continue
+      var eps = collect(rs[i].menu, "shareEntityEndpoint")
+      for (var j = 0; j < eps.length; j++) {
+        var e = eps[j] && eps[j].serializedShareEntity
+        if (typeof e === "string" && e.length > 0 && e.length <= 512) return e
+      }
+    }
+    return ""
+  }
+
+  // `share/get_share_panel` → the link its "Copy link" row copies: the
+  // unified share panel's copyLinkRenderer.shortUrl. Raw, with `si` and the
+  // rest still on it; cleanShareUrl is what makes it fit to pass on.
+  function sharePanelUrl(data) {
+    var c = collect(data, "copyLinkRenderer")[0]
+    return c && typeof c.shortUrl === "string" ? c.shortUrl : ""
+  }
+
   // `browse/edit_playlist` for one removed song: true only when it says so.
   function playlistRemoveResult(res) {
     return !!res && res.status === "STATUS_SUCCEEDED"
@@ -738,9 +825,14 @@ var SolfaParse = (function () {
     watchInfo: watchInfo,
     lyrics: lyrics,
     queueEntries: queueEntries,
+    queuePage: queuePage,
     accountInfo: accountInfo,
     addToPlaylist: addToPlaylist,
     playlistEditResult: playlistEditResult,
+    shareUrl: shareUrl,
+    cleanShareUrl: cleanShareUrl,
+    shareEntity: shareEntity,
+    sharePanelUrl: sharePanelUrl,
     playlistRemoveResult: playlistRemoveResult,
     SEARCH_FILTERS: SEARCH_FILTERS
   }

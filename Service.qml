@@ -553,6 +553,40 @@ Item {
     root.request("like", { videoId: root.videoId, status: root.like === "DISLIKE" ? "INDIFFERENT" : "DISLIKE" })
   }
 
+  // Copy the link of the song playing now: YouTube Music's own Share panel
+  // gives it (through the engine), cleaned down to
+  // https://music.youtube.com/watch?v=<id>. If the engine cannot, is slow or
+  // answers with anything else, the same link is built here, so a press
+  // always copies. cb(url, source) once it is on the clipboard; cb("") when
+  // no song is playing.
+  function copyLink(cb) {
+    var id = root.hasTrack && !root.isAd ? root.videoId : ""
+    if (Model.shareUrl(id) === "") { if (cb) cb("", ""); return }
+    root.request("share.link", { videoId: id }, function (r) {
+      var link = Model.shareLinkFrom(r, id)
+      root.copyText(link.url, function (ok) { if (cb) cb(link.url, link.source, ok) })
+    }, 10000)
+  }
+
+  // text/plain only: without the type some contents do not paste. The text
+  // is one argv entry after `--`, never part of a shell line. done(ok) says
+  // whether wl-copy ran and exited 0 (false when it is missing or fails).
+  property var copyDone: null
+  function copyText(text, done) {
+    if (copier.running) { if (done) done(false); return }
+    root.copyDone = done || null
+    copier.command = ["/usr/bin/wl-copy", "--type", "text/plain", "--", text]
+    copier.running = true
+  }
+  Process {
+    id: copier
+    onExited: function (code) {
+      var d = root.copyDone
+      root.copyDone = null
+      if (d) d(code === 0)
+    }
+  }
+
   // Play whatever a row is: a track, an album, a playlist, an artist's shuffle.
   function playItem(item, cb) {
     if (!item) return
@@ -597,7 +631,10 @@ Item {
   function restartEngine() { root.request("engine.restart", {}) }
   function stopEngine() { root.request("engine.stop", {}) }
   function toggleEngine() { if (root.closed) root.startEngine(); else root.stopEngine() }
-  function signIn() { root.request("signin.begin", {}) }
+  // Sign in is offered while the bridge is still starting (a fresh install,
+  // a shell restart): a click then must say so, not vanish. Unlike
+  // reportFailure(), bridge-down is reported too.
+  function signIn() { root.request("signin.begin", {}, function (r) { if (!r.ok) root.report(r.error) }) }
   // "Use my browser's sign-in" was removed before the marketplace release;
   // importedSession stays read-only, for a profile from before this build.
   readonly property bool importedSession: bridgeUp && !!engine.importedSession
@@ -819,6 +856,16 @@ Item {
   property bool keysRegistered: false
   property string lastBindsJson: ""
   onWantKeysChanged: root.syncKeys()
+  // The panel key: picked in Settings, or automatic (Super+Alt+M when free, else a
+  // fallback; see Model.panelKeyFor). The label is what the footer, the
+  // all-keys sheet and Settings show.
+  readonly property string panelKeyPick: String(root.setting("panelKey", ""))
+  onPanelKeyPickChanged: root.syncKeys()
+  readonly property var panelKeyChosen: Model.panelKeyFor(root.lastBindsJson, root.panelKeyPick)
+  readonly property string panelKeyLabel: Model.keyLabel(root.panelKeyChosen ? root.panelKeyChosen.keys : "SUPER + ALT + M")
+  readonly property var playPauseKeyChosen: Model.playPauseKeyFor(root.lastBindsJson)
+  readonly property string playPauseKeyLabel: Model.keyLabel(root.playPauseKeyChosen ? root.playPauseKeyChosen.keys : "SUPER + ALT + P")
+  readonly property var panelKeyOptions: Model.panelKeyOptions(root.lastBindsJson)
 
   // The plugin can be removed or disabled without warning (Omarchy just
   // destroys this Item): unbind Solfa's own keys so they are not left
@@ -840,7 +887,7 @@ Item {
       onStreamFinished: {
         root.lastBindsJson = text
         if (bindsProc.registering) {
-          var lua = Model.bindLua(Model.freeKeys(text), root.omarchyShellBin)
+          var lua = Model.unbindLua(text) + Model.bindLua(Model.freeKeys(text, root.panelKeyPick), root.omarchyShellBin)
           if (lua) Quickshell.execDetached(["/usr/bin/hyprctl", "eval", lua])
           root.keysRegistered = true
         } else {

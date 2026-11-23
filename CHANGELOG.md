@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: signing in could come back signed out. The sign-in window was closed on Google's cookie, before YouTube's own sign-in step had run; it now waits for YouTube's.
+- Fixed: a second sign-in (after a failed one, or a switch of account) could leave the window open until it timed out: Chromium keeps a cookie's creation time when it is set again, and only that time was read. Its last update now counts too.
+- Fixed: a sign-in window playing a song ("Song | YouTube Music") was not seen as having reached the app.
+- Fixed: Sign in clicked while Solfa's helper was still starting (right after install, or after a shell restart) did nothing at all. It now says "Solfa's helper is restarting", so you know to try again.
+
 ## 1.1.0
 
 - New History tab (key `5`): what the account played lately, newest first, under Today / Yesterday / ... Signed out it says to sign in; Premium is not needed.

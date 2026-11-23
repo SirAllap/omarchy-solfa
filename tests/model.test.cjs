@@ -100,6 +100,56 @@ test("save picker rows: New playlist, then Recent and All playlists, the filter 
   assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "S"))
 })
 
+test("find in a playlist: every word, any order, any field, no case, no accents", () => {
+  const t = (title, artists, album) => ({ title, artists: artists.map((name) => ({ name })), album: album ? { name: album } : undefined })
+  const tracks = [
+    t("Crème Brûlée", ["Zoë Example"], "Été Sessions"),
+    t("Sunrise", ["Zoë Example", "The Samples"]),
+    t("Zebra Crossing", ["Mia Fixture"], "Stripes"),
+    { title: "No Artist" },
+  ]
+  const names = (q) => M.filterTracks(tracks, q).map((x) => x.title)
+  deep(names(""), ["Crème Brûlée", "Sunrise", "Zebra Crossing", "No Artist"])
+  deep(names("   "), ["Crème Brûlée", "Sunrise", "Zebra Crossing", "No Artist"], "blanks are no query")
+  deep(names("creme"), ["Crème Brûlée"], "accents do not matter")
+  deep(names("CRÈME brulee"), ["Crème Brûlée"], "nor case, in either direction")
+  deep(names("zoe"), ["Crème Brûlée", "Sunrise"], "the artist")
+  deep(names("sessions"), ["Crème Brûlée"], "the album")
+  deep(names("zoe brulee"), ["Crème Brûlée"], "all words must match")
+  deep(names("brulee   zoe"), ["Crème Brûlée"], "in any order, any spacing")
+  deep(names("samples sunrise"), ["Sunrise"], "title and a second artist")
+  deep(names("zoe stripes"), [], "words from different songs do not add up")
+  deep(names("ZEBRA"), ["Zebra Crossing"])
+  deep(names("artist"), ["No Artist"], "a song with no artists or album still matches its title")
+  assert.equal(M.filterTracks(tracks, "").length, 4)
+  assert.equal(M.filterTracks(null, "x").length, 0)
+  assert.equal(M.foldText("Ångström Ñandú"), "angstrom nandu")
+  assert.equal(M.foldText(null), "")
+})
+
+test("find in a playlist: the status line and the cursor's place in the full list", () => {
+  assert.equal(M.findStatus("", 890, 890, false, false), "890 songs")
+  assert.equal(M.findStatus("", 300, 300, true, false), "Loading 300 songs")
+  assert.equal(M.findStatus("", 1, 1, false, false), "1 song")
+  assert.equal(M.findStatus("", 200, 200, false, true), "200 songs · not all loaded")
+  assert.equal(M.findStatus("zoe", 12, 890, false, false), "12 of 890")
+  assert.equal(M.findStatus("zoe", 2, 300, true, false), "2 of 300 · loading")
+  assert.equal(M.findStatus("zoe", 0, 200, false, true), "0 of 200 · not all loaded")
+  const rows = M.trackRows([{ videoId: "A", setVideoId: "1" }, { videoId: "B", setVideoId: "2" }, { videoId: "A", setVideoId: "3" }])
+  assert.equal(M.rowIndex(rows, { item: { videoId: "A", setVideoId: "3" } }), 2, "a song twice in the list is told apart by its own id")
+  assert.equal(M.rowIndex(rows, { item: { videoId: "B", setVideoId: "2" } }), 1)
+  assert.equal(M.rowIndex(rows, { item: { videoId: "Z" } }), -1)
+  assert.equal(M.rowIndex(rows, null), -1)
+  assert.equal(M.rowIndex(rows, { header: "x" }), -1)
+  assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "F"))
+})
+
+test("footer hints: a pinned hint stays after the first", () => {
+  const page = [["↵", "play or open"], ["F", "find", true], ["e", "play next"], ["esc", "back"]]
+  deep(M.footerHints(page, true), [["↵", "play or open"], ["F", "find", true], ["space", "play/pause"], ["n p", "next/previous"]])
+  deep(M.footerHints(page, false), [["↵", "play or open"], ["F", "find", true], ["space", "play/pause"], ["n p", "next/previous"]])
+})
+
 test("queue rows: queued, then autoplay under its own header", () => {
   const rows = M.queueRows({ items: [{ videoId: "A" }, { videoId: "B" }], automix: [{ videoId: "C" }], index: 1 })
   assert.equal(rows.length, 4)
@@ -136,23 +186,68 @@ test("expired requests", () => {
 
 test("global keys: only the free ones, ours do not count as taken", () => {
   const binds = JSON.stringify([
-    { modmask: 64, key: "m", description: "Someone else's" },
+    { modmask: 72, key: "m", description: "Someone else's" },
     { modmask: 72, key: "N", description: "Solfa: next song" }
   ])
   const free = M.freeKeys(binds).map((k) => k.keys)
-  assert.ok(!free.includes("SUPER + M"))
+  assert.ok(!free.includes("SUPER + ALT + M"))
   assert.ok(free.includes("SUPER + ALT + N"))
   assert.equal(M.freeKeys("not json").length, 0)
 })
 
+test("panel key: Super+Alt+M when free, else the first free fallback, never another app's key", () => {
+  const free = "[]"
+  assert.equal(M.panelKeyFor(free, "").keys, "SUPER + ALT + M")
+  const taken = JSON.stringify([{ modmask: 72, key: "M", description: "Someone else's" }])
+  assert.equal(M.panelKeyFor(taken, "").keys, "SUPER + SHIFT + M")
+  const more = JSON.stringify([{ modmask: 72, key: "M", description: "x" }, { modmask: 65, key: "m", description: "y" }])
+  assert.equal(M.panelKeyFor(more, "").keys, "SUPER + CTRL + M")
+  const all = JSON.stringify([{ modmask: 72, key: "M" }, { modmask: 65, key: "M" }, { modmask: 68, key: "M" }])
+  assert.equal(M.panelKeyFor(all, ""), null)
+  assert.ok(!M.freeKeys(all, "").some((k) => k.command === "toggle"))
+  // Omarchy's Super+M (minimize) is not ours and does not matter
+  const minimize = JSON.stringify([{ modmask: 64, key: "M", description: "Minimize window to the dock" }])
+  assert.equal(M.panelKeyFor(minimize, "").keys, "SUPER + ALT + M")
+  // a pick is honoured when free, ignored when taken
+  assert.equal(M.panelKeyFor(free, "SUPER + CTRL + M").keys, "SUPER + CTRL + M")
+  assert.equal(M.panelKeyFor(taken, "SUPER + ALT + M").keys, "SUPER + SHIFT + M")
+  assert.equal(M.panelKeyOptions(taken).join("|"), "|SUPER + SHIFT + M|SUPER + CTRL + M")
+  assert.equal(M.keyLabel("SUPER + SHIFT + M"), "Super+Shift+M")
+  // Solfa's own binds do not count as taken
+  const ours = JSON.stringify([{ modmask: 65, key: "M", description: "Solfa: open or close" }])
+  assert.equal(M.panelKeyFor(ours, "").keys, "SUPER + ALT + M")
+})
+
+test("play/pause key: Super+Alt+P, then the same fallbacks; next, previous and like keep theirs", () => {
+  const key = (binds) => M.freeKeys(JSON.stringify(binds), "").find((k) => k.command === "playPause")
+  assert.equal(key([]).keys, "SUPER + ALT + P")
+  assert.equal(key([{ modmask: 72, key: "P", description: "Other" }]).keys, "SUPER + SHIFT + P")
+  assert.equal(key([{ modmask: 72, key: "P" }, { modmask: 65, key: "P" }]).keys, "SUPER + CTRL + P")
+  assert.equal(key([{ modmask: 72, key: "P" }, { modmask: 65, key: "P" }, { modmask: 68, key: "P" }]), undefined)
+  const all = M.freeKeys("[]", "").map((k) => k.command + "=" + k.keys).sort().join(",")
+  assert.equal(all, "like=SUPER + ALT + L,next=SUPER + ALT + N,playPause=SUPER + ALT + P,previous=SUPER + ALT + B,toggle=SUPER + ALT + M")
+})
+
+test("unbind: only our own binds, by their own key", () => {
+  const binds = JSON.stringify([
+    { modmask: 64, key: "M", description: "Minimize window to the dock" },
+    { modmask: 65, key: "M", description: "Solfa: open or close" },
+    { modmask: 72, key: "N", description: "Solfa: next song" }
+  ])
+  const lua = M.unbindLua(binds)
+  assert.match(lua, /SUPER \+ SHIFT \+ M/)
+  assert.match(lua, /SUPER \+ ALT \+ N/)
+  assert.ok(!/\[\[SUPER \+ M\]\]/.test(lua))
+})
+
 test("bind Lua unbinds first and calls the service over the shell's IPC", () => {
   const lua = M.bindLua(M.GLOBAL_KEYS.slice(0, 2))
-  assert.match(lua, /pcall\(hl\.unbind, \[\[SUPER \+ M\]\]\); hl\.bind\(\[\[SUPER \+ M\]\], hl\.dsp\.exec_cmd\(\[\[\/usr\/share\/omarchy\/bin\/omarchy-shell shell toggle io\.github\.sirallap\.solfa '\{\}'\]\]\)/)
+  assert.match(lua, /pcall\(hl\.unbind, \[\[SUPER \+ ALT \+ M\]\]\); hl\.bind\(\[\[SUPER \+ ALT \+ M\]\], hl\.dsp\.exec_cmd\(\[\[\/usr\/share\/omarchy\/bin\/omarchy-shell shell toggle io\.github\.sirallap\.solfa '\{\}'\]\]\)/)
   assert.match(lua, /exec_cmd\(\[\[\/usr\/share\/omarchy\/bin\/omarchy-shell io\.github\.sirallap\.solfa playPause\]\]\)/)
   // every IPC method a key calls exists on the service's handler
   const svc = fs.readFileSync(path.join(__dirname, "..", "Service.qml"), "utf8")
   for (const k of M.GLOBAL_KEYS) if (k.command !== "toggle") assert.match(svc, new RegExp("function " + k.command + "\\(\\): void"))
-  assert.equal(M.unbindLua(JSON.stringify([{ description: "Solfa: like" }])), "pcall(hl.unbind, [[SUPER + ALT + L]]); ")
+  assert.equal(M.unbindLua(JSON.stringify([{ description: "Solfa: like", modmask: 72, key: "l" }])), "pcall(hl.unbind, [[SUPER + ALT + L]]); ")
 })
 
 // M3: no bare program name goes through Hyprland's exec (a PATH lookup, sh -c).
@@ -445,6 +540,23 @@ test("Settings cycles the engine's browser over what the bridge found installed"
   assert.doesNotMatch(line, /\/usr\/bin\//, "no fixed list of paths that may not exist here")
   const service = fs.readFileSync(path.join(__dirname, "..", "Service.qml"), "utf8")
   assert.match(service, /root\.browsers = data\.browsers/)
+})
+
+test("share link: the plain link, and a reply is trusted only when it is exactly that", () => {
+  const url = "https://music.youtube.com/watch?v=AAAAAAAAAAA"
+  assert.equal(M.shareUrl("AAAAAAAAAAA"), url)
+  assert.equal(M.shareUrl("AAAAAAAAAAA&si=x"), "")
+  assert.equal(M.shareUrl(""), "")
+  assert.equal(M.shareUrl(undefined), "")
+  deep(M.shareLinkFrom({ ok: true, data: { url: url, source: "share-panel" } }, "AAAAAAAAAAA"), { url: url, source: "share-panel" })
+  deep(M.shareLinkFrom({ ok: true, data: { url: url, source: "fallback" } }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom({ ok: true, data: { url: url + "&si=abc", source: "share-panel" } }, "AAAAAAAAAAA"), { url: url, source: "fallback" }, "a link with `si` is replaced")
+  deep(M.shareLinkFrom({ ok: true, data: { url: "https://music.youtube.com/watch?v=BBBBBBBBBBB", source: "share-panel" } }, "AAAAAAAAAAA"), { url: url, source: "fallback" }, "another song's link too")
+  deep(M.shareLinkFrom({ ok: false, error: "timeout" }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom({ ok: false, error: "bridge-down" }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom(null, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom({ ok: true, data: {} }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "c" && /link/.test(h[1])))
 })
 
 test("removing a song from a playlist: only a user's own, never Liked songs, one row at a time", () => {

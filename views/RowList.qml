@@ -2,7 +2,9 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
+import "../lib"
 import "../lib/Icons.js" as Icons
+import "../lib/Motion.js" as Motion
 
 // One list for every view: section headers and rows, a keyboard cursor, and
 // per-row actions that show on hover or on the cursor row.
@@ -16,10 +18,21 @@ ListView {
   property int cursor: -1
   property QtObject bar: null
   property string playingId: ""
+  property bool isPlaying: true
+  // The owner passes svc.panelOpen: the equalizers stand still in a closed panel.
+  property bool panelOpen: true
   property var actionsFor: function (row) { return [] }
   property string emptyText: ""
-  property color fg: bar ? bar.foreground : Color.foreground
-  property string family: bar ? bar.fontFamily : Style.font.family
+  property color fg: Calm.fg
+  property string family: Calm.font
+
+  // The panel's open clock (its content root's 'tms', 350 = settled).
+  property real openMs: 350
+  Component.onCompleted: {
+    var p = list.parent
+    while (p && !("tms" in p)) p = p.parent
+    if (p) list.openMs = Qt.binding(function () { return p.tms })
+  }
 
   signal activated(int index)
   signal action(string name, int index)
@@ -30,7 +43,7 @@ ListView {
   boundsBehavior: Flickable.StopAtBounds
   reuseItems: true
   cacheBuffer: 200
-  spacing: 0
+  spacing: Style.space(8)
 
   onCursorChanged: if (cursor >= 0 && cursor < count) positionViewAtIndex(cursor, ListView.Contain)
   onRowsChanged: if (cursor >= rows.length) cursor = Model.firstRow(rows)
@@ -61,8 +74,16 @@ ListView {
     // one of the row's own buttons, so they do not hide under it.
     readonly property bool showActions: selected || rowHover.hovered
 
+    // The first 8 rows cascade up from 8 px below, 15 ms apart, from 110 ms.
+    readonly property real rise: index < 8 ? Motion.effects(list.openMs, 110 + 15 * index, 130) : 1
+    opacity: rise
+    transform: Translate { y: Style.space(8) * (1 - cell.rise) }
+
     width: ListView.view ? ListView.view.width : 0
-    height: isHeader ? Style.space(30) : Style.space(46)
+    // a soft press: the row gives to .98 and comes back, never in reduce-motion
+    scale: !isHeader && hover.pressed && !Style.reduceMotion ? 0.98 : 1
+    Behavior on scale { enabled: !Style.reduceMotion; NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+    height: isHeader ? Style.space(30) : Style.space(58)
 
     // ---- section header
     Row {
@@ -85,7 +106,7 @@ ListView {
         visible: !!cell.modelData.more
         text: "Show all"
         textFormat: Text.PlainText
-        color: headerMouse.containsMouse ? Color.accent : Util.alpha(list.fg, 0.45)
+        color: headerMouse.containsMouse ? Calm.accent : Util.alpha(list.fg, 0.45)
         font.family: list.family
         font.pixelSize: Style.font.caption
         font.underline: headerMouse.containsMouse
@@ -104,9 +125,26 @@ ListView {
     Rectangle {
       visible: !cell.isHeader
       anchors.fill: parent
-      radius: Style.spacing.labelGap
-      color: cell.selected ? Style.selectedFillFor(list.fg, Color.accent)
-        : rowHover.hovered ? Style.hoverFillFor(list.fg, Color.accent) : "transparent"
+      anchors.topMargin: Style.space(2)
+      anchors.bottomMargin: Style.space(2)
+      radius: Style.space(14)
+      // The song that plays is tinted; the keyboard cursor is an outline; the
+      // pointer is a faint wash (the calm mockup's three row states).
+      color: cell.now ? Util.alpha(Calm.accent, 0.14)
+        : rowHover.hovered || cell.selected ? Util.alpha(list.fg, 0.05) : "transparent"
+      border.width: cell.selected ? 1 : 0
+      border.color: Calm.a(Calm.accent, 0.8)
+      Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+      // The playing row's bar grows from its middle, 220 ms.
+      Rectangle {
+        visible: height > 0
+        x: 0; width: Style.space(3); radius: width / 2
+        anchors.verticalCenter: parent.verticalCenter
+        height: cell.now ? Style.space(24) : 0
+        color: Calm.accent
+        Behavior on height { enabled: !Style.reduceMotion && list.panelOpen; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+      }
     }
 
     HoverHandler { id: rowHover; enabled: !cell.isHeader }
@@ -125,14 +163,15 @@ ListView {
       visible: !cell.isHeader
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.leftMargin: Style.space(6)
+      anchors.leftMargin: Style.space(12)
       anchors.rightMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
-      spacing: Style.space(10)
+      spacing: Style.space(12)
 
       RoundCover {
-        width: Style.space(32)
+        width: Style.space(42)
         height: width
+        cornerRadius: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         source: cell.item ? (cell.item.thumb || "") : ""
         foreground: list.fg
@@ -143,17 +182,30 @@ ListView {
 
       Column {
         anchors.verticalCenter: parent.verticalCenter
-        width: rowContent.width - Style.space(32) - rowContent.spacing * 2 - trailing.width
+        width: rowContent.width - Style.space(42) - rowContent.spacing * 2 - trailing.width
         spacing: Style.space(2)
 
-        Text {
+        Row {
           width: parent.width
-          text: (cell.now ? Icons.play + " " : "") + (cell.item ? cell.item.title : "")
-          textFormat: Text.PlainText
-          elide: Text.ElideRight
-          color: cell.now ? Color.accent : list.fg
-          font.family: list.family
-          font.pixelSize: Style.font.body
+          spacing: Style.space(6)
+          Equalizer {
+            visible: cell.now
+            anchors.verticalCenter: parent.verticalCenter
+            playing: list.isPlaying
+            panelOpen: list.panelOpen
+            reduceMotion: Style.reduceMotion
+            color: Calm.accent
+          }
+          Text {
+            width: parent.width - (cell.now ? 14 + parent.spacing : 0)
+            text: cell.item ? cell.item.title : ""
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
+            color: cell.now ? Calm.accent : list.fg
+            font.family: list.family
+            font.pixelSize: Style.space(14)
+            font.weight: Font.DemiBold
+          }
         }
         Text {
           width: parent.width
@@ -163,7 +215,7 @@ ListView {
           visible: text !== ""
           color: Util.alpha(list.fg, 0.6)
           font.family: list.family
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.space(12)
         }
       }
 
@@ -182,9 +234,13 @@ ListView {
             anchors.verticalCenter: parent.verticalCenter
             opacity: cell.showActions ? 1 : 0
             enabled: cell.showActions
-            iconText: modelData.icon
-            iconSize: Style.font.icon
-            foreground: actionButton.hot ? Color.accent : Util.alpha(list.fg, 0.75)
+            // The common actions draw as thin vector icons, like the mockup.
+            readonly property string vname: modelData.icon === Icons.savePlaylist ? "queue" : modelData.icon === Icons.close ? "close"
+              : modelData.icon === Icons.plus ? "plus" : modelData.icon === Icons.play ? "play" : ""
+            iconText: vname === "" ? modelData.icon : ""
+            iconSize: Style.space(20)
+            VIcon { visible: actionButton.vname !== ""; anchors.centerIn: parent; name: actionButton.vname; size: Style.space(20); stroke: 1.7; filled: actionButton.vname === "play"; color: actionButton.foreground }
+            foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
             tooltipText: modelData.tip
             onClicked: { list.cursor = cell.index; list.action(actionButton.modelData.name, cell.index) }

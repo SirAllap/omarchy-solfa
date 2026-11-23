@@ -1,4 +1,6 @@
 import QtQuick
+import "../lib"
+import qs.Ui
 import qs.Commons
 import "../lib/Model.js" as Model
 import "../lib/Icons.js" as Icons
@@ -18,13 +20,29 @@ Item {
   property string error: ""
   // The song J/K just moved: the cursor follows it once the queue reloads.
   property string follow: ""
+  // The queue read the next page was last asked for: one request per read,
+  // however often the cursor or the scroll touches the end before the page
+  // lands (its queue event brings the next read).
+  property var askedMoreFor: null
   readonly property var rows: Model.queueRows(queue)
   property alias cursor: list.cursor
   readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
   readonly property var hints: [["↵", "play"], ["x", "remove"], ["J K", "move"]]
 
   function shown() { load(true) }
-  function move(dy) { list.cursor = Model.moveCursor(rows, list.cursor, dy) }
+  function move(dy) {
+    list.cursor = Model.moveCursor(rows, list.cursor, dy)
+    if (dy > 0 && list.cursor >= rows.length - 3) loadMore()
+  }
+
+  // A long list (a playlist, a radio) comes a page at a time; YouTube Music
+  // adds the next one by itself only when playback nears the end. Reaching
+  // the end of the list here asks for it too, one page per request.
+  function loadMore() {
+    if (!svc || !view.queue || !view.queue.more || view.askedMoreFor === view.queue) return
+    view.askedMoreFor = view.queue
+    svc.request("queue.more", {}, function (r) { if (!r.ok) view.askedMoreFor = null })
+  }
 
   function load(jumpToCurrent) {
     if (!svc) return
@@ -94,15 +112,163 @@ Item {
     function onQueueChanged() { if (view.active) reload.restart() }
   }
 
+  // "UP NEXT  8 songs · 29 min": what is still to play (from the song now).
+  readonly property var upNext: {
+    var items = queue && queue.items ? queue.items : []
+    var from = queue && queue.index >= 0 ? queue.index : 0
+    var n = 0, secs = 0
+    for (var i = from; i < items.length; i++) { n++; secs += Number(items[i].duration) || 0 }
+    return { n: n, min: Math.round(secs / 60) }
+  }
+  Item {
+    id: qHead
+    visible: view.upNext.n > 0
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    height: visible ? 28 : 0
+    Row {
+      anchors.left: parent.left
+      anchors.leftMargin: 8
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: 10
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "UP NEXT"
+        textFormat: Text.PlainText
+        color: Util.alpha(Calm.fg, 0.55)
+        font.family: Calm.font
+        font.pixelSize: 11
+        font.weight: Font.Bold
+        font.letterSpacing: 1.2
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: view.upNext.n + (view.upNext.n === 1 ? " song" : " songs") + (view.upNext.min > 0 ? " · " + view.upNext.min + " min" : "")
+        textFormat: Text.PlainText
+        color: Util.alpha(Calm.fg, 0.5)
+        font.family: Calm.font
+        font.pixelSize: 11
+      }
+    }
+  }
+
   RowList {
     id: list
-    anchors.fill: parent
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: qHead.bottom
+    anchors.bottom: parent.bottom
     bar: view.bar
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
+    panelOpen: !!(view.svc && view.svc.panelOpen)
+    isPlaying: view.svc ? view.svc.isPlaying !== false : true
     actionsFor: view.actionsFor
-    emptyText: view.error !== "" ? view.error : "Nothing queued yet. Press / to find something."
+    // The empty, loading and error states are drawn by `state` below.
+    emptyText: ""
     onActivated: function (i) { view.jump(view.rows[i]) }
     onAction: function (name, i) { view.runAction(name, view.rows[i]) }
+    onAtYEndChanged: if (atYEnd) view.loadMore()
+  }
+
+  // ---- empty / loading / error: one calm centred state, no list behind it.
+  readonly property color fg: bar ? bar.foreground : Calm.fg
+  // The calm error tone of the mockup (Theme.err).
+  readonly property color err: Qt.rgba(0.725, 0.439, 0.486, 1)
+  readonly property string family: Calm.font
+  readonly property bool loading: !!svc && queue === null && error === ""
+  readonly property bool failed: rows.length === 0 && error !== ""
+  readonly property bool empty: rows.length === 0 && !loading && !failed
+
+  // Loading: five faint rows, breathing slowly.
+  Column {
+    objectName: "queueLoading"
+    visible: view.loading
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.margins: 8
+    spacing: 10
+    opacity: 0.6
+    SequentialAnimation on opacity {
+      running: view.loading && view.visible && view.active && !Style.reduceMotion
+      loops: Animation.Infinite
+      NumberAnimation { from: 0.45; to: 0.9; duration: 1100; easing.type: Easing.InOutSine }
+      NumberAnimation { from: 0.9; to: 0.45; duration: 1100; easing.type: Easing.InOutSine }
+    }
+    Repeater {
+      model: [0.55, 0.7, 0.85, 0.6, 0.75]
+      delegate: Row {
+        id: sk
+        required property real modelData
+        spacing: 12
+        Rectangle { width: 40; height: width; radius: 8; color: Util.alpha(view.fg, 0.08) }
+        Column {
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: 6
+          Rectangle { width: (view.width - 80) * sk.modelData; height: 9; radius: height / 2; color: Util.alpha(view.fg, 0.1) }
+          Rectangle { width: (view.width - 80) * sk.modelData * 0.6; height: 7; radius: height / 2; color: Util.alpha(view.fg, 0.06) }
+        }
+      }
+    }
+  }
+
+  Column {
+    objectName: "queueState"
+    visible: view.empty || view.failed
+    anchors.centerIn: parent
+    width: parent.width - 40
+    spacing: 10
+
+    Rectangle {
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: 56
+      height: width
+      radius: 16
+      color: view.failed ? Util.alpha(view.err, 0.14) : Util.alpha(view.fg, 0.06)
+      border.width: 1
+      border.color: view.failed ? Util.alpha(view.err, 0.5) : Util.alpha(view.fg, 0.14)
+      Text {
+        anchors.centerIn: parent
+        text: view.failed ? "!" : Icons.playNext
+        textFormat: Text.PlainText
+        color: view.failed ? view.err : Calm.accent
+        font.family: view.family
+        font.pixelSize: 28
+        font.bold: view.failed
+      }
+    }
+    Text {
+      width: parent.width
+      text: view.failed ? "Could not load the queue" : "The queue is empty"
+      textFormat: Text.PlainText
+      horizontalAlignment: Text.AlignHCenter
+      color: view.fg
+      font.family: view.family
+      font.pixelSize: 16
+      font.bold: true
+    }
+    Text {
+      width: parent.width
+      text: view.failed ? view.error : "Add songs from Search or Library, or start a radio from any song."
+      textFormat: Text.PlainText
+      wrapMode: Text.WordWrap
+      horizontalAlignment: Text.AlignHCenter
+      color: Util.alpha(view.fg, 0.6)
+      font.family: view.family
+      font.pixelSize: 13
+    }
+    HitButton {
+      objectName: view.failed ? "queueRetry" : "queueSearch"
+      anchors.horizontalCenter: parent.horizontalCenter
+      text: view.failed ? "Try again" : "Search for music"
+      iconText: view.failed ? Icons.repeat : Icons.search
+      fontFamily: view.family
+      foreground: view.failed ? view.fg : Calm.onAccent
+      background: view.failed ? Util.alpha(view.fg, 0.08) : Calm.accent
+      radius: height / 2
+      onClicked: if (view.failed) view.load(true); else if (view.panel) view.panel.showTab("search")
+    }
   }
 }

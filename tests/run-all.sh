@@ -71,6 +71,8 @@ run bridge python3 tests/test_bridge.py
 run paths python3 tests/test_paths.py
 run qml bash tests/lint-qml.sh
 run render python3 tests/test_render.py
+run join python3 tests/test_join.py
+run join-quality python3 tests/test_join_quality.py
 run hit-targets python3 tests/test_hit_targets.py
 run bridge-socket python3 tests/test_bridge_socket.py
 run closed python3 tests/test_closed.py
@@ -78,10 +80,15 @@ run settings python3 tests/test_settings.py
 run account-state python3 tests/test_account_state.py
 run signin-card python3 tests/test_signin_card.py
 run panel-settings python3 tests/test_panel_settings.py
+run open-close python3 tests/test_open_close.py
 run save-picker python3 tests/test_save_picker.py
+run share-link python3 tests/test_share_link.py
+run find-in-playlist python3 tests/test_find_in_playlist.py
+run queue-more python3 tests/test_queue_more.py
 run remove-from-playlist python3 tests/test_remove_from_playlist.py
 run remove-playing python3 tests/test_remove_playing.py
 run widget-move python3 tests/test_widget_move.py
+run signin-bridge-down python3 tests/test_signin_bridge_down.py
 if command -v omarchy >/dev/null 2>&1; then run manifest omarchy plugin validate .; fi
 echo "solfa in /run/user leftovers: $(ls "/run/user/$(id -u)" 2>/dev/null | grep -c solfa || true)"
 if ((${#failed[@]})); then echo "FAILED: ${failed[*]}"; exit 1; fi

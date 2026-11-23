@@ -21,6 +21,11 @@ ShellRoot {
     property bool closed: false
     property bool engineReady: true
     property bool signedIn: false
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premiumFlag: false
     readonly property bool ready: bridgeUp && engineReady
     readonly property bool premium: signedIn && premiumFlag

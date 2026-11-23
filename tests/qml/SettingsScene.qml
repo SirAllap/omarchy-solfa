@@ -22,6 +22,11 @@ ShellRoot {
     property bool signingIn: false
     property bool closed: false
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premium: false
     property bool ready: true
     property var account: ({ signedIn: true, host: "music.youtube.com" })
@@ -172,15 +177,19 @@ ShellRoot {
           var eqBefore = !!fakeSvc.setting("eqEnabled", false)
           win.click("eqRow")
           m.eqToggledByClick = !!fakeSvc.setting("eqEnabled", false) !== eqBefore
-          win.click("eqPreset_treble")
+          win.click("eqPresetDrop")
+          m.menuOpenedByClick = settingsView.menuSrc !== null
+          // The menu lays itself out on the next frame: click it after that.
+          settle.pending = function () {
+          win.click("menuItem_treble")
+          m.menuClosedAfterPick = settingsView.menuSrc === null
           m.presetAfterChip = fakeSvc.setting("eqPreset", "")
           win.click("eqBandTrack3", 0.5, 0)    // the top of the track: +12 dB
           m.band3AfterClick = Model.parseEqBands(fakeSvc.setting("eqBands", "[]"))[3]
           m.presetAfterBand = fakeSvc.setting("eqPreset", "")
           m.cursorAfterBand = settingsView.cursor
-          var preampBefore = fakeSvc.setting("eqPreamp", 0)
-          win.click("preampStep", 0.1)         // the left arrow: one dB down
-          m.preampDelta = fakeSvc.setting("eqPreamp", 0) - preampBefore
+          win.click("preampSlider", 0.1, 0.5)   // near the left end of the track: about -11 dB
+          m.preampAfterClick = fakeSvc.setting("eqPreamp", 0)
 
           inSection(4, function () {
             var row = win.find(stage, "globalKeysRow")
@@ -195,6 +204,8 @@ ShellRoot {
               Qt.quit()
             })
           })
+          }
+          settle.restart()
         })
       })
     }
@@ -245,17 +256,19 @@ ShellRoot {
           settingsView.change(1)          // bass[0] + 1 dB, preset -> custom
           var bandsAfterEdit = Model.parseEqBands(fakeSvc.setting("eqBands", "[]"))
           var presetAfterEdit = fakeSvc.setting("eqPreset", "")
+          // Sleep timer sits at the end of Sound (row 14), as in the mockup.
+          settingsView.move(12)
+          settingsView.change(1)
+          var sleepAfter = fakeSvc.sleepMode
 
           // Playback: a clean frame of the section, then the sleep timer stepper.
           settingsView.switchColumn(); settingsView.move(1); settingsView.act()  // sound(1) -> playback(2)
 
           win.grab(Quickshell.env("SOLFA_SCENE_OUT3"), function () {
-            settingsView.change(1)
-            var sleepAfter = fakeSvc.sleepMode
 
             // Keys: "All keys" button.
             settingsView.switchColumn(); settingsView.move(2); settingsView.act()  // playback(2) -> keys(4)
-            settingsView.move(1)
+            settingsView.move(2)  // past "Panel key" (row 1) to "All keys"
             settingsView.act()
 
             // Advanced: a clean frame of the section, then clear cache
@@ -263,7 +276,7 @@ ShellRoot {
             settingsView.switchColumn(); settingsView.move(1); settingsView.act()  // keys(4) -> advanced(5)
 
             win.grab(Quickshell.env("SOLFA_SCENE_OUT4"), function () {
-              settingsView.move(2)
+              settingsView.move(3)
               settingsView.act()  // Clear cache
               var cacheNoteAfter = settingsView.cacheNote
               settingsView.move(2)

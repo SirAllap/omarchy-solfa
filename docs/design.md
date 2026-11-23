@@ -112,9 +112,10 @@ song) and opens a plain browser window on the same profile: only the
 profile, the Google sign-in page as an app window, and no DevTools flag,
 automation switch or `SOLFA_ENGINE_FLAGS`. The bridge spawns it (same as the
 engine: `posix_spawn`, tracked by `pidfd`) but never talks CDP to it. It
-watches two things: the profile's cookie database, for Google's sign-in
-cookie (`SAPISID`) created after the window opened (name, host and time
-only, never a value; read-only and immutable, as the browser holds the
+watches two things: the profile's cookie database, for YouTube's sign-in
+cookie (`LOGIN_INFO` on `.youtube.com`, set by YouTube's own step after
+Google's) created or set again after the window opened (name, host and
+times only, never a value; read-only and immutable, as the browser holds the
 file), and the window's own exit (its pidfd becoming readable). On the
 cookie it closes the window with `pidfd_send_signal(SIGTERM)` (Chromium's
 clean exit, which writes the cookies); if the user closes it, that is the
