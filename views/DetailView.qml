@@ -486,6 +486,7 @@ Item {
       : view.finding && view.query.trim() !== "" ? (view.loadingAll ? "No match yet" : "No song matches") : ""
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.contextList()) }
     onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
+    onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onHeaderActivated: function (i) { var r = view.rows[i]; if (r.more) view.panel.openPage({ browseId: r.more, title: r.header }, r.moreParams) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
   }

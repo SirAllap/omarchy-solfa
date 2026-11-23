@@ -32,6 +32,7 @@ Column {
   signal saveRequested()
   // The Radio chip was pressed (the panel starts it and says "Radio from <title>", as key R does).
   signal radioRequested()
+  signal artistRequested(var artist)
   // The share button was pressed (the panel copies the song's link).
   signal shareRequested()
 
@@ -144,9 +145,22 @@ Column {
           font.bold: root.hasTrack
         }
       }
+      // The playing song's artists are links (not during an advert).
+      ArtistLine {
+        id: artistLine
+        objectName: "nowArtistLine"
+        width: parent.width
+        readonly property var list: root.hasTrack && !root.svc.isAd && root.svc.player ? root.svc.player.artists : []
+        visible: Model.artistsText(list) !== ""
+        artists: list
+        color: Util.alpha(root.fg, 0.75)
+        family: root.family
+        pixelSize: Style.space(13)
+        onArtistClicked: function (a) { root.artistRequested(a) }
+      }
       Text {
         width: parent.width
-        text: root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.svc.artist)
+        text: artistLine.visible ? "" : root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.svc.artist)
           : root.svc && root.svc.ready ? "Press / to search, or pick something below."
           : root.svc && root.svc.closed ? "Nothing plays until you turn it on." : ""
         textFormat: Text.PlainText

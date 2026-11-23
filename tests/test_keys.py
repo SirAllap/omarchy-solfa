@@ -72,6 +72,16 @@ class KeyboardPath(unittest.TestCase):
     def test_transport_keys_reach_the_service(self):
         self.assertEqual(self.k["calls"], ["togglePlaying", "next", "previous"])
 
+    def test_g_opens_the_artist_of_the_song_and_esc_returns(self):
+        self.assertTrue(self.k["gKey"])
+        self.assertEqual(self.k["gPages"], ["UCexamples"])
+        self.assertEqual(self.k["gBack"], 0)
+
+    def test_now_playing_artists_are_links_and_a_nameless_id_searches(self):
+        self.assertEqual(self.k["nowLinks"], ["The Examples", "Sam Sample"])
+        self.assertEqual(self.k["linkSearch"], ["Sam Sample|artists"])
+        self.assertEqual(self.k["linkPages"], ["UCsample"])
+
     def test_escape_goes_back_one_layer_at_a_time(self):
         self.assertTrue(self.k["allKeysOn"])
         self.assertFalse(self.k["allKeysOff"])

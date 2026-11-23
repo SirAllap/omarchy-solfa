@@ -65,6 +65,7 @@ Item {
     var save = { name: "save", icon: Icons.savePlaylist, tip: "Save to a playlist (S)" }
     if (row.automix) return [{ name: "jump", icon: Icons.play, tip: "Play now" }, save, { name: "remove", icon: Icons.close, tip: "Remove (x)" }]
     var out = [save]
+    if (Model.artistsText(row.item.artists) !== "") out.push({ name: "artist", icon: Icons.artist, tip: "Go to artist (g)" })
     if (row.queueIndex > 0) out.push({ name: "up", icon: Icons.up, tip: "Move up (K)" })
     if (view.queue && row.queueIndex < view.queue.items.length - 1) out.push({ name: "down", icon: Icons.down, tip: "Move down (J)" })
     if (!row.current) out.push({ name: "remove", icon: Icons.close, tip: "Remove (x)" })
@@ -91,6 +92,7 @@ Item {
   function runAction(name, row) {
     if (name === "jump") jump(row)
     else if (name === "save") panel.saveRow(row)
+    else if (name === "artist") panel.openArtist(row)
     else if (name === "remove") remove(row)
     else if (name === "up") shift(row, -1)
     else if (name === "down") shift(row, 1)
@@ -169,6 +171,7 @@ Item {
     emptyText: ""
     onActivated: function (i) { view.jump(view.rows[i]) }
     onAction: function (name, i) { view.runAction(name, view.rows[i]) }
+    onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
   }
 

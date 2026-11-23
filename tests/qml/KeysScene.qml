@@ -36,7 +36,7 @@ ShellRoot {
     property string lastError: ""
     property var engine: ({ status: "ready", error: "", signedIn: true, host: "music.youtube.com", wantRunning: true })
     property var account: ({ signedIn: true, host: "music.youtube.com" })
-    property var player: ({ videoId: "AAAAAAAAAAA", title: "Northern Lights", artists: [{ name: "The Examples" }], playing: true, volume: 70, duration: 200, position: 42 })
+    property var player: ({ videoId: "AAAAAAAAAAA", title: "Northern Lights", artists: [{ name: "The Examples", id: "UCexamples" }, { name: "Sam Sample" }], playing: true, volume: 70, duration: 200, position: 42 })
     property string videoId: "AAAAAAAAAAA"
     property string title: "Northern Lights"
     property string artist: "The Examples"
@@ -74,6 +74,7 @@ ShellRoot {
     function accountSignOut(cb) { if (cb) cb({ ok: true, data: {} }) }
     // Everything a view may call: recorded, never acted on.
     property var calls: []
+    property var searches: []
     function request(op, args, cb) {
       calls.push(op)
       // SOLFA_SCENE_OUT0 (the parity render) wants a queue to draw; the
@@ -83,6 +84,8 @@ ShellRoot {
         cb({ ok: true, data: { index: 0, items: names.map(function (n, i) { return { videoId: "ID" + i, title: n[0], artists: [{ name: n[1] }], duration: 200 + i * 17, kind: "song" } }) } })
         return 0
       }
+      // An artist without a browseId is looked up by name: the top artist hit.
+      if (op === "search" && cb) { searches.push(args); cb({ ok: true, data: { artists: [{ kind: "artist", browseId: "UCsample", title: "Sam Sample" }] } }); return 0 }
       if (cb) cb({ ok: false, error: "not-found" })
       return 0
     }
@@ -182,6 +185,21 @@ ShellRoot {
           out.tabBack = (win.press(Qt.Key_Backtab, "", Qt.ShiftModifier), panel.tab)
           win.press(Qt.Key_Right); out.right = panel.tab
           win.press(Qt.Key_Left); out.left = panel.tab
+          // g: the artist of the playing song (the queue is empty), then Esc goes back
+          out.gKey = win.press(0, "g")
+          out.gPages = panel.pages.map(function (p) { return p.id })
+          win.press(Qt.Key_Escape); out.gBack = panel.pages.length
+          // the now-playing artist line: each name is its own link
+          var line = win.find(stage, "nowArtistLine")
+          var links = []
+          if (line) for (var c = 0; c < line.children[0].children.length; c++) if (line.children[0].children[c].isLink) links.push(line.children[0].children[c].text)
+          out.nowLinks = links
+          // a name with no browseId searches the artists, opens the top hit
+          var second = line ? win.find(line, "artistLink2") : null
+          if (second) second.children[0].clicked(null)
+          out.linkSearch = fakeSvc.searches.map(function (s) { return s.q + "|" + s.filter })
+          out.linkPages = panel.pages.map(function (p) { return p.id })
+          win.press(Qt.Key_Escape)
           win.press(Qt.Key_Space); win.press(0, "n"); win.press(0, "p")
           out.calls = fakeSvc.calls.filter(function (c) { return c === "togglePlaying" || c === "next" || c === "previous" })
           var sheet = win.find(stage, "keysSheet")

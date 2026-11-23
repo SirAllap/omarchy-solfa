@@ -195,7 +195,8 @@ def page_op(op, a):
         emit_event("player", p)
         return {"restored": "song"}, None
     if op == "search":
-        return {"top": None, "songs": [{"kind": "song", "videoId": "BBBBBBBBBBB", "title": "Result for " + a["q"]}],
+        return {"top": None, "songs": [{"kind": "song", "videoId": "BBBBBBBBBBB", "title": "Result for " + a["q"],
+                   "artists": [{"name": "Zero Seven", "id": "UCfixture7"}, {"name": "Sophie Example", "id": ""}]}],
                 "videos": [], "albums": [], "artists": [], "playlists": [], "other": [], "continuation": ""}, None
     if op in ("like", "library", "account.info", "playlist.options", "playlist.add", "playlist.create") and not state["signedIn"]:
         return None, "signin-required"

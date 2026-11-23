@@ -235,7 +235,7 @@ Panel {
       { name: "queue", icon: Icons.plus, tip: "Add to queue (a)" },
       { name: "radio", icon: Icons.radio, tip: "Start radio (R)" },
       { name: "save", icon: Icons.savePlaylist, tip: "Save to a playlist (S)" }
-    ]
+    ].concat(Model.artistsText(it.artists) !== "" ? [{ name: "artist", icon: Icons.artist, tip: "Go to artist (g)" }] : [])
     if (it.kind === "artist") return [{ name: "play", icon: Icons.shuffle, tip: "Shuffle this artist" }]
     if (it.playlistId) return [{ name: "play", icon: Icons.play, tip: "Play" }]
     return []
@@ -264,6 +264,8 @@ Panel {
       })
     } else if (name === "save") {
       root.saveRow(row)
+    } else if (name === "artist") {
+      root.openArtist(row)
     } else if (name === "radio") {
       svc.radioFor(it)
       root.say("Radio from " + it.title)
@@ -382,8 +384,20 @@ Panel {
   // g / o: the artist or album of the row under the cursor, else of the song.
   function openArtist(row) {
     var it = row && row.item && row.item.videoId ? row.item : (svc.hasTrack ? svc.player : null)
-    var a = it && it.artists && it.artists.length && it.artists[0].id ? it.artists[0] : null
-    if (a) openPage({ browseId: a.id, title: a.name })
+    var list = it && it.artists ? it.artists : []
+    for (var i = 0; i < list.length; i++) if (list[i] && list[i].name) { openArtistLink(list[i]); return }
+  }
+  // An artist's page from { name, id }. No id: search the name and open the top artist.
+  function openArtistLink(a) {
+    if (!a || !svc) return
+    if (a.id) { openPage({ browseId: a.id, title: a.name || "" }); return }
+    if (!a.name) return
+    svc.request("search", { q: a.name, filter: "artists" }, function (r) {
+      var d = r.ok ? r.data : null
+      var hit = d && d.artists && d.artists.length ? d.artists[0] : (d && d.top && d.top.kind === "artist" ? d.top : null)
+      if (hit && hit.browseId) root.openPage({ browseId: hit.browseId, title: hit.title || a.name })
+      else root.say("No artist page for " + a.name)
+    })
   }
   function openAlbum(row) {
     var it = row && row.item && row.item.videoId ? row.item : (svc.hasTrack ? svc.player : null)
@@ -603,6 +617,7 @@ Panel {
         onSaveRequested: root.saveRow(null)
         onRadioRequested: { if (root.svc && root.svc.hasTrack) { root.svc.radioFor(root.svc.player); root.say("Radio from " + root.svc.title) } }
         onShareRequested: root.copyLink()
+        onArtistRequested: function (a) { root.openArtistLink(a) }
       }
 
       // Solfa's name and the power button, top right: far from play.

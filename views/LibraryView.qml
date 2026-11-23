@@ -226,5 +226,6 @@ Item {
     emptyText: view.busy ? "Loading" : view.error !== "" ? view.error : "Nothing here yet"
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.info && view.info.playlistId ? view.info.playlistId : "") }
     onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
+    onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
   }
 }

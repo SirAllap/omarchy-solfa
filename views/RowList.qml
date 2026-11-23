@@ -39,6 +39,8 @@ ListView {
 
   signal activated(int index)
   signal action(string name, int index)
+  // A name in a song row's artist line was clicked.
+  signal artistActivated(int index, var artist)
   signal headerActivated(int index)
 
   model: rows
@@ -224,9 +226,21 @@ ListView {
             font.weight: Font.DemiBold
           }
         }
+        // A song's artists are links; every other row keeps its plain line.
+        readonly property bool artistLinks: !!cell.item && !!cell.item.videoId && Model.artistsText(cell.item.artists) !== ""
+        ArtistLine {
+          width: parent.width
+          visible: parent.artistLinks
+          artists: cell.item ? cell.item.artists : []
+          prefix: (cell.item && cell.item.explicit ? "E  " : "") + (cell.modelData.label ? cell.modelData.label + " · " : "")
+          color: Util.alpha(list.fg, 0.6)
+          family: list.family
+          pixelSize: Style.space(12)
+          onArtistClicked: function (a) { list.cursor = cell.index; list.artistActivated(cell.index, a) }
+        }
         Text {
           width: parent.width
-          text: (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
+          text: parent.artistLinks ? "" : (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
           textFormat: Text.PlainText
           elide: Text.ElideRight
           visible: text !== ""
@@ -253,7 +267,7 @@ ListView {
             enabled: cell.showActions
             // The common actions draw as thin vector icons, like the mockup.
             readonly property string vname: modelData.icon === Icons.savePlaylist ? "queue" : modelData.icon === Icons.close ? "close"
-              : modelData.icon === Icons.plus ? "plus" : modelData.icon === Icons.play ? "play" : ""
+              : modelData.icon === Icons.plus ? "plus" : modelData.icon === Icons.play ? "play" : modelData.icon === Icons.artist ? "user" : ""
             iconText: vname === "" ? modelData.icon : ""
             iconSize: Style.space(20)
             VIcon { visible: actionButton.vname !== ""; anchors.centerIn: parent; name: actionButton.vname; size: Style.space(20); stroke: 1.7; filled: actionButton.vname === "play"; color: actionButton.foreground }
