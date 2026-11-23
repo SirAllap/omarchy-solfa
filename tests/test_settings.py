@@ -85,6 +85,11 @@ class SettingsKeyboard(unittest.TestCase):
     def test_left_right_toggles_a_bool_row_and_saves_it(self):
         self.assertEqual(self.state["barToggleSaved"], ["barControls", False])
 
+    def test_the_bar_flat_row_is_off_by_default_and_the_last_of_its_section(self):
+        self.assertFalse(self.state["barFlatBefore"])
+        self.assertEqual(self.state["barFlatRow"], 5)
+        self.assertEqual(self.state["barFlatSaved"], ["barFlat", True])
+
     def test_equalizer_master_toggle_saves_before_the_preset_row(self):
         self.assertEqual(self.state["eqEnabledAfterToggle"], True)
 

@@ -102,7 +102,13 @@ ShellRoot {
           : scene.mode === "glassy" ? Qt.rgba(fakeBar.background.r, fakeBar.background.g, fakeBar.background.b, Math.min(fakeBar.background.a, 0.35))
           : fakeBar.background
       }
-      SolfaBar { id: w; bar: fakeBar; anchors.centerIn: parent }
+      // The widget's own settings entry, as the shell hands it over: SOLFA_BAR_FLAT=1 sets barFlat
+      // on, =0 sets it off, and unset leaves the entry without it (the default).
+      SolfaBar {
+        id: w; bar: fakeBar; anchors.centerIn: parent
+        settings: Quickshell.env("SOLFA_BAR_FLAT") === "1" ? ({ barFlat: true })
+          : Quickshell.env("SOLFA_BAR_FLAT") === "0" ? ({ barFlat: false }) : ({ showTitle: true })
+      }
     }
 
     TestCase { id: tc; name: "bar-states"; when: false }
@@ -116,7 +122,9 @@ ShellRoot {
       info[state] = {
         fill: [f.r, f.g, f.b, f.a], ink: [ink.r, ink.g, ink.b, ink.a], bar: [b.r, b.g, b.b, b.a],
         paintAlpha: fakeBar.transparent ? 0 : scene.mode === "glassy" ? Math.min(b.a, 0.35) : b.a,
-        hot: w.pillHot, opened: w.opened
+        hot: w.pillHot, opened: w.opened,
+        family: w.family, barFamily: fakeBar.fontFamily, barInk: [fakeBar.barForeground.r, fakeBar.barForeground.g, fakeBar.barForeground.b, fakeBar.barForeground.a],
+        width: Math.round(w.implicitWidth), outlined: w.pillOutlined, flat: w.barFlat
       }
     }
     function go() {

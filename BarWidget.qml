@@ -76,8 +76,8 @@ BarWidget {
   // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
   // (chosen by the surface's luminance): the bar's own foreground is white on a dark bar
   // and invisible on a light pill, and the other way round.
-  readonly property color fg: restInk ? restPlan.ink : Calm.fg
-  readonly property string family: Calm.font
+  readonly property color fg: flatRest ? barInk : restInk ? restPlan.ink : Calm.fg
+  readonly property string family: barFlat ? barFamily : Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
   readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : "Nothing playing"
 
@@ -94,6 +94,19 @@ BarWidget {
   readonly property color barBg: Color.bar && Calm.valid(Color.bar.background) ? Color.bar.background : Calm.bg
   readonly property color pillTint: Qt.rgba(barBg.r + (Calm.fg.r - barBg.r) * 0.08, barBg.g + (Calm.fg.g - barBg.g) * 0.08, barBg.b + (Calm.fg.b - barBg.b) * 0.08, barBg.a)
   readonly property bool pillHot: barMouse.containsMouse || root.opened
+
+  // barFlat (setting "barFlat", off by default): at rest (no hover,
+  // panel shut) the widget is bar text like the shell's own widgets, with no
+  // pill, no backdrop and no outline, in the bar's font and text colour
+  // (bar.fontFamily and bar.barForeground, as the shell's ActiveWindow takes
+  // them): the title, the controls and Solfa's mark alike. Hover and the
+  // open panel keep the pill and its join. The bar's font holds in every
+  // state and nothing pads the width, so the widget never changes size.
+  property bool barFlat: !!root.setting("barFlat", false)
+  readonly property bool flatRest: barFlat && !pillHot
+  readonly property color barInk: bar && Calm.valid(bar.barForeground) && bar.barForeground.a > 0 ? bar.barForeground
+    : Color.bar && Calm.valid(Color.bar.text) ? Color.bar.text : Color.foreground
+  readonly property string barFamily: bar && bar.fontFamily ? String(bar.fontFamily) : Style.font.family
 
   // The bar as the shell really paints it (plugins/bar/Bar.qml:1838): its colour is
   // Commons.Color.bar.background (Color.qml:80, theme alpha in) = barBg; the setting
@@ -163,7 +176,7 @@ BarWidget {
   // The rest look of the "hover" style: its ink and its backdrop follow the bar. Hover and open
   // keep the surface-based colours.
   readonly property bool restInk: pillStyle === "hover" && !pillHot
-  readonly property bool restBackdrop: restInk && barSeeThrough
+  readonly property bool restBackdrop: restInk && barSeeThrough && !barFlat
   // While the panel is open every style fills with Calm.surface: the card and the bridge are that
   // colour, and the pill must join them without a seam.
   readonly property color pillFill: root.opened ? Calm.surface
@@ -177,7 +190,7 @@ BarWidget {
   // One width rule for every state: max(content, 176). 176 is a playing pill with a short title
   // (cover, title, three buttons), so off, idle and playing share one join shape until a long
   // title makes the playing pill grow.
-  readonly property real pillMinW: Math.round(Style.space(176))
+  readonly property real pillMinW: barFlat ? 0 : Math.round(Style.space(176))
   readonly property real pillNatW: Math.max(body.implicitWidth + 2 * pillPad, pillMinW)
   implicitWidth: visible ? pillNatW : 0
   implicitHeight: barSize
@@ -271,8 +284,9 @@ BarWidget {
       barSize: root.barSize
       hasTrack: root.hasTrack
       progress: root.svc ? root.svc.progress : 0
-      ringColor: root.playing ? Calm.accent : (root.restInk ? Calm.a(root.fg, 0.6) : Calm.muted)
-      trackColor: root.restBackdrop ? Calm.a(root.fg, 0.2) : Calm.hair
+      ringColor: root.flatRest ? (root.playing ? (root.bar && Calm.valid(root.bar.urgent) ? root.bar.urgent : Calm.accent) : Calm.a(root.fg, 0.6))
+        : root.playing ? Calm.accent : (root.restInk ? Calm.a(root.fg, 0.6) : Calm.muted)
+      trackColor: root.restBackdrop || root.flatRest ? Calm.a(root.fg, 0.2) : Calm.hair
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
@@ -288,6 +302,11 @@ BarWidget {
       anchors.verticalCenter: parent.verticalCenter
       visible: root.showMark
       size: coverSlot.width
+      // Flat at rest: the record drawn in the bar's text colour alone.
+      rim: root.flatRest ? root.fg : "#e6e8ec"
+      label: root.flatRest ? Calm.a(root.fg, 0.7) : "#857f9e"
+      disc: root.flatRest ? "transparent" : "#1d1f24"
+      hole: root.flatRest ? "transparent" : "#121316"
 
       // While a sign-in runs (the panel closes when the Google window is
       // used), the bar's icon breathes: something is happening.
