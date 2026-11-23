@@ -29,11 +29,11 @@ MAX_DIFF = 8
 HALF = 64   # logical px each side of the centre line that are compared
 
 
-def render(workdir, scale, left, width):
-    out = os.path.join(workdir, "j-%s-%s-%s.ppm" % (scale, left, width))
+def render(workdir, scale, left, width, mode="line"):
+    out = os.path.join(workdir, "j-%s-%s-%s-%s.ppm" % (scale, left, width, mode))
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_QUICK_BACKEND="rhi",
                QSG_RHI_BACKEND="opengl", QT_SCALE_FACTOR=scale)
-    subprocess.run([QML, os.path.join(workdir, "JoinScene.qml"), "--", out, str(left), str(width)],
+    subprocess.run([QML, os.path.join(workdir, "JoinScene.qml"), "--", out, str(left), str(width), mode],
                    env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
     return out if os.path.exists(out) else None
 

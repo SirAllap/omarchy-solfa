@@ -22,6 +22,7 @@ Item {
   property real ov: 1            // overlap into the pill and into the card: no seam
   property color fillColor: "white"
   property color lineColor: "black"
+  property int rendererType: Shape.CurveRenderer   // analytic anti-aliasing; tests flip it to prove they can tell
 
   function sn(v) { return Pixel.snap(v, dpr) }
   readonly property real pillW: sn(pillWidth)
@@ -44,7 +45,7 @@ Item {
     id: halfComp
     Shape {
       width: bridge.width; height: bridge.height
-      preferredRendererType: Shape.CurveRenderer
+      preferredRendererType: bridge.rendererType
       ShapePath {
         fillColor: bridge.fillColor
         strokeWidth: -1
