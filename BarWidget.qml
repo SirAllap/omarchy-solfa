@@ -71,7 +71,7 @@ BarWidget {
   // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
   // (chosen by the surface's luminance): the bar's own foreground is white on a dark bar
   // and invisible on a light pill, and the other way round.
-  readonly property color fg: Calm.fg
+  readonly property color fg: restInk ? restPlan.ink : Calm.fg
   readonly property string family: Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
   readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
@@ -89,13 +89,66 @@ BarWidget {
   readonly property color barBg: Color.bar && Calm.valid(Color.bar.background) ? Color.bar.background : Calm.bg
   readonly property color pillTint: Qt.rgba(barBg.r + (Calm.fg.r - barBg.r) * 0.08, barBg.g + (Calm.fg.g - barBg.g) * 0.08, barBg.b + (Calm.fg.b - barBg.b) * 0.08, barBg.a)
   readonly property bool pillHot: barMouse.containsMouse || root.opened
+
+  // The bar as the shell really paints it (plugins/bar/Bar.qml:1838): its colour is
+  // Commons.Color.bar.background (Color.qml:80, theme alpha in) = barBg; the setting
+  // shell.json bar.background (opaque | glassy | none, the facade's shell.barConfig, live)
+  // makes a glassy bar min(alpha, 0.35) (Bar.qml:89) and a none bar clear (bar.transparent).
+  readonly property string barLook: {
+    if (bar && bar.transparent === true) return "none"
+    var c = bar && bar.shell ? bar.shell.barConfig : null
+    if (c && c.background) return String(c.background)
+    return c && c.transparent === true ? "none" : "opaque"
+  }
+  readonly property real barAlpha: barLook === "none" ? 0 : barLook === "glassy" ? Math.min(barBg.a, 0.35) : barBg.a
+  readonly property bool barSeeThrough: barAlpha < 0.95
+
+  // At rest ("hover" look) the pill has no fill, so on a see-through bar the title and icons sit
+  // on the wallpaper. The soft backdrop is the bar colour at alpha >= 0.72, raised only as far as
+  // the ink needs to keep 4.5:1 over the worst wallpapers (white, black, mid-pink). The ink is
+  // the theme's text when it reads on that backdrop, else black or white, whichever reads better.
+  function _lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+  function _rl(r, g, b) { return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b) }
+  function _worst(ink, c, a) {
+    var walls = [[1, 1, 1], [0, 0, 0], [0.91, 0.44, 0.63]]
+    var li = _rl(ink.r, ink.g, ink.b), worst = 99
+    for (var i = 0; i < walls.length; i++) {
+      var lb = _rl(c.r * a + walls[i][0] * (1 - a), c.g * a + walls[i][1] * (1 - a), c.b * a + walls[i][2] * (1 - a))
+      worst = Math.min(worst, (Math.max(li, lb) + 0.05) / (Math.min(li, lb) + 0.05))
+    }
+    return worst
+  }
+  function _plan(c, barA, seeThrough, themeInk) {
+    var a = seeThrough ? Math.max(barA, 0.72) : barA
+    var cands = [themeInk, Calm.lightFg, Calm.darkFg]
+    for (;;) {
+      var best = cands[0], bw = seeThrough ? _worst(cands[0], c, a) : _opaqueRatio(cands[0], c)
+      if (bw < 4.5) {
+        for (var i = 1; i < cands.length; i++) {
+          var wv = seeThrough ? _worst(cands[i], c, a) : _opaqueRatio(cands[i], c)
+          if (wv > bw) { best = cands[i]; bw = wv }
+        }
+      }
+      if (bw >= 4.5 || !seeThrough || a >= 1) return { alpha: a, ink: best, ratio: bw }
+      a = Math.min(1, a + 0.04)
+    }
+  }
+  function _opaqueRatio(ink, c) {
+    var li = _rl(ink.r, ink.g, ink.b), lb = _rl(c.r, c.g, c.b)
+    return (Math.max(li, lb) + 0.05) / (Math.min(li, lb) + 0.05)
+  }
+  readonly property var restPlan: _plan(barBg, barAlpha, barSeeThrough, Calm.fg)
+  // The rest look of the "hover" style: its ink and its backdrop follow the bar. Hover and open
+  // keep the surface-based colours.
+  readonly property bool restInk: pillStyle === "hover" && !pillHot
+  readonly property bool restBackdrop: restInk && barSeeThrough
   // While the panel is open every style fills with Calm.surface: the card and the bridge are that
   // colour, and the pill must join them without a seam.
   readonly property color pillFill: root.opened ? Calm.surface
     : pillStyle === "outline" ? "transparent"
     : pillStyle === "tint" ? pillTint
     : pillStyle === "glass" ? Calm.a(Calm.surface, 0.55)
-    : pillStyle === "hover" ? (pillHot ? pillTint : "transparent")
+    : pillStyle === "hover" ? (pillHot ? pillTint : restBackdrop ? Calm.a(barBg, restPlan.alpha) : "transparent")
     : Calm.surface
   readonly property bool pillOutlined: !root.opened && (pillStyle === "outline" || pillStyle === "glass")
   readonly property real pillPad: Math.max(4, Math.round((pillHeight - coverSlot.height) / 2))
@@ -182,8 +235,8 @@ BarWidget {
       barSize: root.barSize
       hasTrack: root.hasTrack
       progress: root.svc ? root.svc.progress : 0
-      ringColor: root.playing ? Calm.accent : Calm.muted
-      trackColor: Calm.hair
+      ringColor: root.playing ? Calm.accent : (root.restInk ? Calm.a(root.fg, 0.6) : Calm.muted)
+      trackColor: root.restBackdrop ? Calm.a(root.fg, 0.2) : Calm.hair
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
@@ -225,7 +278,7 @@ BarWidget {
 
       BarIconButton {
         bar: root.bar
-        foreground: Calm.fg
+        foreground: root.fg
         text: Icons.previous
         tooltipText: "Previous"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
@@ -233,7 +286,7 @@ BarWidget {
       }
       BarIconButton {
         bar: root.bar
-        foreground: Calm.fg
+        foreground: root.fg
         text: root.playing ? Icons.pause : Icons.play
         tooltipText: root.playing ? "Pause" : "Play"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
@@ -241,7 +294,7 @@ BarWidget {
       }
       BarIconButton {
         bar: root.bar
-        foreground: Calm.fg
+        foreground: root.fg
         text: Icons.next
         tooltipText: "Next"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
