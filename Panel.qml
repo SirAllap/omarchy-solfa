@@ -393,7 +393,7 @@ Panel {
       // the card at once, so it goes with it.
       Component {
         id: bridgeComp
-        Shape {
+        Item {
           id: bridge
           property Item card: null
           // The pill's own drawn box (BarWidget.pillBox*, whole pixels), so the bridge meets the
@@ -413,7 +413,6 @@ Panel {
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
           // On open the circle grows from the card up (rr 0 to r), a straight neck above it.
           readonly property real rr: Math.round(r * Math.max(0, Math.min(1, p)))
-          readonly property real lx: r                                // the pill's left end inside this item
           readonly property real rx: r + pillW                        // its right end
           readonly property real yC: cardTop - y                     // the card's top edge inside this item
           // Visible from the first frame: the pill squares off the moment the panel opens, so a frame
@@ -425,47 +424,48 @@ Panel {
           z: card ? card.z + 0.5 : 0   // above the card: its fill hides the card's top line between the arcs
           width: pillW + 2 * r
           height: yC + ov
-          preferredRendererType: Shape.CurveRenderer
-          layer.enabled: true
-          layer.samples: 8
-          layer.smooth: true
-          ShapePath {
-            id: sp
-            fillColor: Calm.surface
-            strokeWidth: -1
-            startX: bridge.lx; startY: 0
-            PathLine { x: bridge.rx; y: 0 }
-            PathLine { x: bridge.rx; y: bridge.yC - bridge.rr }
-            PathArc { x: bridge.rx + bridge.rr; y: bridge.yC
-              radiusX: Math.max(0.01, bridge.rr); radiusY: Math.max(0.01, bridge.rr); direction: PathArc.Counterclockwise }
-            PathLine { x: bridge.rx + bridge.rr; y: bridge.yC + bridge.ov }
-            PathLine { x: bridge.lx - bridge.rr; y: bridge.yC + bridge.ov }
-            PathLine { x: bridge.lx - bridge.rr; y: bridge.yC }
-            PathArc { x: bridge.lx; y: bridge.yC - bridge.rr
-              radiusX: Math.max(0.01, bridge.rr); radiusY: Math.max(0.01, bridge.rr); direction: PathArc.Counterclockwise }
+          // (No MSAA layer: its sample pattern is not mirror-symmetric; the curve renderer
+          // anti-aliases the arcs itself, the same way on both sides.)
+          // One half is the only path there is: the right side, from just past the pill's centre
+          // line out to the arc's foot. The left side is the same half drawn again, flipped
+          // about the centre line, so the two corners are exact mirror images.
+          readonly property real m: width / 2
+          Component {
+            id: halfComp
+            Shape {
+              width: bridge.width; height: bridge.height
+              preferredRendererType: Shape.CurveRenderer
+              ShapePath {
+                fillColor: Calm.surface
+                strokeWidth: -1
+                startX: bridge.m - 1; startY: 0
+                PathLine { x: bridge.rx; y: 0 }
+                PathLine { x: bridge.rx; y: bridge.yC - bridge.rr }
+                PathArc { x: bridge.rx + bridge.rr; y: bridge.yC
+                  radiusX: Math.max(0.01, bridge.rr); radiusY: Math.max(0.01, bridge.rr); direction: PathArc.Counterclockwise }
+                PathLine { x: bridge.rx + bridge.rr; y: bridge.yC + bridge.ov }
+                PathLine { x: bridge.m - 1; y: bridge.yC + bridge.ov }
+              }
+              // The outline: down the pill's side (on from the pill's own line), then the arc (centre
+              // line half a pixel inside the fill, radius rr + 0.5), ending flat on the card ring's
+              // centre line. Tangent all along, 1 px wide.
+              ShapePath {
+                fillColor: "transparent"
+                strokeColor: Calm.outline
+                strokeWidth: 1
+                capStyle: ShapePath.FlatCap
+                startX: bridge.rx - 0.5; startY: 0
+                PathLine { x: bridge.rx - 0.5; y: bridge.yC - bridge.rr }
+                PathArc { x: bridge.rx + bridge.rr; y: bridge.yC + 0.5
+                  radiusX: bridge.rr + 0.5; radiusY: bridge.rr + 0.5; direction: PathArc.Counterclockwise }
+              }
+            }
           }
-          // The bridge's part of the outline, one 1 px line per side: down the pill's side
-          // (on from the pill's own line), then the arc (centre line half a pixel inside the
-          // fill, radius rr + 0.5), ending flat on the card ring's centre line. Tangent all along.
-          ShapePath {
-            fillColor: "transparent"
-            strokeColor: Calm.outline
-            strokeWidth: 1
-            capStyle: ShapePath.FlatCap
-            startX: bridge.rx - 0.5; startY: 0
-            PathLine { x: bridge.rx - 0.5; y: bridge.yC - bridge.rr }
-            PathArc { x: bridge.rx + bridge.rr; y: bridge.yC + 0.5
-              radiusX: bridge.rr + 0.5; radiusY: bridge.rr + 0.5; direction: PathArc.Counterclockwise }
-          }
-          ShapePath {
-            fillColor: "transparent"
-            strokeColor: Calm.outline
-            strokeWidth: 1
-            capStyle: ShapePath.FlatCap
-            startX: bridge.lx - bridge.rr; startY: bridge.yC + 0.5
-            PathArc { x: bridge.lx + 0.5; y: bridge.yC - bridge.rr
-              radiusX: bridge.rr + 0.5; radiusY: bridge.rr + 0.5; direction: PathArc.Counterclockwise }
-            PathLine { x: bridge.lx + 0.5; y: 0 }
+          Loader { anchors.fill: parent; sourceComponent: halfComp }
+          Loader {
+            anchors.fill: parent
+            sourceComponent: halfComp
+            transform: Scale { xScale: -1; origin.x: bridge.m }
           }
         }
       }
