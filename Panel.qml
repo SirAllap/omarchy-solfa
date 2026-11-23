@@ -264,7 +264,9 @@ Panel {
       return
     }
     if (k === Qt.Key_Tab || k === Qt.Key_Backtab) {
-      root.switchPanel((event.modifiers & Qt.ShiftModifier) || k === Qt.Key_Backtab ? -1 : 1)
+      // Tab moves to the next bar panel when there is one; with none, it walks the tabs.
+      var dir = (event.modifiers & Qt.ShiftModifier) || k === Qt.Key_Backtab ? -1 : 1
+      if (!root.switchPanel(dir) && root.pages.length === 0) root.cycleTab(dir)
       event.accepted = true
       return
     }
@@ -872,6 +874,8 @@ Panel {
           z: 4
           shown: root.allKeys
           bar: root.bar
+          panelKey: root.svc ? Model.keyChord(root.svc.panelKeyChosen ? root.svc.panelKeyChosen.keys : "SUPER + ALT + M") : "Super + Alt + M"
+          playPauseKey: root.svc ? Model.keyChord(root.svc.playPauseKeyChosen ? root.svc.playPauseKeyChosen.keys : "SUPER + ALT + P") : "Super + Alt + P"
         }
       }
 
@@ -929,9 +933,12 @@ Panel {
           width: parent.width - allKeysButton.width - Style.space(4)
           height: Style.space(20)
           visible: !keys.blocked && !root.settingsOpen && !root.saveOpen
+          readonly property bool typing: !!(root.view && root.view.inputFocused)   // Search's field or a page's find field
+          // Last, so it is the first dropped when the line is short: the real panel key.
           readonly property var hints: Model.footerHints(root.view ? root.view.hints : null,
                                                          !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
-                                                         !!(root.view && root.view.inputFocused))
+                                                         typing)
+            .concat(typing || !root.svc ? [] : [[Model.keyChord(root.svc.panelKeyChosen ? root.svc.panelKeyChosen.keys : "SUPER + ALT + M"), "open"]])
           readonly property string hintsKey: JSON.stringify(hints)
           property bool front: true   // true: layer A is the one showing
           onHintsKeyChanged: {

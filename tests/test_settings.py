@@ -225,7 +225,7 @@ class SettingsSource(unittest.TestCase):
     def test_every_row_and_stepper_says_which_row_it_is(self):
         rows, steps = self.rows(), self.steppers()
         self.assertGreaterEqual(len(rows), 20)
-        self.assertEqual(len(steps), 9)
+        self.assertEqual(len(steps), 10)  # incl. the Keys › Panel key picker
         for use in rows + steps:
             self.assertRegex(use, r"\brow: \d+", use[:80])
 

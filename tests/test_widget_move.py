@@ -133,11 +133,11 @@ def patched_service(dest, stubs):
     open(dest, "w").write(text)
 
 
-def make_stubs(stubs, log, key_file):
+def make_stubs(stubs, log, key_file, binds="[]"):
     os.mkdir(stubs)
     for name in ("systemd-run", "hyprctl", "notify-send"):
         path = os.path.join(stubs, name)
-        out = "echo '[]'" if name == "hyprctl" else ":"
+        out = ('if [ "$1" = "-j" ]; then echo \'%s\'; fi' % binds) if name == "hyprctl" else ":"
         if name == "systemd-run":
             # Remember the launch key the unit was asked to start with.
             out = 'for a in "$@"; do case "$a" in --setenv=SOLFA_LAUNCH_KEY=*) echo "${a#--setenv=SOLFA_LAUNCH_KEY=}" > "%s";; esac; done' % key_file
@@ -146,7 +146,7 @@ def make_stubs(stubs, log, key_file):
         os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
 
 
-def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0):
+def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0, stub_panel=False, binds="[]"):
     """Returns (bridge, stub_calls, log)."""
     work = tempfile.mkdtemp(prefix="solfa-wm-")
     # AF_UNIX paths are short (108 bytes): the runtime dir is a short one
@@ -157,9 +157,18 @@ def run_scene(steps, key=KEY, version=VERSION, scene_ms=9000, bridge_delay=0.0):
         os.mkdir(cfg)
         stubs, stublog = os.path.join(work, "stubs"), os.path.join(work, "stubs.log")
         key_file = os.path.join(work, "launch-key")
-        make_stubs(stubs, stublog, key_file)
+        make_stubs(stubs, stublog, key_file, binds)
         patched_service(os.path.join(cfg, "Service.qml"), stubs)
-        for name, target in (("Ui", os.path.join(SHELL_DIR, "Ui")), ("Commons", os.path.join(SHELL_DIR, "Commons")),
+        ui = os.path.join(SHELL_DIR, "Ui")
+        if stub_panel:
+            # The shell's KeyboardPanel is a layer-shell window, which an offscreen
+            # Quickshell cannot make: swap it for tests/qml/stub, a plain card.
+            ui = os.path.join(cfg, "UiStub")
+            os.makedirs(ui)
+            for name in os.listdir(os.path.join(SHELL_DIR, "Ui")):
+                src = os.path.join(HERE, "qml", "stub", name) if name == "KeyboardPanel.qml" else os.path.join(SHELL_DIR, "Ui", name)
+                os.symlink(src, os.path.join(ui, name))
+        for name, target in (("Ui", ui), ("Commons", os.path.join(SHELL_DIR, "Commons")),
                              ("views", os.path.join(ROOT, "views")), ("lib", os.path.join(ROOT, "lib")),
                              ("BarWidget.qml", os.path.join(ROOT, "BarWidget.qml")),
                              ("Panel.qml", os.path.join(ROOT, "Panel.qml")),

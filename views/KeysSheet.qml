@@ -13,6 +13,10 @@ Item {
 
   property bool shown: false
   property QtObject bar: null
+  // The real global keys on this machine (Super+Alt+M unless it was taken), as
+  // typed in the hint tables: "Super + Alt + M".
+  property string panelKey: "Super + Alt + M"
+  property string playPauseKey: "Super + Alt + P"
 
   // The real bindings of Panel.onKey, grouped. In "keys", " / " between
   // two keys is plain text; every key is its own cap.
@@ -27,7 +31,10 @@ Item {
       ["e", "Play next"], ["a", "Add to queue"], ["R", "Start radio"], ["S", "Save to a playlist"], ["c", "Copy song link"],
       ["x", "Remove"], ["J / K", "Move down / up"] ] },
     { title: "Library", rows: [
-      ["[ / ]", "Filter / section"], ["g", "Go to artist"], ["o", "Go to album"], ["w", "YouTube window"], ["i", "Sign in"] ] }
+      ["[ / ]", "Filter / section"], ["g", "Go to artist"], ["o", "Go to album"], ["w", "YouTube window"], ["i", "Sign in"] ] },
+    { title: "Anywhere", rows: [
+      [sheet.panelKey, "Open / close Solfa"], [sheet.playPauseKey, "Play / pause"],
+      ["Super + Alt + N", "Next"], ["Super + Alt + B", "Previous"], ["Super + Alt + L", "Like"] ] }
   ]
 
   readonly property real inset: Style.space(2)

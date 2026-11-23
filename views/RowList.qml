@@ -133,7 +133,7 @@ ListView {
       color: cell.now ? Util.alpha(Calm.accent, 0.14)
         : rowHover.hovered || cell.selected ? Util.alpha(list.fg, 0.05) : "transparent"
       border.width: cell.selected ? 1 : 0
-      border.color: Util.alpha(list.fg, 0.5)
+      border.color: Calm.a(Calm.accent, 0.8)
       Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
       // The playing row's bar grows from its middle, 220 ms.

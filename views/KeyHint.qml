@@ -3,7 +3,7 @@ import qs.Commons
 import "../lib"
 
 // A key and what it does. `keys` is the keys as typed in the hint tables:
-// "n p" is two caps, "/" between them is plain muted text ("n / p"), so a
+// "n p" is two caps, "/" or "+" between them is plain muted text ("n / p"), so a
 // cap is always exactly one key.
 Row {
   id: hint
@@ -31,7 +31,7 @@ Row {
       delegate: Item {
         id: part
         required property string modelData
-        readonly property bool sep: modelData === "/" || modelData === "or"
+        readonly property bool sep: modelData === "/" || modelData === "or" || modelData === "+"
         anchors.verticalCenter: parent.verticalCenter
         implicitWidth: sep ? sepText.implicitWidth + Style.space(2) : cap.implicitWidth
         implicitHeight: cap.implicitHeight
