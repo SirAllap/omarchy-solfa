@@ -306,6 +306,10 @@ async def handle(ws, msg):
             if not m:
                 result = {"exceptionDetails": {"text": "Uncaught", "exception": {"description": "Error: unknown-expression"}}}
             else:
+                # FAKE_BROWSE_DELAY (seconds): a slow playlist/album fetch, so the loading state can be seen.
+                delay = float(os.environ.get("FAKE_BROWSE_DELAY") or 0)
+                if delay and "browse" in m.group(1):
+                    await asyncio.sleep(delay)
                 value, err = page_op(json.loads(m.group(1)), json.loads(m.group(2)))
                 if err:
                     result = {"exceptionDetails": {"text": "Uncaught", "exception": {"description": "Error: " + err + "\n    at call"}}}

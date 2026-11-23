@@ -52,7 +52,11 @@ Panel {
   function syncGrowth() {
     var tgt = 0
     if (pages.length > 0 && !settingsOpen) {
-      var n = detailView.rows.length > 0 ? Math.min(detailView.rows.length, 6) : 6   // 6 while it loads
+      // Grow only toward a height that is known: the loaded rows, else the tile's
+      // count; with neither, hold the current height until the rows arrive.
+      var cnt = detailView.rows.length > 0 ? detailView.rows.length : (pages[pages.length - 1].count || 0)
+      var n = Math.min(cnt, 6)
+      if (n === 0) return
       // The stage at rest (no page, no growth) minus the fixed header above the list.
       var baseList = (stageRest > 0 ? stageRest : stage.height - growth) - Style.space(36 + 12 + 118 + 20)
       tgt = Math.min(maxGrow, Math.max(0, n * Style.space(66) - baseList))
@@ -156,6 +160,9 @@ Panel {
   function openPage(item, params) {
     if (!item || !item.browseId) return
     var p = { id: item.browseId, title: item.title || "", params: params || "" }
+    // The tile's "63 songs" / "63 canciones": a row count known before the page loads.
+    var cm = /(\d[\d.,]*)\s+(songs?|tracks?|canciones|canci[oó]n|pistas?|titres?|titel|brani)/i.exec(item.subtitle || "")
+    if (cm) p.count = parseInt(cm[1].replace(/[.,]/g, ""), 10)
     pages = pages.concat([p])
     detailView.open(p)
     focusKeys()
@@ -811,7 +818,14 @@ Panel {
         property var prev: null
         property real mix: 1
         readonly property real slidePx: Style.space(8)
-        function fade(v) { return root.view === v ? mix : (prev === v ? 1 - mix : 0) }
+        // A page opening or closing: the old view is gone in the first 45 % of the
+        // change, the new one comes in after it, so two layers are never visible together.
+        readonly property bool paged: root.view === detailView || prev === detailView
+        function seq(x) { return Math.max(0, Math.min(1, x)) }
+        function fade(v) {
+          if (paged) return root.view === v ? seq((mix - 0.45) / 0.55) : (prev === v ? seq(1 - mix / 0.45) : 0)
+          return root.view === v ? mix : (prev === v ? 1 - mix : 0)
+        }
         function slide(v) { return root.view === v ? (1 - mix) * slidePx : (prev === v ? -mix * slidePx : 0) }
         function shows(v) { return root.view === v || prev === v }
         Connections {

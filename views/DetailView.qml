@@ -458,6 +458,9 @@ Item {
 
   // What the panel reads to grow its height: the list wants room for this
   // many rows (6 tracks at 58 px + 8 px gap), and says how tall it is now.
+  // While the rows load and their count is known (from the tile), grey placeholder
+  // rows fill the grown height: never a tall empty card with a word in the middle.
+  readonly property int skeletonRows: busy && rows.length === 0 && page && page.count > 0 ? Math.min(page.count, 6) : 0
   readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
 
   RowList {
@@ -474,12 +477,35 @@ Item {
     playingId: view.svc ? view.svc.videoId : ""
     panelOpen: !!(view.svc && view.svc.panelOpen)
     actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
-    emptyText: view.busy ? "Loading" : view.error !== "" ? view.error
+    emptyText: view.busy ? (view.skeletonRows > 0 ? "" : "Loading") : view.error !== "" ? view.error
       : view.finding && view.query.trim() !== "" ? (view.loadingAll ? "No match yet" : "No song matches") : ""
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.contextList()) }
     onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
     onHeaderActivated: function (i) { var r = view.rows[i]; if (r.more) view.panel.openPage({ browseId: r.more, title: r.header }, r.moreParams) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
+  }
+
+  Column {
+    objectName: "detailSkeleton"
+    visible: view.skeletonRows > 0
+    anchors.top: list.top
+    anchors.left: list.left; anchors.right: list.right
+    spacing: Style.space(8)
+    Repeater {
+      model: view.skeletonRows
+      Item {
+        width: parent.width; height: Style.space(58)
+        opacity: 0.7
+        SequentialAnimation on opacity {
+          running: view.skeletonRows > 0 && !Style.reduceMotion; loops: Animation.Infinite
+          NumberAnimation { to: 1; duration: 600; easing.type: Easing.InOutSine }
+          NumberAnimation { to: 0.55; duration: 600; easing.type: Easing.InOutSine }
+        }
+        Rectangle { x: Style.space(14); anchors.verticalCenter: parent.verticalCenter; width: Style.space(52); height: width; radius: Style.space(12); color: Calm.wash }
+        Rectangle { x: Style.space(80); y: Style.space(12); width: parent.width * 0.42; height: Style.space(13); radius: height / 2; color: Calm.wash }
+        Rectangle { x: Style.space(80); y: Style.space(33); width: parent.width * 0.26; height: Style.space(11); radius: height / 2; color: Calm.wash }
+      }
+    }
   }
 
   // Soft fade where rows run under the list's edges, so none is cut hard:
