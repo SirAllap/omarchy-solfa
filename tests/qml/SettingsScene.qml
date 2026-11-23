@@ -22,6 +22,11 @@ ShellRoot {
     property bool signingIn: false
     property bool closed: false
     property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premium: false
     property bool ready: true
     property var account: ({ signedIn: true, host: "music.youtube.com" })
@@ -263,7 +268,7 @@ ShellRoot {
 
             // Keys: "All keys" button.
             settingsView.switchColumn(); settingsView.move(2); settingsView.act()  // playback(2) -> keys(4)
-            settingsView.move(1)
+            settingsView.move(2)  // past "Panel key" (row 1) to "All keys"
             settingsView.act()
 
             // Advanced: a clean frame of the section, then clear cache
