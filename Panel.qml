@@ -449,21 +449,26 @@ Panel {
           readonly property real cardTop: card ? Math.round(card.y) : 0
           readonly property real ov: 1                               // 1 px into the pill and into the card: no seam
           readonly property real gapH: Math.max(0, cardTop - pillBottom)
-          // Each side is a true inverted corner: a concave quarter circle of radius r = bar
-          // bottom to card top, tangent to the pill's side at the bar's bottom edge and to the
-          // card's top edge. Everything between pill, bar edge and card is filled first.
-          readonly property real r: Math.max(0, cardTop - barBottom)
+          // Each side is a true inverted corner: a concave quarter circle tangent to the pill's
+          // side and to the card's top edge. Its radius is fixed by design (the README
+          // composition's soft neck), never the live gap: the gap between bar and card is only a
+          // few pixels, and a radius equal to it gave tiny notches. When the gap is smaller than r
+          // the arc starts higher up the pill's side, over the bar, and is still a full quarter
+          // arc. It is only cut back so it never climbs above the pill's top corner.
+          readonly property real pillTop: pillBottom - Math.round(pillHost ? pillHost.pillBoxH : Style.space(24))
+          readonly property real r: Math.max(0, Math.min(Style.space(16), cardTop - pillTop - Style.space(6)))
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
           // On open the circle grows from the card up (rr 0 to r), a straight neck above it.
           readonly property real rr: Math.round(r * Math.max(0, Math.min(1, p)))
           readonly property real rx: r + pillW                        // its right end
           readonly property real yC: cardTop - y                     // the card's top edge inside this item
+          readonly property real yP: pillBottom - ov - y             // the pill's bottom edge inside this item
           // Visible from the first frame: the pill squares off the moment the panel opens, so a frame
           // without the bridge would show a flat-bottomed pill floating above the card.
           visible: !!card && card.visible && root.opened && gapH > 0.5
           opacity: card ? card.opacity : 0
           x: Math.round(cx - pillW / 2) - r                          // whole pixels: both sides alike
-          y: pillBottom - ov
+          y: Math.min(pillBottom - ov, cardTop - r)    // higher than the pill's bottom when the gap is below r
           z: card ? card.z + 0.5 : 0   // above the card: its fill hides the card's top line between the arcs
           width: pillW + 2 * r
           height: yC + ov
@@ -481,8 +486,11 @@ Panel {
               ShapePath {
                 fillColor: Calm.surface
                 strokeWidth: -1
-                startX: bridge.m - 1; startY: 0
-                PathLine { x: bridge.rx; y: 0 }
+                // Under the pill (its lower half is never covered), then up the pill's side
+                // one pixel in, then out along the arc to the card's top edge.
+                startX: bridge.m - 1; startY: bridge.yP
+                PathLine { x: bridge.rx - 1; y: bridge.yP }
+                PathLine { x: bridge.rx - 1; y: bridge.yC - bridge.rr }
                 PathLine { x: bridge.rx; y: bridge.yC - bridge.rr }
                 PathArc { x: bridge.rx + bridge.rr; y: bridge.yC
                   radiusX: Math.max(0.01, bridge.rr); radiusY: Math.max(0.01, bridge.rr); direction: PathArc.Counterclockwise }
@@ -497,7 +505,7 @@ Panel {
                 strokeColor: Calm.outline
                 strokeWidth: 1
                 capStyle: ShapePath.FlatCap
-                startX: bridge.rx - 0.5; startY: 0
+                startX: bridge.rx - 0.5; startY: Math.max(0, Math.min(bridge.yP, bridge.yC - bridge.rr))
                 PathLine { x: bridge.rx - 0.5; y: bridge.yC - bridge.rr }
                 PathArc { x: bridge.rx + bridge.rr; y: bridge.yC + 0.5
                   radiusX: bridge.rr + 0.5; radiusY: bridge.rr + 0.5; direction: PathArc.Counterclockwise }
