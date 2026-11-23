@@ -212,7 +212,9 @@ Panel {
       return
     }
     if (k === Qt.Key_Tab || k === Qt.Key_Backtab) {
-      root.switchPanel((event.modifiers & Qt.ShiftModifier) || k === Qt.Key_Backtab ? -1 : 1)
+      // Tab moves to the next bar panel when there is one; with none, it walks the tabs.
+      var dir = (event.modifiers & Qt.ShiftModifier) || k === Qt.Key_Backtab ? -1 : 1
+      if (!root.switchPanel(dir) && root.pages.length === 0) root.cycleTab(dir)
       event.accepted = true
       return
     }
