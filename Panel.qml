@@ -335,7 +335,54 @@ Panel {
       // radius. If it cannot be found the card below is still ours.
       property Item hostCard: null
       property Item bridgeItem: null
-      Component.onDestruction: if (bridgeItem) bridgeItem.destroy()
+      property Item shadowItem: null
+      Component.onDestruction: { if (bridgeItem) bridgeItem.destroy(); if (shadowItem) shadowItem.destroy() }
+      // The merged shape (pill + bridge + card) has ONE outer hairline (Calm.hair, 1 px,
+      // anti-aliased): the pill's own U-shaped line (BarWidget), the bridge's two side
+      // arcs, and this ring on the card. The bridge is drawn above the card (and above the
+      // pill, its window being over the bar), so its fill hides the card's top line between
+      // the arcs: nothing is drawn between pill and bridge or bridge and card.
+      Component {
+        id: rimComp
+        Rectangle {
+          anchors.fill: parent
+          color: "transparent"
+          radius: parent.radius
+          border.width: 1
+          border.color: Calm.outline
+          antialiasing: true
+        }
+      }
+      // A very soft shadow under the card only: clipped below the card's top edge, so none
+      // falls on the join.
+      Component {
+        id: shadowComp
+        Item {
+          id: shadow
+          property Item card: null
+          visible: !!card && card.visible
+          opacity: card ? card.opacity : 0
+          z: card ? card.z - 1 : 0
+          x: card ? card.x - 24 : 0
+          y: card ? card.y + Style.space(10) : 0
+          width: card ? card.width + 48 : 0
+          height: card ? card.height + 40 : 0
+          clip: true
+          Repeater {
+            model: 8
+            Rectangle {
+              required property int index
+              readonly property real s: 1.5 * (index + 1)
+              x: 24 - s
+              y: -Style.space(10) - s + 4
+              width: shadow.card.width + 2 * s
+              height: shadow.card.height + 2 * s
+              radius: shadow.card.radius + s
+              color: Qt.rgba(0, 0, 0, Calm.light ? 0.009 : 0.012)
+            }
+          }
+        }
+      }
       // Two drops, the pill's and the card's, stretch toward each other,
       // touch and merge: one card-coloured shape with a concave neck
       // (cubic curves). The panel window is full-screen and above the bar,
@@ -350,23 +397,22 @@ Panel {
           id: bridge
           property Item card: null
           readonly property real cx: panel.anchorScreenPos.x + panel.anchorW / 2
-          readonly property real pillW: Math.max(Style.space(60), panel.anchorW)
+          readonly property real pillW: panel.anchorW                // the pill's full width, end to end
           readonly property real pillBottom: panel.barThickness - Style.space(2)
-          readonly property real ov: Style.space(3)          // overlap into the pill and the card: no dark line
+          readonly property real ov: 1                               // 1 px into the pill and into the card: no seam
           readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
           readonly property real q: Math.max(0, Math.min(1, p))
-          // The top spans the whole pill (inset a little for its rounded ends), the
-          // neck pinches slightly, and the foot flares wider than the pill each side.
-          readonly property real a: (pillW / 2 - Style.space(8)) * q
-          readonly property real b: (pillW / 2 + Style.space(22)) * q
-          readonly property real n: (pillW / 2 - Style.space(12)) * Math.max(0, p)  // neck half-width (wobbles)
+          // The flare out of each end of the pill into the card top: a big concave
+          // arc (about 16 px wide, as tall as the gap), like two drops merging.
+          readonly property real rxMax: Style.space(18)
+          readonly property real rx: Style.space(16) * Math.max(0, p)
           visible: !!card && card.visible && root.opened && gapH > 0.5 && q > 0.01
           opacity: card ? card.opacity : 0
-          x: cx - Math.max(a, b)
+          x: cx - pillW / 2 - rxMax
           y: pillBottom - ov
-          z: card ? card.z - 0.5 : 0
-          width: 2 * Math.max(a, b)
+          z: card ? card.z + 0.5 : 0   // above the card: its fill hides the card's top line between the arcs
+          width: pillW + 2 * rxMax
           height: gapH + 2 * ov
           preferredRendererType: Shape.CurveRenderer
           layer.enabled: true
@@ -376,22 +422,32 @@ Panel {
             fillColor: Calm.surface
             strokeWidth: -1
             readonly property real m: bridge.width / 2
-            readonly property real h: bridge.height
-            startX: m - bridge.a; startY: 0
-            PathLine { x: sp.m + bridge.a; y: 0 }
-            PathCubic { x: sp.m + bridge.n; y: sp.h / 2
-              control1X: sp.m + bridge.n; control1Y: sp.h * 0.12
-              control2X: sp.m + bridge.n; control2Y: sp.h * 0.35 }
-            PathCubic { x: sp.m + bridge.b; y: sp.h
-              control1X: sp.m + bridge.n; control1Y: sp.h * 0.65
-              control2X: sp.m + bridge.n; control2Y: sp.h * 0.88 }
-            PathLine { x: sp.m - bridge.b; y: sp.h }
-            PathCubic { x: sp.m - bridge.n; y: sp.h / 2
-              control1X: sp.m - bridge.n; control1Y: sp.h * 0.88
-              control2X: sp.m - bridge.n; control2Y: sp.h * 0.65 }
-            PathCubic { x: sp.m - bridge.a; y: 0
-              control1X: sp.m - bridge.n; control1Y: sp.h * 0.35
-              control2X: sp.m - bridge.n; control2Y: sp.h * 0.12 }
+            readonly property real hw: bridge.pillW / 2
+            startX: m - hw; startY: 0
+            PathLine { x: sp.m + sp.hw; y: 0 }
+            PathArc { x: sp.m + sp.hw + bridge.rx; y: bridge.height
+              radiusX: Math.max(0.01, bridge.rx); radiusY: bridge.height; direction: PathArc.Counterclockwise }
+            PathLine { x: sp.m - sp.hw - bridge.rx; y: bridge.height }
+            PathArc { x: sp.m - sp.hw; y: 0
+              radiusX: Math.max(0.01, bridge.rx); radiusY: bridge.height; direction: PathArc.Counterclockwise }
+          }
+          // The bridge's part of the outline: the two side arcs only, never the top or the
+          // foot. They run on from the pill's line and into the card's ring.
+          ShapePath {
+            fillColor: "transparent"
+            strokeColor: Calm.outline
+            strokeWidth: 1
+            startX: sp.m + sp.hw - 0.5; startY: 0
+            PathArc { x: sp.m + sp.hw + bridge.rx; y: bridge.height - 0.5
+              radiusX: Math.max(0.01, bridge.rx + 0.5); radiusY: bridge.height - 0.5; direction: PathArc.Counterclockwise }
+          }
+          ShapePath {
+            fillColor: "transparent"
+            strokeColor: Calm.outline
+            strokeWidth: 1
+            startX: sp.m - sp.hw - bridge.rx; startY: bridge.height - 0.5
+            PathArc { x: sp.m - sp.hw + 0.5; y: 0
+              radiusX: Math.max(0.01, bridge.rx + 0.5); radiusY: bridge.height - 0.5; direction: PathArc.Counterclockwise }
           }
         }
       }
@@ -406,6 +462,9 @@ Panel {
         p.color = Qt.binding(function () { return Calm.surface })
         keys.hostCard = p
         // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
+        rimComp.createObject(p)
+        if (keys.shadowItem) { keys.shadowItem.destroy(); keys.shadowItem = null }
+        if (p.parent) keys.shadowItem = shadowComp.createObject(p.parent, { card: p })
         // One bridge per card: the content is reloaded on every open.
         if (keys.bridgeItem) { keys.bridgeItem.destroy(); keys.bridgeItem = null }
         var canBridge = !!p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel)

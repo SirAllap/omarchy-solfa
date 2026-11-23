@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import "lib"
 import qs.Ui
 import qs.Commons
@@ -67,7 +68,10 @@ BarWidget {
   readonly property bool signingIn: svc ? svc.signingIn : false
   readonly property bool showTitle: root.setting("showTitle", true) && (hasTrack || closed || signingIn) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
-  readonly property color fg: bar ? bar.barForeground : Color.foreground
+  // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
+  // (chosen by the surface's luminance): the bar's own foreground is white on a dark bar
+  // and invisible on a light pill, and the other way round.
+  readonly property color fg: Calm.fg
   readonly property string family: Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
   readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
@@ -93,10 +97,45 @@ BarWidget {
     height: root.pillHeight
     radius: height / 2
     visible: !root.closed
-    // One shape: a soft fill, no outline (the shell draws the open-panel mark).
-    // The card's own graphite (Calm.surface), so pill, bridge and card are one colour.
+    // One colour for pill, bridge and card: the same opaque Calm.surface binding, no
+    // animation, tint or alpha of its own, so the three never differ by a shade.
     color: Calm.surface
-    Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 160 } }
+  }
+  // While the panel is open the pill opens straight down into the card: its bottom half
+  // is squared off (same colour), so the bridge's curves start at the pill's two ends.
+  Rectangle {
+    visible: root.opened && !root.closed
+    x: (parent.width - width) / 2
+    y: (parent.height + root.pillHeight) / 2 - height
+    width: body.implicitWidth + 2 * root.pillPad
+    height: root.pillHeight / 2
+    color: Calm.surface
+  }
+  // The pill's part of the one outer hairline (Calm.hair, 1 px): up the left side,
+  // over the rounded top, down the right side. No line along the bottom: the bridge
+  // continues the contour from the two ends.
+  Shape {
+    id: pillRing
+    readonly property real r: height / 2 - 0.5
+    visible: root.opened && !root.closed
+    x: (parent.width - width) / 2
+    y: (parent.height - root.pillHeight) / 2
+    width: body.implicitWidth + 2 * root.pillPad
+    height: root.pillHeight
+    preferredRendererType: Shape.CurveRenderer
+    layer.enabled: true
+    layer.samples: 8
+    ShapePath {
+      fillColor: "transparent"
+      strokeColor: Calm.outline
+      strokeWidth: 1
+      startX: 0.5; startY: pillRing.height
+      PathLine { x: 0.5; y: pillRing.r + 0.5 }
+      PathArc { x: pillRing.r + 0.5; y: 0.5; radiusX: pillRing.r; radiusY: pillRing.r }
+      PathLine { x: pillRing.width - pillRing.r - 0.5; y: 0.5 }
+      PathArc { x: pillRing.width - 0.5; y: pillRing.r + 0.5; radiusX: pillRing.r; radiusY: pillRing.r }
+      PathLine { x: pillRing.width - 0.5; y: pillRing.height }
+    }
   }
 
   Row {
@@ -112,7 +151,7 @@ BarWidget {
       barSize: root.barSize
       hasTrack: root.hasTrack
       progress: root.svc ? root.svc.progress : 0
-      ringColor: root.playing ? Color.accent : Util.alpha(root.fg, 0.45)
+      ringColor: root.playing ? Calm.accent : Calm.muted
       trackColor: Util.alpha(root.fg, 0.15)
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
@@ -155,6 +194,7 @@ BarWidget {
 
       BarIconButton {
         bar: root.bar
+        foreground: Calm.fg
         text: Icons.previous
         tooltipText: "Previous"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
@@ -162,6 +202,7 @@ BarWidget {
       }
       BarIconButton {
         bar: root.bar
+        foreground: Calm.fg
         text: root.playing ? Icons.pause : Icons.play
         tooltipText: root.playing ? "Pause" : "Play"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
@@ -169,6 +210,7 @@ BarWidget {
       }
       BarIconButton {
         bar: root.bar
+        foreground: Calm.fg
         text: Icons.next
         tooltipText: "Next"
         slotSize: Math.round(Style.bar.iconSlot * 0.85)
