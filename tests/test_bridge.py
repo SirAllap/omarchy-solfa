@@ -217,7 +217,9 @@ class BridgeTest(unittest.TestCase):
                ("like", {"videoId": "AAAAAAAAAAA", "status": "LOVE"}), ("browse", {"id": "../etc"}),
                ("radio", {"playlistId": "PLnotaradio"}), ("nonsense", {}), (7, {}),
                ("playlist.options", {}), ("playlist.options", {"videoId": "x"}), ("playlist.options", {"videoId": "AAAAAAAAAAA", "extra": 1}),
-               ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"})]
+               ("playlist.add", {"playlistId": "PLabc", "videoId": "AAAAAAAAAAA", "force": "yes"}),
+               ("share.link", {}), ("share.link", {"videoId": "x"}), ("share.link", {"videoId": "AAAAAAAAAAA&si=1"}),
+               ("share.link", {"videoId": "AAAAAAAAAAA", "extra": 1})]
         for op, args in bad:
             r = c.call(op, args)
             self.assertFalse(r["ok"], (op, args))
@@ -233,6 +235,14 @@ class BridgeTest(unittest.TestCase):
         self.wait_ready(c)
         r = c.call("like", {"videoId": "AAAAAAAAAAA", "status": "LIKE"})
         self.assertEqual(r["error"], "signin-required")
+
+    def test_share_link_needs_no_account_and_reaches_the_page(self):
+        c = self.start()
+        self.wait_ready(c)
+        r = c.call("share.link", {"videoId": "AAAAAAAAAAA"})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["data"], {"url": "https://music.youtube.com/watch?v=AAAAAAAAAAA", "source": "share-panel"})
+        self.assertIn({"op": "share.link", "args": {"videoId": "AAAAAAAAAAA"}}, self.page_log())
 
     def test_playlist_options_needs_sign_in(self):
         c = self.start()

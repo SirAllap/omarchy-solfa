@@ -446,3 +446,20 @@ test("Settings cycles the engine's browser over what the bridge found installed"
   const service = fs.readFileSync(path.join(__dirname, "..", "Service.qml"), "utf8")
   assert.match(service, /root\.browsers = data\.browsers/)
 })
+
+test("share link: the plain link, and a reply is trusted only when it is exactly that", () => {
+  const url = "https://music.youtube.com/watch?v=AAAAAAAAAAA"
+  assert.equal(M.shareUrl("AAAAAAAAAAA"), url)
+  assert.equal(M.shareUrl("AAAAAAAAAAA&si=x"), "")
+  assert.equal(M.shareUrl(""), "")
+  assert.equal(M.shareUrl(undefined), "")
+  deep(M.shareLinkFrom({ ok: true, data: { url: url, source: "share-panel" } }, "AAAAAAAAAAA"), { url: url, source: "share-panel" })
+  deep(M.shareLinkFrom({ ok: true, data: { url: url, source: "fallback" } }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom({ ok: true, data: { url: url + "&si=abc", source: "share-panel" } }, "AAAAAAAAAAA"), { url: url, source: "fallback" }, "a link with `si` is replaced")
+  deep(M.shareLinkFrom({ ok: true, data: { url: "https://music.youtube.com/watch?v=BBBBBBBBBBB", source: "share-panel" } }, "AAAAAAAAAAA"), { url: url, source: "fallback" }, "another song's link too")
+  deep(M.shareLinkFrom({ ok: false, error: "timeout" }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom({ ok: false, error: "bridge-down" }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom(null, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  deep(M.shareLinkFrom({ ok: true, data: {} }, "AAAAAAAAAAA"), { url: url, source: "fallback" })
+  assert.ok(M.ALL_KEY_HINTS.some((h) => h[0] === "c" && /link/.test(h[1])))
+})

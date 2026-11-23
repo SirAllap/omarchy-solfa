@@ -106,6 +106,12 @@ Panel {
     focusKeys()
   }
 
+  // c: the link of the song playing, on the clipboard.
+  function copyLink() {
+    if (!svc || !svc.hasTrack || svc.isAd) { say("Nothing to share"); return }
+    svc.copyLink(function (url) { root.say(url ? "Link copied" : "Nothing to share") })
+  }
+
   function say(text) { root.flash = text; flashTimer.restart() }
   Timer { id: flashTimer; interval: 2600; onTriggered: root.flash = "" }
 
@@ -258,6 +264,7 @@ Panel {
       case "e": if (cur) root.runAction("next", cur); break
       case "R": if (cur && cur.item && cur.item.videoId) root.runAction("radio", cur); else if (svc.hasTrack) { svc.radioFor(svc.player); root.say("Radio from " + svc.title) } break
       case "S": root.saveRow(cur); break
+      case "c": root.copyLink(); break
       case "g": root.openArtist(cur); break
       case "o": root.openAlbum(cur); break
       case "[": if (v === searchView) searchView.cycleFilter(-1); else if (v === libraryView) libraryView.cycleSection(-1); break
@@ -323,6 +330,7 @@ Panel {
         bar: root.bar
         reserveRight: brand.width
         onSaveRequested: root.saveRow(null)
+        onShareRequested: root.copyLink()
       }
 
       // Solfa's name and the power button, top right: far from play.

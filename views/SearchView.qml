@@ -107,6 +107,7 @@ Item {
 
     TextField {
       id: field
+      objectName: "searchField"
       width: parent.width
       placeholderText: "Search songs, albums, artists and playlists"
       font.family: view.family

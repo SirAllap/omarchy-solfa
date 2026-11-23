@@ -229,6 +229,9 @@
     }
   }
 
+  // Each of the two calls behind a share link (share.link) gets this long.
+  var SHARE_TIMEOUT_MS = 4000
+
   // ---------------------------------------------------------------- player model
 
   // The current queue entry, parsed (artists, album, cover).
@@ -1042,6 +1045,27 @@
       var outcome = P.playlistEditResult(res)
       if (outcome === "failed") fail("failed")
       return outcome === "added" ? { added: true } : { added: false, duplicate: true }
+    },
+
+    // The link to a song, from YouTube Music's own Share panel (the one the
+    // site's Share menu item opens), cut down to https://music.youtube.com/
+    // watch?v=<id>. The entity to share comes from the app's queue, else from
+    // `next`. Any failure, slow answer or link the cleaning refuses gives the
+    // same link built from the id: it must always work. `source` says which.
+    "share.link": async function (args) {
+      var id = args.videoId
+      var fallback = { url: P.shareUrl(id), source: "fallback" }
+      try {
+        var st = appState()
+        var q = st && st.queue ? st.queue : {}
+        var entity = P.shareEntity((q.items || []).concat(q.automixItems || []), id)
+        if (!entity) entity = P.shareEntity(await innertube("next", { videoId: id, isAudioOnly: true }, { timeout: SHARE_TIMEOUT_MS }), id)
+        if (entity) {
+          var url = P.cleanShareUrl(P.sharePanelUrl(await innertube("share/get_share_panel", { serializedSharedEntity: entity }, { timeout: SHARE_TIMEOUT_MS })), id)
+          if (url) return { url: url, source: "share-panel" }
+        }
+      } catch (e) { /* the fallback below */ }
+      return fallback
     },
 
     "eq.set": function (args) {
