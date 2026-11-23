@@ -826,6 +826,8 @@ Item {
   onPanelKeyPickChanged: root.syncKeys()
   readonly property var panelKeyChosen: Model.panelKeyFor(root.lastBindsJson, root.panelKeyPick)
   readonly property string panelKeyLabel: Model.keyLabel(root.panelKeyChosen ? root.panelKeyChosen.keys : "SUPER + ALT + M")
+  readonly property var playPauseKeyChosen: Model.playPauseKeyFor(root.lastBindsJson)
+  readonly property string playPauseKeyLabel: Model.keyLabel(root.playPauseKeyChosen ? root.playPauseKeyChosen.keys : "SUPER + ALT + P")
   readonly property var panelKeyOptions: Model.panelKeyOptions(root.lastBindsJson)
 
   // The plugin can be removed or disabled without warning (Omarchy just

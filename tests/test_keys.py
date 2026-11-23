@@ -66,6 +66,9 @@ class KeyboardPath(unittest.TestCase):
         self.assertEqual(self.k["right"], "search")
         self.assertEqual(self.k["left"], "queue")
 
+    def test_the_all_keys_sheet_shows_the_real_global_keys(self):
+        self.assertEqual(self.k["sheetKeys"], ["Super + Shift + M", "Super + Alt + P"])
+
     def test_transport_keys_reach_the_service(self):
         self.assertEqual(self.k["calls"], ["togglePlaying", "next", "previous"])
 

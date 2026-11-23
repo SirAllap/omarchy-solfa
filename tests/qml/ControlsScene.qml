@@ -25,6 +25,9 @@ ShellRoot {
     property bool isAd: Quickshell.env("SOLFA_SCENE_AD") === "1"
     property bool signedIn: true
     property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
     property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool isPlaying: true
     property string like: "LIKE"

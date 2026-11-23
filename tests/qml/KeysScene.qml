@@ -23,6 +23,9 @@ ShellRoot {
     property bool closed: false
     property bool signedIn: true
     property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
     property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
     property bool premium: false
     property bool hasTrack: true
@@ -181,6 +184,8 @@ ShellRoot {
           win.press(Qt.Key_Left); out.left = panel.tab
           win.press(Qt.Key_Space); win.press(0, "n"); win.press(0, "p")
           out.calls = fakeSvc.calls.filter(function (c) { return c === "togglePlaying" || c === "next" || c === "previous" })
+          var sheet = win.find(stage, "keysSheet")
+          out.sheetKeys = sheet ? [sheet.panelKey, sheet.playPauseKey] : null
           win.press(0, "?"); out.allKeysOn = panel.allKeys
           win.press(Qt.Key_Escape); out.allKeysOff = panel.allKeys; out.stillOpen = panel.opened
           panel.toggleSettings(); out.settingsOn = panel.settingsOpen

@@ -1048,7 +1048,7 @@ Item {
           columns: 2
           rowSpacing: Style.space(10)
           readonly property var keyList: [
-            [root.svc ? root.svc.panelKeyLabel : "Super+Alt+M", "open panel"], ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
+            [root.svc ? Model.keyChord(root.svc.panelKeyChosen ? root.svc.panelKeyChosen.keys : "SUPER + ALT + M") : "Super + Alt + M", "open panel"], [root.svc ? Model.keyChord(root.svc.playPauseKeyChosen ? root.svc.playPauseKeyChosen.keys : "SUPER + ALT + P") : "Super + Alt + P", "play / pause"], ["↵", "play"], ["space", "pause"], ["n", "next"], ["p", "previous"],
             ["f", "like"], ["/", "search"], ["tab", "next tab"], ["e", "play next"],
             ["a", "add to queue"], ["R", "start radio"], ["[ ]", "section"], ["esc", "back"]
           ]

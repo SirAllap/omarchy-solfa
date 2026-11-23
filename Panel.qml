@@ -875,6 +875,8 @@ Panel {
           z: 4
           shown: root.allKeys
           bar: root.bar
+          panelKey: root.svc ? Model.keyChord(root.svc.panelKeyChosen ? root.svc.panelKeyChosen.keys : "SUPER + ALT + M") : "Super + Alt + M"
+          playPauseKey: root.svc ? Model.keyChord(root.svc.playPauseKeyChosen ? root.svc.playPauseKeyChosen.keys : "SUPER + ALT + P") : "Super + Alt + P"
         }
       }
 
@@ -932,9 +934,12 @@ Panel {
           width: parent.width - allKeysButton.width - Style.space(4)
           height: Style.space(20)
           visible: !keys.blocked && !root.settingsOpen && !root.saveOpen
+          readonly property bool typing: root.pages.length === 0 && root.view === searchView && searchView.inputFocused
+          // Last, so it is the first dropped when the line is short: the real panel key.
           readonly property var hints: Model.footerHints(root.view ? root.view.hints : null,
                                                          !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
-                                                         root.pages.length === 0 && root.view === searchView && searchView.inputFocused)
+                                                         typing)
+            .concat(typing || !root.svc ? [] : [[Model.keyChord(root.svc.panelKeyChosen ? root.svc.panelKeyChosen.keys : "SUPER + ALT + M"), "open"]])
           readonly property string hintsKey: JSON.stringify(hints)
           property bool front: true   // true: layer A is the one showing
           onHintsKeyChanged: {
