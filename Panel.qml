@@ -399,59 +399,73 @@ Panel {
           // The pill's own drawn box (BarWidget.pillBox*, whole pixels), so the bridge meets the
           // pill's two ends exactly; the widget's width is only the fallback.
           readonly property Item pillHost: panel.anchorItem && panel.anchorItem.pillBoxW !== undefined ? panel.anchorItem : null
-          readonly property real pillW: pillHost ? pillHost.pillBoxW : panel.anchorW   // the pill's full width, end to end
+          readonly property real pillW: Math.round(pillHost ? pillHost.pillBoxW : panel.anchorW)   // the pill's full width, end to end
           readonly property real cx: panel.anchorScreenPos.x + (pillHost ? pillHost.pillBoxX + pillHost.pillBoxW / 2 : panel.anchorW / 2)
-          readonly property real pillBottom: panel.barThickness - Style.space(2)
+          readonly property real barBottom: Math.round(panel.barThickness)     // the bar window's bottom edge (screen y)
+          readonly property real pillBottom: Math.round(panel.barThickness - Style.space(2))   // the pill's bottom edge
+          readonly property real cardTop: card ? Math.round(card.y) : 0
           readonly property real ov: 1                               // 1 px into the pill and into the card: no seam
-          readonly property real gapH: card ? Math.max(0, card.y - pillBottom) : 0
+          readonly property real gapH: Math.max(0, cardTop - pillBottom)
+          // Each side is a true inverted corner: a concave quarter circle of radius r = bar
+          // bottom to card top, tangent to the pill's side at the bar's bottom edge and to the
+          // card's top edge. Everything between pill, bar edge and card is filled first.
+          readonly property real r: Math.max(0, cardTop - barBottom)
           readonly property real p: Motion.spatial(keys.tms, 0, 250)
-          // The flare out of each end of the pill into the card top: a big concave
-          // arc (about 16 px wide, as tall as the gap), like two drops merging.
-          readonly property real rxMax: Style.space(18)
-          readonly property real rx: Style.space(16) * Math.max(0, p)
+          // On open the circle grows from the card up (rr 0 to r), a straight neck above it.
+          readonly property real rr: Math.round(r * Math.max(0, Math.min(1, p)))
+          readonly property real lx: r                                // the pill's left end inside this item
+          readonly property real rx: r + pillW                        // its right end
+          readonly property real yC: cardTop - y                     // the card's top edge inside this item
           // Visible from the first frame: the pill squares off the moment the panel opens, so a frame
           // without the bridge would show a flat-bottomed pill floating above the card.
           visible: !!card && card.visible && root.opened && gapH > 0.5
           opacity: card ? card.opacity : 0
-          x: cx - pillW / 2 - rxMax
+          x: Math.round(cx - pillW / 2) - r                          // whole pixels: both sides alike
           y: pillBottom - ov
           z: card ? card.z + 0.5 : 0   // above the card: its fill hides the card's top line between the arcs
-          width: pillW + 2 * rxMax
-          height: gapH + 2 * ov
+          width: pillW + 2 * r
+          height: yC + ov
           preferredRendererType: Shape.CurveRenderer
           layer.enabled: true
           layer.samples: 8
+          layer.smooth: true
           ShapePath {
             id: sp
             fillColor: Calm.surface
             strokeWidth: -1
-            readonly property real m: bridge.width / 2
-            readonly property real hw: bridge.pillW / 2
-            startX: m - hw; startY: 0
-            PathLine { x: sp.m + sp.hw; y: 0 }
-            PathArc { x: sp.m + sp.hw + bridge.rx; y: bridge.height
-              radiusX: Math.max(0.01, bridge.rx); radiusY: bridge.height; direction: PathArc.Counterclockwise }
-            PathLine { x: sp.m - sp.hw - bridge.rx; y: bridge.height }
-            PathArc { x: sp.m - sp.hw; y: 0
-              radiusX: Math.max(0.01, bridge.rx); radiusY: bridge.height; direction: PathArc.Counterclockwise }
+            startX: bridge.lx; startY: 0
+            PathLine { x: bridge.rx; y: 0 }
+            PathLine { x: bridge.rx; y: bridge.yC - bridge.rr }
+            PathArc { x: bridge.rx + bridge.rr; y: bridge.yC
+              radiusX: Math.max(0.01, bridge.rr); radiusY: Math.max(0.01, bridge.rr); direction: PathArc.Counterclockwise }
+            PathLine { x: bridge.rx + bridge.rr; y: bridge.yC + bridge.ov }
+            PathLine { x: bridge.lx - bridge.rr; y: bridge.yC + bridge.ov }
+            PathLine { x: bridge.lx - bridge.rr; y: bridge.yC }
+            PathArc { x: bridge.lx; y: bridge.yC - bridge.rr
+              radiusX: Math.max(0.01, bridge.rr); radiusY: Math.max(0.01, bridge.rr); direction: PathArc.Counterclockwise }
           }
-          // The bridge's part of the outline: the two side arcs only, never the top or the
-          // foot. They run on from the pill's line and into the card's ring.
+          // The bridge's part of the outline, one 1 px line per side: down the pill's side
+          // (on from the pill's own line), then the arc (centre line half a pixel inside the
+          // fill, radius rr + 0.5), ending flat on the card ring's centre line. Tangent all along.
           ShapePath {
             fillColor: "transparent"
             strokeColor: Calm.outline
             strokeWidth: 1
-            startX: sp.m + sp.hw - 0.5; startY: 0
-            PathArc { x: sp.m + sp.hw + bridge.rx; y: bridge.height - 0.5
-              radiusX: Math.max(0.01, bridge.rx + 0.5); radiusY: bridge.height - 0.5; direction: PathArc.Counterclockwise }
+            capStyle: ShapePath.FlatCap
+            startX: bridge.rx - 0.5; startY: 0
+            PathLine { x: bridge.rx - 0.5; y: bridge.yC - bridge.rr }
+            PathArc { x: bridge.rx + bridge.rr; y: bridge.yC + 0.5
+              radiusX: bridge.rr + 0.5; radiusY: bridge.rr + 0.5; direction: PathArc.Counterclockwise }
           }
           ShapePath {
             fillColor: "transparent"
             strokeColor: Calm.outline
             strokeWidth: 1
-            startX: sp.m - sp.hw - bridge.rx; startY: bridge.height - 0.5
-            PathArc { x: sp.m - sp.hw + 0.5; y: 0
-              radiusX: Math.max(0.01, bridge.rx + 0.5); radiusY: bridge.height - 0.5; direction: PathArc.Counterclockwise }
+            capStyle: ShapePath.FlatCap
+            startX: bridge.lx - bridge.rr; startY: bridge.yC + 0.5
+            PathArc { x: bridge.lx + 0.5; y: bridge.yC - bridge.rr
+              radiusX: bridge.rr + 0.5; radiusY: bridge.rr + 0.5; direction: PathArc.Counterclockwise }
+            PathLine { x: bridge.lx + 0.5; y: 0 }
           }
         }
       }
@@ -476,6 +490,7 @@ Panel {
         // One line per open, so a live log says why the bridge shows or not.
         console.info("solfa bridge: made=" + !!keys.bridgeItem
           + " cardY=" + p.y + " barThickness=" + (canBridge ? panel.barThickness : "n/a")
+          + " barBottom=" + (canBridge ? Math.round(panel.barThickness) : "n/a") + " pillBottom=" + (canBridge ? Math.round(panel.barThickness - Style.space(2)) : "n/a") + " gap=" + (canBridge ? Math.round(p.y - panel.barThickness) : "n/a")
           + " pillX=" + (canBridge ? panel.anchorScreenPos.x : "n/a") + " pillW=" + (canBridge ? panel.anchorW : "n/a")
           + " window=" + (p.parent ? p.parent.width + "x" + p.parent.height : "n/a"))
       }
