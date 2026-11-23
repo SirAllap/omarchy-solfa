@@ -151,6 +151,15 @@ Panel {
     focusKeys()
   }
 
+  // c: the link of the song playing, on the clipboard.
+  function copyLink() {
+    if (!svc || !svc.hasTrack || svc.isAd) { say("Nothing to share"); return }
+    svc.copyLink(function (url, source, ok) {
+      // ok is false when wl-copy did not run or failed: say so, never "copied".
+      root.say(!url ? "Nothing to share" : ok === false ? "Could not copy the link" : "Link copied")
+    })
+  }
+
   function say(text) { root.flash = text; flashTimer.restart() }
   Timer { id: flashTimer; interval: 2600; onTriggered: root.flash = "" }
 
@@ -219,11 +228,13 @@ Panel {
   function onKey(event) {
     var t = event.text
     var k = event.key
-    var inField = root.pages.length === 0 && root.tab === "search" && searchView.inputFocused
+    // A text field has the keys: Search's, or the find field of a page.
+    var inField = !!(root.view && root.view.inputFocused)
     if (k === Qt.Key_Escape) {
       if (root.allKeys) root.allKeys = false
       else if (root.saveOpen) saveView.back()
       else if (root.settingsOpen) root.closeSettings()
+      else if (root.pages.length > 0 && detailView.finding) detailView.closeFind()
       else root.back()
       event.accepted = true
       return
@@ -303,6 +314,7 @@ Panel {
       case "e": if (cur) root.runAction("next", cur); break
       case "R": if (cur && cur.item && cur.item.videoId) root.runAction("radio", cur); else if (svc.hasTrack) { svc.radioFor(svc.player); root.say("Radio from " + svc.title) } break
       case "S": root.saveRow(cur); break
+      case "c": root.copyLink(); break
       case "g": root.openArtist(cur); break
       case "o": root.openAlbum(cur); break
       case "[": if (v === searchView) searchView.cycleFilter(-1); else if (v === libraryView) libraryView.cycleSection(-1); break
@@ -584,6 +596,7 @@ Panel {
         topInset: brand.height
         onSaveRequested: root.saveRow(null)
         onRadioRequested: { if (root.svc && root.svc.hasTrack) { root.svc.radioFor(root.svc.player); root.say("Radio from " + root.svc.title) } }
+        onShareRequested: root.copyLink()
       }
 
       // Solfa's name and the power button, top right: far from play.
@@ -840,7 +853,7 @@ Panel {
         Views.LibraryView { id: libraryView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(libraryView); opacity: stage.fade(libraryView); enabled: root.view === libraryView; active: root.opened && root.view === libraryView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(libraryView) } }
         Views.LyricsView { id: lyricsView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(lyricsView); opacity: stage.fade(lyricsView); enabled: root.view === lyricsView; active: root.opened && root.view === lyricsView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(lyricsView) } }
         Views.HistoryView { id: historyView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(historyView); opacity: stage.fade(historyView); enabled: root.view === historyView; active: root.opened && root.view === historyView && !root.settingsOpen; svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(historyView) } }
-        Views.DetailView { id: detailView; enabled: root.view === detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
+        Views.DetailView { id: detailView; objectName: "detailView"; enabled: root.view === detailView; anchors.fill: parent; visible: !root.settingsOpen && stage.shows(detailView); opacity: stage.fade(detailView); svc: root.svc; bar: root.bar; panel: root; transform: Translate { y: stage.slide(detailView) } }
 
         Views.SettingsView {
           id: settingsView
@@ -932,7 +945,7 @@ Panel {
           visible: !keys.blocked && !root.settingsOpen && !root.saveOpen
           readonly property var hints: Model.footerHints(root.view ? root.view.hints : null,
                                                          !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
-                                                         root.pages.length === 0 && root.view === searchView && searchView.inputFocused)
+                                                         !!(root.view && root.view.inputFocused))
           readonly property string hintsKey: JSON.stringify(hints)
           property bool front: true   // true: layer A is the one showing
           onHintsKeyChanged: {

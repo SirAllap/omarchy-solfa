@@ -553,6 +553,40 @@ Item {
     root.request("like", { videoId: root.videoId, status: root.like === "DISLIKE" ? "INDIFFERENT" : "DISLIKE" })
   }
 
+  // Copy the link of the song playing now: YouTube Music's own Share panel
+  // gives it (through the engine), cleaned down to
+  // https://music.youtube.com/watch?v=<id>. If the engine cannot, is slow or
+  // answers with anything else, the same link is built here, so a press
+  // always copies. cb(url, source) once it is on the clipboard; cb("") when
+  // no song is playing.
+  function copyLink(cb) {
+    var id = root.hasTrack && !root.isAd ? root.videoId : ""
+    if (Model.shareUrl(id) === "") { if (cb) cb("", ""); return }
+    root.request("share.link", { videoId: id }, function (r) {
+      var link = Model.shareLinkFrom(r, id)
+      root.copyText(link.url, function (ok) { if (cb) cb(link.url, link.source, ok) })
+    }, 10000)
+  }
+
+  // text/plain only: without the type some contents do not paste. The text
+  // is one argv entry after `--`, never part of a shell line. done(ok) says
+  // whether wl-copy ran and exited 0 (false when it is missing or fails).
+  property var copyDone: null
+  function copyText(text, done) {
+    if (copier.running) { if (done) done(false); return }
+    root.copyDone = done || null
+    copier.command = ["/usr/bin/wl-copy", "--type", "text/plain", "--", text]
+    copier.running = true
+  }
+  Process {
+    id: copier
+    onExited: function (code) {
+      var d = root.copyDone
+      root.copyDone = null
+      if (d) d(code === 0)
+    }
+  }
+
   // Play whatever a row is: a track, an album, a playlist, an artist's shuffle.
   function playItem(item, cb) {
     if (!item) return

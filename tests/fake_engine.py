@@ -172,6 +172,8 @@ def page_op(op, a):
         (PROFILE / "fake-eq-lost").unlink()
         emit_event("eq-lost", {})
         return {"applied": True, "built": False}, None
+    if op == "share.link":
+        return {"url": "https://music.youtube.com/watch?v=" + a["videoId"], "source": "share-panel"}, None
     if op == "session.arm":
         state["armed"] = bool(a.get("armed"))
         return {"armed": state["armed"]}, None
@@ -202,7 +204,10 @@ def page_op(op, a):
         return {"name": "Alex Example", "email": "alex@example.com",
                 "avatar": "https://lh3.googleusercontent.com/a/fixture=s64-c-mo"}, None
     if op == "queue":
-        return {"items": [], "automix": [], "index": 0, "version": state["queueVersion"]}, None
+        return {"items": [], "automix": [], "index": 0, "more": False, "version": state["queueVersion"]}, None
+    if op == "queue.more":
+        # The canned queue is empty: there is no next page to add.
+        return {"added": 0, "more": False}, None
     return {"ok": True}, None
 
 
