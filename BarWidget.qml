@@ -96,14 +96,9 @@ BarWidget {
     height: root.pillHeight
     radius: height / 2
     visible: !root.closed
-    // The card's own graphite (Calm.surface), so pill, bridge and card are one colour.
-    // While the panel is open the pill wears the hairline of the one liquid
-    // outline (pill + bridge + card); the bridge, drawn by the panel above
-    // the bar, covers it where the pill joins the bridge.
+    // One colour for pill, bridge and card: the same opaque Calm.surface binding, no
+    // animation, tint or alpha of its own, so the three never differ by a shade.
     color: Calm.surface
-    border.width: root.opened ? 1 : 0
-    border.color: Calm.hair
-    Behavior on color { enabled: !Style.reduceMotion; ColorAnimation { duration: 160 } }
   }
 
   Row {

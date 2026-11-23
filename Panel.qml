@@ -335,47 +335,7 @@ Panel {
       // radius. If it cannot be found the card below is still ours.
       property Item hostCard: null
       property Item bridgeItem: null
-      property Item shadowItem: null
-      Component.onDestruction: { if (bridgeItem) bridgeItem.destroy(); if (shadowItem) shadowItem.destroy() }
-      // The merged shape (pill + bridge + card) has ONE outer hairline (Calm.hair, 1 px,
-      // anti-aliased): the pill's own ring (BarWidget), the bridge's two side
-      // curves and this ring on the card. The bridge is drawn above the card and
-      // the pill, so its fill hides the ring wherever they join: no line between
-      // pill and bridge or bridge and card. A very soft shadow sits under the card.
-      Component {
-        id: rimComp
-        Rectangle {
-          anchors.fill: parent
-          color: "transparent"
-          radius: parent.radius
-          border.width: 1
-          border.color: Calm.hair
-          antialiasing: true
-        }
-      }
-      Component {
-        id: shadowComp
-        Item {
-          id: shadow
-          property Item card: null
-          visible: !!card && card.visible
-          opacity: card ? card.opacity : 0
-          z: card ? card.z - 1 : 0
-          Repeater {
-            model: 8
-            Rectangle {
-              required property int index
-              readonly property real s: 1.5 * (index + 1)
-              x: shadow.card.x - s
-              y: shadow.card.y - s + 4
-              width: shadow.card.width + 2 * s
-              height: shadow.card.height + 2 * s
-              radius: shadow.card.radius + s
-              color: Qt.rgba(0, 0, 0, Calm.light ? 0.009 : 0.012)
-            }
-          }
-        }
-      }
+      Component.onDestruction: if (bridgeItem) bridgeItem.destroy()
       // Two drops, the pill's and the card's, stretch toward each other,
       // touch and merge: one card-coloured shape with a concave neck
       // (cubic curves). The panel window is full-screen and above the bar,
@@ -405,7 +365,7 @@ Panel {
           opacity: card ? card.opacity : 0
           x: cx - Math.max(a, b)
           y: pillBottom - ov
-          z: card ? card.z + 0.5 : 0   // above the card and (its window sits above the bar) the pill: hides their ring where they join
+          z: card ? card.z - 0.5 : 0
           width: 2 * Math.max(a, b)
           height: gapH + 2 * ov
           preferredRendererType: Shape.CurveRenderer
@@ -433,46 +393,6 @@ Panel {
               control1X: sp.m - bridge.n; control1Y: sp.h * 0.35
               control2X: sp.m - bridge.n; control2Y: sp.h * 0.12 }
           }
-          // The two side curves only (never the top or foot), cut to the visible gap so
-          // the stroke stops where the pill's and the card's own ring takes over.
-          Item {
-            y: bridge.ov
-            width: bridge.width
-            height: bridge.height - 2 * bridge.ov
-            clip: true
-            Shape {
-              y: -bridge.ov
-              width: bridge.width
-              height: bridge.height
-              preferredRendererType: Shape.CurveRenderer
-              layer.enabled: true
-              layer.samples: 8
-              ShapePath {
-                fillColor: "transparent"
-                strokeColor: Calm.hair
-                strokeWidth: 1
-                startX: sp.m + bridge.a; startY: 0
-                PathCubic { x: sp.m + bridge.n; y: sp.h / 2
-                  control1X: sp.m + bridge.n; control1Y: sp.h * 0.12
-                  control2X: sp.m + bridge.n; control2Y: sp.h * 0.35 }
-                PathCubic { x: sp.m + bridge.b; y: sp.h
-                  control1X: sp.m + bridge.n; control1Y: sp.h * 0.65
-                  control2X: sp.m + bridge.n; control2Y: sp.h * 0.88 }
-              }
-              ShapePath {
-                fillColor: "transparent"
-                strokeColor: Calm.hair
-                strokeWidth: 1
-                startX: sp.m - bridge.a; startY: 0
-                PathCubic { x: sp.m - bridge.n; y: sp.h / 2
-                  control1X: sp.m - bridge.n; control1Y: sp.h * 0.12
-                  control2X: sp.m - bridge.n; control2Y: sp.h * 0.35 }
-                PathCubic { x: sp.m - bridge.b; y: sp.h
-                  control1X: sp.m - bridge.n; control1Y: sp.h * 0.65
-                  control2X: sp.m - bridge.n; control2Y: sp.h * 0.88 }
-              }
-            }
-          }
         }
       }
       readonly property real frameRadius: Style.space(26)
@@ -486,9 +406,6 @@ Panel {
         p.color = Qt.binding(function () { return Calm.surface })
         keys.hostCard = p
         // The liquid bridge: a drop between the bar pill and the card (see bridgeComp).
-        rimComp.createObject(p)
-        if (keys.shadowItem) { keys.shadowItem.destroy(); keys.shadowItem = null }
-        if (p.parent) keys.shadowItem = shadowComp.createObject(p.parent, { card: p })
         // One bridge per card: the content is reloaded on every open.
         if (keys.bridgeItem) { keys.bridgeItem.destroy(); keys.bridgeItem = null }
         var canBridge = !!p.parent && ("anchorScreenPos" in panel) && ("barThickness" in panel)
