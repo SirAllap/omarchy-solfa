@@ -631,7 +631,10 @@ Item {
   function restartEngine() { root.request("engine.restart", {}) }
   function stopEngine() { root.request("engine.stop", {}) }
   function toggleEngine() { if (root.closed) root.startEngine(); else root.stopEngine() }
-  function signIn() { root.request("signin.begin", {}) }
+  // Sign in is offered while the bridge is still starting (a fresh install,
+  // a shell restart): a click then must say so, not vanish. Unlike
+  // reportFailure(), bridge-down is reported too.
+  function signIn() { root.request("signin.begin", {}, function (r) { if (!r.ok) root.report(r.error) }) }
   // "Use my browser's sign-in" was removed before the marketplace release;
   // importedSession stays read-only, for a profile from before this build.
   readonly property bool importedSession: bridgeUp && !!engine.importedSession

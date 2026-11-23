@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: Sign in clicked while Solfa's helper was still starting (right after install, or after a shell restart) did nothing at all. It now says "Solfa's helper is restarting", so you know to try again.
+
 ## 1.1.0
 
 - New History tab (key `5`): what the account played lately, newest first, under Today / Yesterday / ... Signed out it says to sign in; Premium is not needed.

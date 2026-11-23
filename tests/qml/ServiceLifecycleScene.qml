@@ -6,9 +6,9 @@ import Quickshell
 // driven the way the Omarchy shell drives them: one Service, a bar widget
 // that is built, handed `bar` and then `settings` (in that order), and
 // destroyed and built again when another widget in the bar moves.
-// tests/test_widget_move.py gives it a fake bridge and a list of steps in
-// SOLFA_SCENE_STEPS; every step is logged, and the fake bridge logs what it
-// is asked (a bridge.quit among it).
+// tests/test_widget_move.py and tests/test_signin_bridge_down.py give it a
+// fake bridge and a list of steps in SOLFA_SCENE_STEPS; every step is logged,
+// and the fake bridge logs what it is asked (a bridge.quit among it).
 ShellRoot {
   id: scene
 
@@ -68,6 +68,9 @@ ShellRoot {
       scene.inject(scene.widgets[step.name], step.entry)
     } else if (step.do === "save") {
       scene.svc.saveSetting(step.key, step.value)
+    } else if (step.do === "signIn") {
+      console.log("SIGNIN bridgeUp=" + scene.svc.bridgeUp)
+      scene.svc.signIn()
     } else if (step.do === "quit") {
       Qt.quit()
     }
