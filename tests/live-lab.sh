@@ -12,7 +12,7 @@
 #                                            engine stopped through the bridge socket (engine.stop), as the panel's off switch does
 #                                            (a fresh lab is off until the first start: after `start`, run `engine-start` for idle/playing,
 #                                            `engine-stop` for off)
-# LAB_THEME=owner (default) | light | dark   the Omarchy theme colours (bar + popup), copied nowhere
+# LAB_THEME=owner (default) | light | dark | grey | purple   the Omarchy theme colours (bar + popup), copied nowhere
 # LAB_BAR=owner (default) | opaque | glassy  the bar look (glassy = translucent, alpha <= 0.35)
 # Everything lives under ~/.cache/agx-vt/live-lab. Only PIDs this script started
 # (recorded in $LAB/pids) are ever signalled; never a pkill by name.
@@ -103,6 +103,14 @@ cmd_start() {
            touch "$ps/current/theme/light.mode" ;;
     dark)  printf 'foreground = "#a9b1d6"\nbackground = "#1a1b26"\naccent = "#7aa2f7"\n' > "$ps/current/theme/colors.toml"
            printf '[bar]\nbackground = "#13141c"\ntext = "#a9b1d6"\n[popups]\nbackground = "#1a1b26"\ntext = "#a9b1d6"\n' > "$ps/current/theme/shell.toml"
+           rm -f "$ps/current/theme/light.mode" ;;
+    # the owner's grey translucent bar (live-off-rest-2): a mid-grey bar, faint grey ink
+    grey)  printf 'foreground = "#9a9aa8"\nbackground = "#7f7f8c"\naccent = "#6e6e80"\n' > "$ps/current/theme/colors.toml"
+           printf '[bar]\nbackground = "#7f7f8c"\ntext = "#9a9aa8"\n[popups]\nbackground = "#7f7f8c"\ntext = "#9a9aa8"\n' > "$ps/current/theme/shell.toml"
+           rm -f "$ps/current/theme/light.mode" ;;
+    # the worst case (live-off-rest-3): dark purple bar, dark grey ink
+    purple) printf 'foreground = "#4b4b5a"\nbackground = "#2b2542"\naccent = "#5a4b8a"\n' > "$ps/current/theme/colors.toml"
+           printf '[bar]\nbackground = "#2b2542"\ntext = "#4b4b5a"\n[popups]\nbackground = "#2b2542"\ntext = "#4b4b5a"\n' > "$ps/current/theme/shell.toml"
            rm -f "$ps/current/theme/light.mode" ;;
   esac
   [ -f "$HOME/.local/state/omarchy/current/theme.name" ] && cp "$HOME/.local/state/omarchy/current/theme.name" "$ps/current/"

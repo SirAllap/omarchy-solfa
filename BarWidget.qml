@@ -134,9 +134,26 @@ BarWidget {
           if (wv > bw) { best = cands[i]; bw = wv }
         }
       }
-      if (bw >= 4.5 || !seeThrough || a >= 1) return { alpha: a, ink: best, ratio: bw }
+      if (bw >= 4.5 || !seeThrough) return { alpha: a, ink: best, ratio: bw, color: c }
+      if (a >= 1) return _solid(c)
       a = Math.min(1, a + 0.04)
     }
+  }
+  // A mid-tone bar reads with neither a light nor a dark ink, however opaque the backdrop is
+  // (grey, #7f7f8c: white 4.0, black 5.2 only over the bar itself). So the backdrop itself moves:
+  // the bar colour is mixed toward white (for the dark ink) or toward black (for the light ink)
+  // until the ink reads at 4.5:1, a solid pill over the wallpaper.
+  function _solid(c) {
+    var lc = _rl(c.r, c.g, c.b)
+    var darkInk = (lc + 0.05) / 0.05 >= 1.05 / (lc + 0.05)
+    var ink = darkInk ? Calm.lightFg : Calm.darkFg,   // Calm.lightFg is the dark ink (for light themes)
+         tgt = darkInk ? 1 : 0, m = c, r = 0
+    for (var t = 0; t <= 1.0001; t += 0.04) {
+      m = Qt.rgba(c.r + (tgt - c.r) * t, c.g + (tgt - c.g) * t, c.b + (tgt - c.b) * t, 1)
+      r = _opaqueRatio(ink, m)
+      if (r >= 4.5) break
+    }
+    return { alpha: 1, ink: ink, ratio: r, color: m }
   }
   function _opaqueRatio(ink, c) {
     var li = _rl(ink.r, ink.g, ink.b), lb = _rl(c.r, c.g, c.b)
@@ -153,7 +170,7 @@ BarWidget {
     : pillStyle === "outline" ? "transparent"
     : pillStyle === "tint" ? pillTint
     : pillStyle === "glass" ? Calm.a(Calm.surface, 0.55)
-    : pillStyle === "hover" ? (pillHot ? pillTint : restBackdrop ? Calm.a(barBg, restPlan.alpha) : "transparent")
+    : pillStyle === "hover" ? (pillHot ? pillTint : restBackdrop ? Calm.a(restPlan.color, restPlan.alpha) : "transparent")
     : Calm.surface
   readonly property bool pillOutlined: !root.opened && (pillStyle === "outline" || pillStyle === "glass")
   readonly property real pillPad: Math.max(4, Math.round((pillHeight - coverSlot.height) / 2))
