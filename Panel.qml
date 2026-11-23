@@ -136,7 +136,7 @@ Panel {
     if (svc) svc.panelOpen = opened
     if (!opened) { allKeys = false; settingsOpen = false; saveItem = null; return }
     if (svc) svc.lastError = ""  // old news from while it was closed
-    if (svc && !svc.hasTrack && tab === "queue") tab = "search"
+    if (svc && !svc.hasTrack && !svc.starting && tab === "queue") tab = "search"
     // Opening the panel never turns Solfa on: when it is off the panel shows the Off view, and
     // "Turn Solfa on" (button or Enter) or its power button does that.
     Qt.callLater(function () {
