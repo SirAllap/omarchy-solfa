@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import "lib"
 import qs.Ui
 import qs.Commons
@@ -109,6 +110,32 @@ BarWidget {
     width: body.implicitWidth + 2 * root.pillPad
     height: root.pillHeight / 2
     color: Calm.surface
+  }
+  // The pill's part of the one outer hairline (Calm.hair, 1 px): up the left side,
+  // over the rounded top, down the right side. No line along the bottom: the bridge
+  // continues the contour from the two ends.
+  Shape {
+    id: pillRing
+    readonly property real r: height / 2 - 0.5
+    visible: root.opened && !root.closed
+    x: (parent.width - width) / 2
+    y: (parent.height - root.pillHeight) / 2
+    width: body.implicitWidth + 2 * root.pillPad
+    height: root.pillHeight
+    preferredRendererType: Shape.CurveRenderer
+    layer.enabled: true
+    layer.samples: 8
+    ShapePath {
+      fillColor: "transparent"
+      strokeColor: Calm.hair
+      strokeWidth: 1
+      startX: 0.5; startY: pillRing.height
+      PathLine { x: 0.5; y: pillRing.r + 0.5 }
+      PathArc { x: pillRing.r + 0.5; y: 0.5; radiusX: pillRing.r; radiusY: pillRing.r }
+      PathLine { x: pillRing.width - pillRing.r - 0.5; y: 0.5 }
+      PathArc { x: pillRing.width - 0.5; y: pillRing.r + 0.5; radiusX: pillRing.r; radiusY: pillRing.r }
+      PathLine { x: pillRing.width - 0.5; y: pillRing.height }
+    }
   }
 
   Row {
