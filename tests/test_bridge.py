@@ -11,6 +11,7 @@ import pwd
 import shutil
 import signal
 import socket
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -872,6 +873,56 @@ class BridgeTest(unittest.TestCase):
         eng = self.wait_engine(c, lambda e: e["status"] == "ready" and e["signedIn"] and not e["signinCheck"])
         self.assertEqual(eng["signinError"], "")
         self.assertFalse(self.alive(window))
+
+    def test_googles_cookie_alone_does_not_end_the_sign_in(self):
+        # Google's SAPISID reaches .youtube.com on the way through its
+        # redirects, before YouTube's own step has signed the account in. A
+        # window closed on it brought the engine back signed out.
+        c = self.start(FAKE_SIGNIN_AFTER="0.3", FAKE_SIGNIN_YOUTUBE_AFTER="2.5")
+        self.wait_ready(c)
+        c.call("signin.begin")
+        self.signin_argv()
+        window = self.engine_pid()
+        self.wait_engine(c, lambda e: e["status"] == "signing-in")
+        time.sleep(1.5)
+        self.assertTrue(self.alive(window), "Google's cookie alone is not the end of the flow")
+        eng = self.wait_engine(c, lambda e: e["status"] == "ready" and e["signedIn"] and not e["signinCheck"])
+        self.assertEqual(eng["signinError"], "")
+        self.assertFalse(self.alive(window))
+
+    def test_a_sign_in_cookie_set_again_still_ends_the_sign_in(self):
+        # Chromium keeps a cookie's creation time when it is set again (a
+        # second try, a switch of account): its last update says it is new.
+        jar = self.profile / "Solfa" / "Network" / "Cookies"
+        jar.parent.mkdir(parents=True)
+        con = sqlite3.connect(jar)
+        con.execute("CREATE TABLE cookies (creation_utc INTEGER, host_key TEXT, name TEXT, value TEXT, "
+                    "encrypted_value BLOB, last_update_utc INTEGER)")
+        hour_ago = int((time.time() - 3600 + 11644473600) * 1_000_000)
+        for host, name in ((".google.com", "SAPISID"), (".youtube.com", "SAPISID"), (".youtube.com", "LOGIN_INFO")):
+            con.execute("INSERT INTO cookies VALUES (?, ?, ?, '', X'763130', ?)", (hour_ago, host, name, hour_ago))
+        con.commit()
+        con.close()
+        c = self.start(FAKE_SIGNIN_AFTER="0.5")
+        self.wait_ready(c)
+        c.call("signin.begin", {"chooser": True})
+        self.signin_argv()
+        window = self.engine_pid()
+        eng = self.wait_engine(c, lambda e: e["status"] == "ready" and e["signedIn"] and not e["signinCheck"], timeout=10)
+        self.assertEqual(eng["signinError"], "")
+        self.assertFalse(self.alive(window), "closed on the cookie, not left open")
+
+    def test_a_song_playing_in_the_sign_in_window_is_still_the_app(self):
+        # The window plays like the app: its title gets the song's name first.
+        c = self.start(FAKE_SIGNIN_AFTER="3")
+        self.wait_ready(c)
+        c.call("signin.begin")
+        self.signin_argv()
+        window = self.engine_pid()
+        self.wait_engine(c, lambda e: e["status"] == "signing-in")
+        self.signin_window_titled(window, "First Light | YouTube Music")
+        self.wait_engine(c, lambda e: e["signinSaving"], timeout=3)
+        self.assertTrue(any("address:0xabc" in l and "special:solfa" in l for l in self.hypr_calls()), "hidden at once")
 
     def test_closing_the_sign_in_window_brings_the_engine_back(self):
         c = self.start(FAKE_SIGNIN_CLOSE_AFTER="0.5")
@@ -1975,27 +2026,35 @@ class PureTest(unittest.TestCase):
         self.assertFalse(self.b.uses_profile(b"chromium --user-data-dir=" + p.encode() + b"x\0", p))
 
     def test_sign_in_cookie_is_found_by_name_and_time_only(self):
-        import sqlite3
         d = pathlib.Path(tempfile.mkdtemp(prefix="solfa-ck-"))
         try:
             self.assertFalse(self.b.signed_in_since(d, 0))
             (d / "Network").mkdir()
+            # An older Chromium: creation time only.
             con = sqlite3.connect(d / "Network" / "Cookies")
             con.execute("CREATE TABLE cookies (creation_utc INTEGER, host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB)")
             at = lambda t: int((t + 11644473600) * 1_000_000)
             con.execute("INSERT INTO cookies VALUES (?, '.google.com', 'NID', '', X'00')", (at(2000),))
-            con.execute("INSERT INTO cookies VALUES (?, '.example.com', 'SAPISID', '', X'00')", (at(2000),))
-            con.execute("INSERT INTO cookies VALUES (?, '.youtube.com', 'SAPISID', '', X'00')", (at(1000),))
+            con.execute("INSERT INTO cookies VALUES (?, '.example.com', 'LOGIN_INFO', '', X'00')", (at(2000),))
+            con.execute("INSERT INTO cookies VALUES (?, '.youtube.com', 'LOGIN_INFO', '', X'00')", (at(1000),))
             con.commit()
             self.assertFalse(self.b.signed_in_since(d, 1500), "only YouTube's sign-in cookie, only a new one")
             self.assertTrue(self.b.signed_in_since(d, 500))
-            con.execute("INSERT INTO cookies VALUES (?, '.google.com', '__Secure-3PAPISID', '', X'00')", (at(2000),))
+            con.execute("INSERT INTO cookies VALUES (?, '.youtube.com', 'SAPISID', '', X'00')", (at(2000),))
             con.commit()
-            self.assertFalse(self.b.signed_in_since(d, 1500), "Google's copy comes before YouTube's")
-            con.execute("INSERT INTO cookies VALUES (?, '.youtube.com', '__Secure-3PAPISID', '', X'00')", (at(2000),))
+            self.assertFalse(self.b.signed_in_since(d, 1500), "Google's cookie comes before YouTube's own step")
+            con.close()
+            # Chromium today: a cookie set again keeps its creation time and
+            # gets a new last update.
+            (d / "Network" / "Cookies").unlink()
+            con = sqlite3.connect(d / "Network" / "Cookies")
+            con.execute("CREATE TABLE cookies (creation_utc INTEGER, host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB, "
+                        "last_update_utc INTEGER)")
+            con.execute("INSERT INTO cookies VALUES (?, '.youtube.com', 'LOGIN_INFO', '', X'00', ?)", (at(1000), at(2000)))
             con.commit()
             con.close()
-            self.assertTrue(self.b.signed_in_since(d, 1500))
+            self.assertTrue(self.b.signed_in_since(d, 1500), "set again after the window opened")
+            self.assertFalse(self.b.signed_in_since(d, 2500))
             (d / "Network" / "Cookies").write_bytes(b"not a database")
             self.assertFalse(self.b.signed_in_since(d, 0))
         finally:

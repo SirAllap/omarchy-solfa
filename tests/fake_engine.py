@@ -11,9 +11,11 @@ agent's pushes arrive as Runtime.bindingCalled events.
 
 Launched without --remote-debugging-pipe it is the sign-in window instead:
 no DevTools, only the profile lock. It writes its argv to fake-signin-argv,
-then (FAKE_SIGNIN_AFTER seconds) Google's sign-in cookie into the profile's
-cookie database, and (FAKE_SIGNIN_CLOSE_AFTER seconds) closes by itself, as
-a user closing the window. A later engine on that profile is signed in.
+then (FAKE_SIGNIN_AFTER seconds) Google's SAPISID and (FAKE_SIGNIN_YOUTUBE_AFTER
+seconds, the same by default) YouTube's LOGIN_INFO into the profile's cookie
+database, and (FAKE_SIGNIN_CLOSE_AFTER seconds) closes by itself, as a user
+closing the window. A later engine on that profile is signed in once
+LOGIN_INFO is there.
 
 Control files in the profile dir let a test change its behaviour:
   fake-hang        stop answering Runtime.evaluate (a stuck renderer)
@@ -44,7 +46,7 @@ def has_signin_cookie():
     try:
         con = sqlite3.connect(COOKIES)
         try:
-            return bool(con.execute("SELECT 1 FROM cookies WHERE name = 'SAPISID'").fetchone())
+            return bool(con.execute("SELECT 1 FROM cookies WHERE name = 'LOGIN_INFO' AND host_key = '.youtube.com'").fetchone())
         finally:
             con.close()
     except sqlite3.Error:
@@ -431,15 +433,23 @@ def take_lock():
     os.symlink(f"{socket.gethostname()}-{os.getpid()}", lock)
 
 
-def write_signin_cookie():
-    """Google's sign-in cookie, as Chromium stores it (the value is a dummy)."""
+def set_cookie(con, host, name):
+    """Like Chromium: a new cookie gets both times; one set again keeps its
+    creation time and only gets a new last update."""
+    now = int((time.time() + 11644473600) * 1_000_000)
+    if con.execute("UPDATE cookies SET last_update_utc = ? WHERE host_key = ? AND name = ?", (now, host, name)).rowcount:
+        return
+    con.execute("INSERT INTO cookies VALUES (?, ?, ?, '', X'763130', ?)", (now, host, name, now))
+
+
+def write_cookies(*cookies):
+    """Sign-in cookies, as Chromium stores them (the values are dummies)."""
     COOKIES.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(COOKIES)
     con.execute("CREATE TABLE IF NOT EXISTS cookies (creation_utc INTEGER, host_key TEXT, name TEXT, value TEXT, "
-                "encrypted_value BLOB)")
-    created = int((time.time() + 11644473600) * 1_000_000)
-    con.execute("INSERT INTO cookies VALUES (?, '.google.com', 'SAPISID', '', X'763130')", (created,))
-    con.execute("INSERT INTO cookies VALUES (?, '.youtube.com', 'SAPISID', '', X'763130')", (created,))
+                "encrypted_value BLOB, last_update_utc INTEGER)")
+    for host, name in cookies:
+        set_cookie(con, host, name)
     con.commit()
     con.close()
 
@@ -460,13 +470,19 @@ async def signin_window():
 
     signal.signal(signal.SIGTERM, slow_close)
     after = os.environ.get("FAKE_SIGNIN_AFTER")
+    youtube_after = os.environ.get("FAKE_SIGNIN_YOUTUBE_AFTER", after)
     close_after = os.environ.get("FAKE_SIGNIN_CLOSE_AFTER")
     start = time.monotonic()
     while True:
         await asyncio.sleep(0.05)
         if after is not None and time.monotonic() - start >= float(after):
-            write_signin_cookie()
+            # Google's own step: its cookie, copied to .youtube.com on the way.
+            write_cookies((".google.com", "SAPISID"), (".youtube.com", "SAPISID"))
             after = None
+        if youtube_after is not None and time.monotonic() - start >= float(youtube_after):
+            # YouTube's step (/signin?action_handle_signin): the account is in.
+            write_cookies((".youtube.com", "LOGIN_INFO"))
+            youtube_after = None
         if close_after is not None and time.monotonic() - start >= float(close_after):
             close()
 
