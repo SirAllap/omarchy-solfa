@@ -34,6 +34,47 @@ Panel {
   readonly property var view: pages.length > 0 ? detailView
     : tab === "queue" ? queueView : tab === "search" ? searchView : tab === "library" ? libraryView : tab === "history" ? historyView : lyricsView
   property bool allKeys: false
+
+  // One line of key hints, laid out left to right: a hint that would run past
+  // availW is dropped whole, and so is everything after it. Fades on opacity.
+  component HintLine: Item {
+    id: line
+    property var hints: []
+    property real availW: width
+    anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+    width: availW
+    height: Style.space(20)
+    visible: opacity > 0.01
+    Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+    function layout() {
+      var x = 0, ok = true
+      for (var i = 0; i < rep.count; i++) {
+        var it = rep.itemAt(i)
+        if (!it) continue
+        ok = ok && x + it.width <= line.availW + 0.5
+        it.px = x
+        it.fits = ok
+        x += it.width + Style.space(10)
+      }
+    }
+    onAvailWChanged: Qt.callLater(layout)
+    Repeater {
+      id: rep
+      model: line.hints
+      onCountChanged: Qt.callLater(line.layout)
+      delegate: Views.KeyHint {
+        required property var modelData
+        property real px: 0
+        property bool fits: false
+        x: px
+        visible: fits
+        anchors.verticalCenter: parent.verticalCenter
+        keys: modelData[0]
+        label: modelData[1]
+        onWidthChanged: Qt.callLater(line.layout)
+      }
+    }
+  }
   property string flash: ""
   // Settings replaces the panel body; the gear in BrandCorner and Esc are
   // the only ways in and out — no new key letter is spent on it.
@@ -811,22 +852,14 @@ Panel {
           item: root.saveItem
         }
 
-        // Every key, on "?".
-        Rectangle {
+        // Every key, on "?": a calm sheet over the lower panel (views/KeysSheet.qml).
+        Views.KeysSheet {
+          id: keysSheet
+          objectName: "keysSheet"
           anchors.fill: parent
-          visible: root.allKeys
-          clip: true
-          color: Calm.surface
-          radius: Style.spacing.labelGap
-          Flow {
-            anchors.fill: parent
-            anchors.margins: Style.space(6)
-            spacing: Style.space(10)
-            Repeater {
-              model: [[root.svc ? root.svc.panelKeyLabel : "Super+Alt+M", "open or close Solfa"]].concat(Model.ALL_KEY_HINTS)
-              delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar; width: (parent.width - Style.space(10)) / 2 }
-            }
-          }
+          z: 4
+          shown: root.allKeys
+          bar: root.bar
         }
       }
 
@@ -875,18 +908,27 @@ Panel {
           font.pixelSize: Style.font.caption
         }
 
-        Row {
+        // The view's own keys, one line. A hint that does not fit is dropped whole
+        // (the last ones first), and a change of view crossfades between two layers.
+        Item {
+          id: hintStack
+          objectName: "footerHints"
           anchors.verticalCenter: parent.verticalCenter
-          width: parent.width - (root.settingsOpen ? 0 : allKeysButton.width + Style.space(4))
-          clip: true
+          width: parent.width - allKeysButton.width - Style.space(4)
+          height: Style.space(20)
           visible: !keys.blocked && !root.settingsOpen && !root.saveOpen
-          spacing: Style.space(12)
-          Repeater {
-            model: Model.footerHints(root.view ? root.view.hints : null,
-                                     !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
-                                     root.pages.length === 0 && root.view === searchView && searchView.inputFocused)
-            delegate: Views.KeyHint { required property var modelData; keys: modelData[0]; label: modelData[1]; bar: root.bar }
+          readonly property var hints: Model.footerHints(root.view ? root.view.hints : null,
+                                                         !!(root.svc && root.svc.hasTrack && !root.svc.isAd && root.svc.signedIn),
+                                                         root.pages.length === 0 && root.view === searchView && searchView.inputFocused)
+          readonly property string hintsKey: JSON.stringify(hints)
+          property bool front: true   // true: layer A is the one showing
+          onHintsKeyChanged: {
+            if (front) layerB.hints = hints; else layerA.hints = hints
+            front = !front
           }
+          Component.onCompleted: layerA.hints = hints
+          HintLine { id: layerA; opacity: hintStack.front ? 1 : 0; availW: hintStack.width }
+          HintLine { id: layerB; opacity: hintStack.front ? 0 : 1; availW: hintStack.width }
         }
 
         // The picker's keys: the field takes the letters, so only these.
