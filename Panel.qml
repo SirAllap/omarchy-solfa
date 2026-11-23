@@ -109,7 +109,10 @@ Panel {
   // c: the link of the song playing, on the clipboard.
   function copyLink() {
     if (!svc || !svc.hasTrack || svc.isAd) { say("Nothing to share"); return }
-    svc.copyLink(function (url) { root.say(url ? "Link copied" : "Nothing to share") })
+    svc.copyLink(function (url, source, ok) {
+      // ok is false when wl-copy did not run or failed: say so, never "copied".
+      root.say(!url ? "Nothing to share" : ok === false ? "Could not copy the link" : "Link copied")
+    })
   }
 
   function say(text) { root.flash = text; flashTimer.restart() }
