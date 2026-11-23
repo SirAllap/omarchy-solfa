@@ -8,6 +8,12 @@
 #   tests/live-lab.sh stop
 #
 # SCALE=1.25 (default) | 1 | 1.5 | 2     OPEN=0 skips opening the panel
+# LAB_STATE=playing (default) | idle | off   what the pill shows: the fake engine's song / no song / the
+#                                            engine stopped through the bridge socket (engine.stop), as the panel's off switch does
+#                                            (a fresh lab is off until the first start: after `start`, run `engine-start` for idle/playing,
+#                                            `engine-stop` for off)
+# LAB_THEME=owner (default) | light | dark   the Omarchy theme colours (bar + popup), copied nowhere
+# LAB_BAR=owner (default) | opaque | glassy  the bar look (glassy = translucent, alpha <= 0.35)
 # Everything lives under ~/.cache/agx-vt/live-lab. Only PIDs this script started
 # (recorded in $LAB/pids) are ever signalled; never a pkill by name.
 set -u
@@ -91,6 +97,14 @@ cmd_start() {
   local th="$HOME/.local/state/omarchy/current/theme"
   for f in colors.toml shell.toml light.mode icons.theme; do [ -f "$th/$f" ] && cp "$th/$f" "$ps/current/theme/$f"; done
   [ -f "$ps/current/theme/light.mode" ] || touch "$ps/current/theme/light.mode"
+  case "${LAB_THEME:-owner}" in   # Omarchy's own white (light) / tokyo-night (dark) values, as tests/test_bar_states.py
+    light) printf 'foreground = "#000000"\nbackground = "#ffffff"\naccent = "#6e6e6e"\n' > "$ps/current/theme/colors.toml"
+           printf '[bar]\nbackground = "#f5f5f5"\ntext = "#000000"\n[popups]\nbackground = "#ffffff"\ntext = "#000000"\n' > "$ps/current/theme/shell.toml"
+           touch "$ps/current/theme/light.mode" ;;
+    dark)  printf 'foreground = "#a9b1d6"\nbackground = "#1a1b26"\naccent = "#7aa2f7"\n' > "$ps/current/theme/colors.toml"
+           printf '[bar]\nbackground = "#13141c"\ntext = "#a9b1d6"\n[popups]\nbackground = "#1a1b26"\ntext = "#a9b1d6"\n' > "$ps/current/theme/shell.toml"
+           rm -f "$ps/current/theme/light.mode" ;;
+  esac
   [ -f "$HOME/.local/state/omarchy/current/theme.name" ] && cp "$HOME/.local/state/omarchy/current/theme.name" "$ps/current/"
   # the wallpaper the owner has now, copied, so the bar's edge pixels blend against the same colours
   local bgf; bgf="$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)"
@@ -102,11 +116,12 @@ cmd_start() {
   # shell.json: the owner's bar settings; third-party plugin entries other than
   # Solfa are dropped (not installed here); Solfa points at the fake engine.
   python3 - "$HOME/.config/omarchy/shell.json" "$pc/shell.json" "$fake" <<'PY' || die "shell.json copy failed"
-import json, sys
+import json, os, sys
 src, dst, fake = sys.argv[1:4]
 cfg = json.load(open(src))
 keep = lambda e: e.get("id", "").startswith("omarchy.") or e.get("id") == "io.github.sirallap.solfa"
 bar = cfg.get("bar", {})
+if os.environ.get("LAB_BAR", "owner") != "owner": bar["background"] = os.environ["LAB_BAR"]
 for sec, items in list(bar.get("layout", {}).items()):
     bar["layout"][sec] = [e for e in items if keep(e)]
 for e in bar["layout"].get("centerEnd", []):
@@ -160,7 +175,7 @@ LUA
   local sr="$RUN/$PID_ID"; mkdir -p "$sr"
   bg bridge env SOLFA_RUNTIME_DIR="$sr" SOLFA_PROFILE_DIR="$LAB/solfa-profile" SOLFA_STATE_DIR="$LAB/solfa-state" \
     SOLFA_CACHE_DIR="$LAB/solfa-cache" SOLFA_BROWSER="$fake" SOLFA_LAUNCH_KEY="true|$fake|false" \
-    SOLFA_ORPHAN_SECONDS=0 SOLFA_START_PAUSED=0 /usr/bin/python3 "$pc/plugins/$PID_ID/bin/solfa-bridge"
+    SOLFA_ORPHAN_SECONDS=0 SOLFA_START_PAUSED=0 FAKE_PLAYER="${LAB_STATE:-playing}" /usr/bin/python3 "$pc/plugins/$PID_ID/bin/solfa-bridge"
 
   # -- the shell: the same command as the live session (omarchy-launch-shell) ---
   bg shell env QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 quickshell -n -p "$OMARCHY/shell"
@@ -229,6 +244,25 @@ crop("join-left", Lp); crop("join-right", Rp + 1)
 PY
 }
 
+cmd_engine_stop() { cmd_engine_op engine.stop; }
+cmd_engine_start() { cmd_engine_op engine.start; }
+cmd_engine_op() {  # a bridge op over its socket, as the panel's switch sends it (a fresh lab is "off" until the first start)
+  load_private; assert_private
+  python3 - "$RUN/$PID_ID/bridge.sock" "$1" <<'PY' || die "$1 failed"
+import json, socket, sys, time
+s = socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect(sys.argv[1])
+s.sendall((json.dumps({"id": 1, "op": sys.argv[2], "args": {}}) + "\n").encode())
+time.sleep(1.5)
+PY
+  sleep 2
+}
+
+cmd_open() {  # open the panel (OPEN=0 start leaves it closed): the "open" half of a rest/open pair
+  load_private; assert_private
+  priv quickshell -p "$OMARCHY/shell" ipc call "$PID_ID" "${1:-open}" >/dev/null 2>&1 || die "panel ${1:-open} failed"
+  sleep 2
+}
+
 cmd_stop() {
   [ -s "$PIDS" ] || { echo "nothing to stop"; return; }
   local name pid
@@ -247,6 +281,9 @@ cmd_stop() {
 case "${1:-}" in
   start) shift; cmd_start "$@" ;;
   shot)  shift; cmd_shot "$@" ;;
+  open)  shift; cmd_open "$@" ;;
+  engine-stop) cmd_engine_stop ;;
+  engine-start) cmd_engine_start ;;
   stop)  cmd_stop ;;
-  *) echo "usage: $0 start [WORKTREE] | shot LABEL | stop" >&2; exit 2 ;;
+  *) echo "usage: $0 start [WORKTREE] | shot LABEL | open [close] | stop" >&2; exit 2 ;;
 esac

@@ -68,7 +68,10 @@ BarWidget {
   readonly property bool playing: svc ? svc.isPlaying : false
   readonly property bool showControls: root.setting("barControls", true) && hasTrack && !vertical
   readonly property bool signingIn: svc ? svc.signingIn : false
-  readonly property bool showTitle: root.setting("showTitle", true) && (hasTrack || closed || signingIn) && !vertical
+  // Every state has content: playing = cover + title + controls; idle = the logo and "Nothing
+  // playing"; off = the logo, "Solfa" and a power glyph; signing in = the logo and its line.
+  readonly property bool showMark: !hasTrack || signingIn
+  readonly property bool showTitle: root.setting("showTitle", true) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
   // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
   // (chosen by the surface's luminance): the bar's own foreground is white on a dark bar
@@ -76,7 +79,7 @@ BarWidget {
   readonly property color fg: restInk ? restPlan.ink : Calm.fg
   readonly property string family: Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
-  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : ""
+  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : "Nothing playing"
 
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
@@ -154,7 +157,11 @@ BarWidget {
     : Calm.surface
   readonly property bool pillOutlined: !root.opened && (pillStyle === "outline" || pillStyle === "glass")
   readonly property real pillPad: Math.max(4, Math.round((pillHeight - coverSlot.height) / 2))
-  implicitWidth: visible ? body.implicitWidth + 2 * pillPad : 0
+  // The pill is never narrower than a playing one, so the join under it is always the same
+  // generous shape (an idle pill is only a logo and a short line).
+  readonly property real pillMinW: Math.round(Style.space(160))
+  readonly property real pillNatW: Math.max(body.implicitWidth + 2 * pillPad, pillMinW)
+  implicitWidth: visible ? pillNatW : 0
   implicitHeight: barSize
   // The shell underlines a widget whose panel is open. Solfa shows that state
   // with a lighter pill instead, so the mark is pointed at an item far
@@ -176,7 +183,7 @@ BarWidget {
   onWidthChanged: syncGx()
   onParentChanged: syncGx()
   onOpenedChanged: syncGx()
-  readonly property real pillBoxW: Pixel.snap(body.implicitWidth + 2 * pillPad, dpr)
+  readonly property real pillBoxW: Pixel.snap(pillNatW, dpr)
   readonly property real pillBoxH: Math.round(pillHeight)
   readonly property real pillBoxX: Pixel.snap(gx + (width - pillBoxW) / 2, dpr) - gx
   readonly property real pillBoxY: Math.round((height - pillBoxH) / 2)
@@ -190,7 +197,6 @@ BarWidget {
     width: root.pillBoxW
     height: root.pillBoxH
     radius: height / 2
-    visible: !root.closed
     // One colour for pill, bridge and card: the same opaque Calm.surface binding, no
     // animation, tint or alpha of its own, so the three never differ by a shade.
     color: root.pillFill
@@ -201,7 +207,7 @@ BarWidget {
   // is squared off (same colour), so the bridge's curves start at the pill's two ends.
   // It starts at the pill's middle line, never above it, so the round top ends stay round.
   Rectangle {
-    visible: root.opened && !root.closed
+    visible: root.opened
     x: root.pillBoxX
     y: root.pillBoxY + Math.floor(root.pillBoxH / 2)
     width: root.pillBoxW
@@ -214,7 +220,7 @@ BarWidget {
   Shape {
     id: pillRing
     readonly property real r: height / 2 - 0.5
-    visible: root.opened && !root.closed
+    visible: root.opened
     x: root.pillBoxX
     y: root.pillBoxY
     width: root.pillBoxW
@@ -239,12 +245,11 @@ BarWidget {
     id: body
     anchors.centerIn: parent
     spacing: Style.space(6)
-    opacity: root.closed ? 0.45 : 1
-    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
     Views.BarCover {
       id: coverSlot
       anchors.verticalCenter: parent.verticalCenter
+      visible: !root.showMark
       barSize: root.barSize
       hasTrack: root.hasTrack
       progress: root.svc ? root.svc.progress : 0
@@ -255,9 +260,16 @@ BarWidget {
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
       fontFamily: root.family
       dim: root.hasTrack && !root.playing
-      // idle: an album; off: the power mark (as in the mockup)
-      glyph: root.closed ? Icons.power : Icons.album
-      opacity: root.closed || (root.svc && (root.svc.ready || root.svc.hasTrack)) ? 1 : 0.55
+      glyph: Icons.album
+    }
+
+    // No song (idle, off, signing in): Solfa's logo C in the cover's place. Its record is dark
+    // with a light rim, so it reads on the pill's backdrop and on the joined surface alike.
+    Views.Logo {
+      id: markSlot
+      anchors.verticalCenter: parent.verticalCenter
+      visible: root.showMark
+      size: coverSlot.width
 
       // While a sign-in runs (the panel closes when the Google window is
       // used), the bar's icon breathes: something is happening.
@@ -265,7 +277,7 @@ BarWidget {
       SequentialAnimation on scale {
         loops: Animation.Infinite
         running: root.signingIn
-        onRunningChanged: if (!running) coverSlot.scale = 1
+        onRunningChanged: if (!running) markSlot.scale = 1
         NumberAnimation { from: 0.85; to: 1.1; duration: 1400; easing.type: Easing.InOutSine }
         NumberAnimation { from: 1.1; to: 0.85; duration: 1400; easing.type: Easing.InOutSine }
       }
@@ -282,6 +294,16 @@ BarWidget {
       color: root.fg
       font.family: root.family
       font.pixelSize: Style.font.body
+    }
+
+    // Off: a small power mark, the same ink as the name ("click to turn on").
+    Views.Icon {
+      visible: root.closed && !root.vertical
+      anchors.verticalCenter: parent.verticalCenter
+      name: "power"
+      color: root.fg
+      size: Math.round(Style.font.body * 1.1)
+      stroke: 1.8
     }
 
     Row {
@@ -319,9 +341,10 @@ BarWidget {
   // Clicks and wheel on the cover and the title (the buttons take their own).
   MouseArea {
     id: barMouse
-    x: body.x
+    // Playing: the cover and the title (the buttons take their own clicks). No song: the whole pill.
+    x: root.showControls ? body.x : root.pillBoxX
     y: 0
-    width: coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + root.pillPad
+    width: root.showControls ? coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + root.pillPad : root.pillBoxW
     height: parent.height
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor

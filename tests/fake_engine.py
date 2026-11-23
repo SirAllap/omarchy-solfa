@@ -67,6 +67,11 @@ state = {
     "jar": {("SOCS", ".youtube.com", "/")} | {
         (name, ".google.com", "/") for name in filter(None, os.environ.get("FAKE_JAR", "").split(","))},
 }
+# FAKE_PLAYER=idle: the app is up, signed in, and nothing is playing (no video id): the bar's
+# "Nothing playing" pill. Default (or "playing"): the song above. The "off" look is not the
+# engine's: it is the bridge started with SOLFA_NO_LAUNCH=1 (live-lab LAB_STATE=off).
+if os.environ.get("FAKE_PLAYER") == "idle":
+    state["player"].update(videoId="", title="", artists=[], playing=False, duration=0, position=0, canNext=False, canPrev=False)
 # The bridge's own end of the pipe: exactly one at a time (a pipe is not a
 # listening socket), set once run_pipe() has the transport up.
 conn = None
