@@ -42,6 +42,7 @@ ShellRoot {
     property int volume: 60
     property bool muted: false
     property string videoId: hasTrack ? "v1" : ""
+    property var engine: ({ status: closed ? "stopped" : "ready", wantRunning: !closed })
     property var calls: []
     property var settings: ({})
     property int fastClockUsers: 0
@@ -169,6 +170,19 @@ ShellRoot {
           powerClosed: { tooltip: btn.tooltipText, selected: btn.selected, opacity: btn.opacity },
           powerHover: { hot: win.find(win.find(stage, "corner1"), "powerButton").hot }
         }))
+        // OFF + a click on the bar pill: the panel opens, the engine is not asked to start.
+        var rb = barRunning, cb = barClosed
+        tc.mouseClick(cb, cb.pillBoxX + cb.pillBoxW / 2, cb.height / 2)
+        pillClick.start()
+      }
+    }
+    Timer {
+      id: pillClick
+      interval: 1500
+      onTriggered: {
+        var btn = win.find(win.find(stage, "corner2"), "powerButton")
+        console.log("PILLCLICK " + JSON.stringify({ opened: barClosed.opened, calls: closedSvc.calls.slice() }))
+        closedSvc.calls = []
         tc.mouseClick(btn, btn.width / 2, btn.height / 2)
         stage.grabToImage(function (r) {
           r.saveToFile(Quickshell.env("SOLFA_SCENE_OUT"))

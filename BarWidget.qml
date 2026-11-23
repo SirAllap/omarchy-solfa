@@ -174,9 +174,10 @@ BarWidget {
     : Calm.surface
   readonly property bool pillOutlined: !root.opened && (pillStyle === "outline" || pillStyle === "glass")
   readonly property real pillPad: Math.max(4, Math.round((pillHeight - coverSlot.height) / 2))
-  // The pill is never narrower than a playing one, so the join under it is always the same
-  // generous shape (an idle pill is only a logo and a short line).
-  readonly property real pillMinW: Math.round(Style.space(160))
+  // One width rule for every state: max(content, 176). 176 is a playing pill with a short title
+  // (cover, title, three buttons), so off, idle and playing share one join shape until a long
+  // title makes the playing pill grow.
+  readonly property real pillMinW: Math.round(Style.space(176))
   readonly property real pillNatW: Math.max(body.implicitWidth + 2 * pillPad, pillMinW)
   implicitWidth: visible ? pillNatW : 0
   implicitHeight: barSize
@@ -369,8 +370,8 @@ BarWidget {
     property real wheelAcc: 0
 
     onClicked: function (mouse) {
+      // Off: a click only opens the panel (its Off view has "Turn Solfa on"); it never turns Solfa on.
       if (root.closed) {
-        root.svc.startEngine()
         if (mouse.button === Qt.LeftButton) root.toggle()
         return
       }

@@ -93,8 +93,8 @@ Panel {
     if (!opened) { allKeys = false; settingsOpen = false; saveItem = null; return }
     if (svc) svc.lastError = ""  // old news from while it was closed
     if (svc && !svc.hasTrack && tab === "queue") tab = "search"
-    // With autostart off, opening the panel is what starts YouTube Music.
-    if (svc && svc.bridgeUp && svc.engine.status === "stopped") svc.startEngine()
+    // Opening the panel never turns Solfa on: when it is off the panel shows the Off view, and
+    // "Turn Solfa on" (button or Enter) or its power button does that.
     Qt.callLater(function () {
       root.focusKeys()
       if (root.view && root.view.shown) root.view.shown()

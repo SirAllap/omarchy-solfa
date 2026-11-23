@@ -267,6 +267,10 @@ PY
 
 cmd_open() {  # open the panel (OPEN=0 start leaves it closed): the "open" half of a rest/open pair
   load_private; assert_private
+  local i
+  for i in $(seq 1 60); do   # the shell's ipc must answer first: an early call is dropped (a "missing" open in a sheet)
+    priv quickshell -p "$OMARCHY/shell" ipc call "$PID_ID" status >/dev/null 2>&1 && break; sleep 0.5
+  done
   priv quickshell -p "$OMARCHY/shell" ipc call "$PID_ID" "${1:-open}" >/dev/null 2>&1 || die "panel ${1:-open} failed"
   sleep 2
 }
