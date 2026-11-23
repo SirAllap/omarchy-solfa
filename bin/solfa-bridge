@@ -103,20 +103,24 @@ ACCOUNT_CHOOSER_URL = ("https://accounts.google.com/AccountChooser?service=youtu
                        "&continue=" + urllib.parse.quote("https://www.youtube.com/signin?action_handle_signin=true"
                                                          "&app=desktop&next=" + urllib.parse.quote(APP_URL, safe=""), safe=""))
 SIGNOUT_WAIT = 20.0       # seconds for Google's logout redirects to land back on the app
-# Google's sign-in cookies, as set on .youtube.com once an account is in.
-SIGNIN_COOKIES = ("SAPISID", "__Secure-3PAPISID")
+# YouTube's own sign-in cookie. Google's SAPISID reaches .youtube.com first,
+# on its way through the redirects, before YouTube's own step
+# (/signin?action_handle_signin) has run; only that step sets LOGIN_INFO. A
+# window closed on SAPISID can come back signed out.
+SIGNIN_COOKIE = "LOGIN_INFO"
 SIGNIN_POLL = float(os.environ.get("SOLFA_SIGNIN_POLL") or 0.5)  # seconds between looks at the sign-in window
 # The sign-in window's title once Google's redirects have landed on the app:
 # the flow is over, and the window is hidden at once. It is not closed yet:
 # Chromium writes new cookies to disk on a timer (about 30 s), and SIGTERM
 # does not write them first (measured: a cookie set 1 s or 3 s before a
 # SIGTERM is not on disk; 35 s before, it is). A window closed on its title
-# threw the new sign-in away. So it closes once Google's cookie is on disk,
+# threw the new sign-in away. So it closes once YouTube's cookie is on disk,
 # or after SIGNIN_SAVE_WAIT seconds. Over is not signed in either: with
 # Google's own session alive and YouTube's step failed, the passive flow
 # lands on the app signed out. The engine's page, once back, says which it
 # was (signin_verdict).
-SIGNIN_DONE_TITLE = re.compile(r"YouTube Music")
+# A song playing in the window puts its name first ("Song | YouTube Music").
+SIGNIN_DONE_TITLE = re.compile(r"(?:.+ \| )?YouTube Music")
 SIGNIN_SAVE_WAIT = env_number("SOLFA_SIGNIN_SAVE_WAIT", 45, 0.5, 60)
 # A sign-in window that never reaches the app (left open, stuck on a Google
 # page) is closed after this long: the panel never waits forever.
@@ -996,21 +1000,23 @@ def chromium_time(value):
 
 
 def signed_in_since(profile, since):
-    """Has Google set its sign-in cookie in this profile after `since` (unix time)?
+    """Has YouTube set its sign-in cookie in this profile after `since` (unix time)?
 
-    Only the cookie's name, host and creation time are read, never its value.
-    The database is opened read-only and immutable: the browser holds it, and
-    a page torn by a write in progress is just "not yet"."""
+    Only the cookie's name, host and times are read, never its value. A
+    cookie set again keeps its creation time in Chromium (a second try, or a
+    switch of account): its last update counts too. The database is opened
+    read-only and immutable: the browser holds it, and a page torn by a
+    write in progress is just "not yet"."""
     for db in (profile / "Network" / "Cookies", profile / "Cookies"):
         if not db.is_file():
             continue
         try:
             con = sqlite3.connect("file:" + urllib.parse.quote(str(db)) + "?mode=ro&immutable=1", uri=True, timeout=1)
             try:
-                # YouTube's own copy: Google sets its .google.com one first,
-                # then redirects through youtube.com to set this one.
-                row = con.execute("SELECT MAX(creation_utc) FROM cookies WHERE name IN (?, ?) AND host_key = '.youtube.com'",
-                                  SIGNIN_COOKIES).fetchone()
+                columns = {r[1] for r in con.execute("PRAGMA table_info(cookies)")}
+                when = "MAX(creation_utc, last_update_utc)" if "last_update_utc" in columns else "creation_utc"
+                row = con.execute("SELECT MAX(" + when + ") FROM cookies WHERE name = ? AND host_key = '.youtube.com'",
+                                  (SIGNIN_COOKIE,)).fetchone()
             finally:
                 con.close()
         except sqlite3.Error:
@@ -1963,7 +1969,7 @@ class Bridge:
             only(args)
             if self.signing_in:
                 if self.signin_landed_at:
-                    # Google's cookie is in the window's memory only: closing
+                    # YouTube's cookie is in the window's memory only: closing
                     # it now throws the sign-in away. It is hidden already and
                     # closes by itself once the cookie is saved.
                     log("hide asked while the sign-in is being saved; the window closes once it is")
@@ -2225,7 +2231,7 @@ class Bridge:
             self.signin_starting = False
 
     async def watch_signin(self):
-        """While the sign-in window is open: done once Google's cookie is in, or the window is closed."""
+        """While the sign-in window is open: done once YouTube's cookie is in, or the window is closed."""
         eng = self.engine
         pid = eng.browser_pid()
         if not pid:
@@ -2260,13 +2266,13 @@ class Bridge:
         if not self.signin_landed_at:
             c = await self.signin_landed(pid)
             if c:
-                log("the sign-in window reached the app; hiding it until Google's cookie is saved")
+                log("the sign-in window reached the app; hiding it until YouTube's cookie is saved")
                 self.signin_landed_at = time.monotonic()
                 await self.hypr.dispatch("hl.dsp.window.move({ window = [[address:" + str(c.get("address")) + "]], workspace = [[special:"
                                          + SPECIAL + "]], follow = false })")
                 self.broadcast("engine", eng.describe())
         if signed_in_since(PROFILE_DIR / PROFILE_DIR_NAME, self.signin_since):
-            log("Google's sign-in cookie is saved; closing the sign-in window")
+            log("YouTube's sign-in cookie is saved; closing the sign-in window")
             await self.end_signin(close=True)
 
     async def signin_landed(self, pid):
