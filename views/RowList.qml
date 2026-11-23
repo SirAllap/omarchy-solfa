@@ -65,9 +65,10 @@ ListView {
   }
 
   Rectangle {
-    parent: list.parent
-    visible: list.fadeBottom && list.visible
-    anchors.left: list.left; anchors.right: list.right; anchors.bottom: list.bottom
+    parent: list   // the viewport, not the scrolling content, and no layout parent to disturb
+    z: 2
+    visible: list.fadeBottom
+    anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
     height: Style.space(16)
     opacity: list.atYEnd ? 0 : 1
     Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 120 } }
