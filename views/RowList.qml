@@ -206,7 +206,7 @@ ListView {
         // At rest the row's buttons are invisible: the text runs over their room, up to the
         // duration. The column keeps its narrow width, so the buttons never move.
         readonly property real restExtra: cell.showActions || cell.actions.length === 0 ? 0
-          : trailing.width - durationText.width - trailing.spacing
+          : trailing.width - (durationText.visible ? durationText.width + trailing.spacing : 0)
 
         Row {
           width: parent.width + parent.restExtra
@@ -286,6 +286,8 @@ ListView {
         Text {
           id: durationText
           anchors.verticalCenter: parent.verticalCenter
+          // No duration: no room kept for one, so the buttons end at the row's right margin.
+          visible: !!(cell.item && cell.item.duration)
           width: Style.space(40)
           horizontalAlignment: Text.AlignRight
           text: cell.item && cell.item.duration ? Model.fmtTime(cell.item.duration) : ""
