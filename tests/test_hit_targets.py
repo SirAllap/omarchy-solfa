@@ -111,7 +111,8 @@ class HitTargets(unittest.TestCase):
             self.assertEqual(self.clicks["clicked"].get(name), [call] * 3, name)
 
     def test_a_hidden_row_action_does_nothing_the_click_plays_its_row(self):
-        self.assertTrue([b for b in self.geom["buttons"] if not b["shown"]])
+        # Hidden means gone: not drawn, no tooltip, no click of its own.
+        self.assertEqual([b for b in self.geom["buttons"] if not b["shown"]], [])
         self.assertEqual(self.clicks["hiddenClick"], "row:2")
 
     def test_hovering_a_row_then_its_action_keeps_it_and_the_click_is_the_action(self):

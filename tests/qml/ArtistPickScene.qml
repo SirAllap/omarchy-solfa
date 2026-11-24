@@ -261,7 +261,10 @@ ShellRoot {
               // The button: the picker opens next to it; a click outside closes it.
               function (done) {
                 view.cursor = 0
-                var btn = win.artistButton(win.rowItem(list, 0))
+                // The buttons only exist while the pointer is on the row.
+                var row0 = win.rowItem(list, 0)
+                win.moveOnto(row0, row0.width - 20, row0.height / 2)
+                var btn = win.artistButton(row0)
                 list.actionAnchor = btn; list.action("artist", 0); list.actionAnchor = null
                 var box = win.find(stage, "artistPickerBox")
                 var bp = box.mapToItem(stage, 0, 0), ap = btn.mapToItem(stage, 0, 0)
@@ -287,6 +290,10 @@ ShellRoot {
                 var n = panel.pages.length
                 var t = win.findAny(row0, function (c) { return typeof c.text === "string" && c.text.indexOf("berlioz") === 0 })
                 if (t) { var p = win.point(t, 5, t.height / 2); tc.mouseMove(stage, 2, 2); tc.wait(100); tc.mouseMove(stage, p.x, p.y); tc.wait(100); tc.mouseClick(stage, p.x, p.y); tc.wait(100) }
+                // A long artist line is cut with "..." after a whole name part, never a bare comma.
+                var row2 = win.rowItem(list, 2)
+                var cut = !row2 ? null : win.findAny(row2, function (c) { return typeof c.text === "string" && c.text.indexOf("An artist") === 0 })
+                st.plain.cut = cut ? cut.text : null
                 st.plain.pages = panel.pages.length - n
                 st.plain.pickerShown = picker.shown
                 done()

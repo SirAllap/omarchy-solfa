@@ -192,7 +192,7 @@ ShellRoot {
         var c = item.children[i]
         if (c.minSize !== undefined && c.hasCursor !== undefined
             && (c.text === "Search" || c.tooltipText === "Next (n)" || c.tooltipText === "Like (f)"
-                || (c.tooltipText === "Remove (x)" && c.opacity > 0) || (c.text === "" && c.iconText === "")))
+                || (c.tip === "Remove (x)" && c.opacity > 0) || (c.text === "" && c.iconText === "")))
           c.hasCursor = true
         win.hover(c)
       }
@@ -207,7 +207,7 @@ ShellRoot {
     function find(item, test) {
       for (var i = 0; i < item.children.length; i++) {
         var c = item.children[i]
-        if (c.minSize !== undefined && c.visible && test(c)) return c
+        if (c.minSize !== undefined && (c.visible || c.tip !== undefined) && test(c)) return c
         var f = win.find(c, test)
         if (f) return f
       }
@@ -224,7 +224,7 @@ ShellRoot {
                   "Mute (m)", "Remove the like (f)"]
       var targets = tips.map(function (t) { return [t, win.find(stage, function (c) { return c.tooltipText === t })] })
       ;["Queue", "Search", "Library", "Lyrics", "History"].forEach(function (t) { targets.push([t, win.find(stage, function (c) { return c.text === t })]) })
-      targets.push(["Remove (x)", win.find(list, function (c) { return c.tooltipText === "Remove (x)" && c.opacity > 0 })])
+      targets.push(["Remove (x)", win.find(list, function (c) { return c.tip === "Remove (x)" && c.opacity > 0 })])
       targets.push(["?", allKeysButton])
       // Only present when SOLFA_SCENE_AD=1 gave the hero an advert.
       var skipBtn = win.findAny(stage, function (c) { return c.ink !== undefined && c.radius !== undefined })
@@ -242,7 +242,7 @@ ShellRoot {
         out.clicked[t[0]] = got
       })
       // A hidden action does nothing: the click lands on its row.
-      var hidden = win.find(list, function (c) { return c.tooltipText === "Remove (x)" && c.opacity === 0 })
+      var hidden = win.find(list, function (c) { return c.tip === "Remove (x)" && c.opacity === 0 })
       var n = fakeSvc.calls.length
       if (hidden) mouse.mouseClick(hidden, hidden.width / 2, hidden.height / 2)
       out.hiddenClick = fakeSvc.calls.slice(n).join(",")
@@ -282,7 +282,7 @@ ShellRoot {
         // The cursor row, not hovered: no buttons. Then the pointer comes onto it: its buttons show.
         var shownAtRest = win.find(list, function (c) { return c.tooltipText !== undefined && c.tooltipText !== "" && c.opacity > 0 && c.iconText !== undefined }) ? 1 : 0
         // The pointer on the buttons' side of the row (on the text it would hide them).
-        var onRow = win.find(list, function (c) { return c.tooltipText === "Remove (x)" })
+        var onRow = win.find(list, function (c) { return c.tip === "Remove (x)" })
         if (onRow) {
           mouse.mouseMove(stage, 2, 2)
           mouse.wait(200)

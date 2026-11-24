@@ -239,10 +239,26 @@ ListView {
         Text {
           id: subText
           width: parent.width + parent.restExtra
-          text: (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
+          readonly property string full: (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
+          // Cut by hand: a cut line ends in "..." after a whole letter, never in a bare comma.
+          function refit() {
+            if (width <= 0) { text = full; return }
+            metrics.text = full
+            if (metrics.advanceWidth <= width) { text = full; return }
+            var lo = 0, hi = full.length
+            while (lo < hi) {
+              var mid = (lo + hi + 1) >> 1
+              metrics.text = full.slice(0, mid).replace(/[\s,]+$/, "") + "..."
+              if (metrics.advanceWidth <= width) lo = mid; else hi = mid - 1
+            }
+            text = full.slice(0, lo).replace(/[\s,]+$/, "") + "..."
+          }
+          onFullChanged: refit()
+          onWidthChanged: refit()
+          Component.onCompleted: refit()
+          TextMetrics { id: metrics; font: subText.font }
           textFormat: Text.PlainText
-          elide: Text.ElideRight
-          visible: text !== ""
+          visible: full !== ""
           color: Util.alpha(list.fg, 0.6)
           font.family: list.family
           font.pixelSize: Style.space(12)
@@ -272,6 +288,9 @@ ListView {
             VIcon { visible: actionButton.vname !== ""; anchors.centerIn: parent; name: actionButton.vname; size: Style.space(20); stroke: 1.7; filled: actionButton.vname === "play"; color: actionButton.foreground }
             foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
+            // Hidden or fading: no tooltip, no click.
+            visible: opacity > 0.01
+            readonly property string tip: modelData.tip
             tooltipText: modelData.tip
             onClicked: { list.cursor = cell.index; list.actionAnchor = actionButton; list.action(actionButton.modelData.name, cell.index); list.actionAnchor = null }
             Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }

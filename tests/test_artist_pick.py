@@ -111,6 +111,13 @@ class ArtistPick(unittest.TestCase):
         self.assertFalse(self.state["plain"]["pickerShown"])
         self.assertEqual(self.state["plain"]["pages"], 0, "a click on the names opens no artist")
 
+    def test_a_cut_artist_line_ends_in_dots_never_a_bare_comma(self):
+        cut = self.state["plain"]["cut"]
+        self.assertIsNotNone(cut)
+        self.assertTrue(cut.endswith("..."), cut)
+        self.assertFalse(cut.endswith(",..."), cut)
+        self.assertNotIn("\u2026", cut)
+
     def test_the_now_playing_line_opens_the_same_picker(self):
         n = self.state["now"]
         self.assertTrue(n["shown"])
