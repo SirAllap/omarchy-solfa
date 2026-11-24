@@ -37,7 +37,8 @@
       "startVolume": "last",
       "recycleHeapMb": 400,
       "recycleHours": 12,
-      "reduceMotion": false
+      "reduceMotion": false,
+      "compactPanel": "auto"
     },
     "schema": [
       { "key": "barControls", "type": "bool", "label": "Previous, play/pause and next in the bar", "defaultValue": true },
@@ -59,7 +60,8 @@
       { "key": "recycleHeapMb", "type": "number", "label": "Refresh the page past this JS heap (MB)", "defaultValue": 400, "description": "Applies on the next start." },
       { "key": "recycleHours", "type": "number", "label": "Refresh the page at least every (hours)", "defaultValue": 12, "description": "Applies on the next start." },
       { "key": "panelKey", "type": "string", "label": "Panel key", "defaultValue": "", "description": "Empty: Super+Alt+M when it is free, else the first free of Super+Shift+M, Super+Ctrl+M." },
-      { "key": "reduceMotion", "type": "boolean", "label": "Reduce motion", "defaultValue": false, "description": "Stops springs, glows, comets and typing." }
+      { "key": "reduceMotion", "type": "boolean", "label": "Reduce motion", "defaultValue": false, "description": "Stops springs, glows, comets and typing." },
+      { "key": "compactPanel", "type": "string", "label": "Compact panel", "defaultValue": "auto", "description": "A smaller player and page header, so a playlist or album shows more songs: \"auto\" (only where a page would show fewer than 4 songs otherwise), \"always\" or \"never\"." }
     ]
   }
 }
