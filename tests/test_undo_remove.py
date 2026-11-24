@@ -137,7 +137,8 @@ class UndoRemove(unittest.TestCase):
         self.assertEqual(f["before"], ["LSET2"])
         self.assertEqual(f["removed"], [])
         self.assertEqual(f["back"], ["NEW7"])
-        self.assertEqual(f["all"], ["LSET1", "NEW7", "NEW6", "LSET4", "LSET5"])
+        self.assertEqual(f["all"], ["LSET1", "NEW7", "LSET4", "LSET5"],
+                         "NEW6 (the long list's undo) is on the server side until the next page is read: the scene loads it by hand")
 
 
 if __name__ == "__main__":

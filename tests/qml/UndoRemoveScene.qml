@@ -267,6 +267,10 @@ ShellRoot {
                     var b = win.sent("browse")
                     st.long = { browse: b.slice(browses), sent: win.sent("playlist.restore").pop(), sets: win.sets(view) }
                     // With the find field open on a word: the found row goes and comes back, once.
+                    // The next page is read first: a list that already fits its card (the grown
+                    // detail card) never scrolls to its end, so nothing else would load it.
+                    view.loadMore()
+                    win.after(function () {
                     view.finding = true
                     view.query = "two"
                     st.finding = { before: win.sets(view) }
@@ -277,6 +281,7 @@ ShellRoot {
                     st.finding.all = view.info.tracks.map(function (t) { return t.setVideoId })
                     console.log("STATE " + JSON.stringify(st))
                     Qt.quit()
+                    })
                   })
                 })
               })
