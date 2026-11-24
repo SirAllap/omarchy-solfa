@@ -38,6 +38,8 @@ ListView {
   }
 
   signal activated(int index)
+  // The button that was clicked, while its action runs (where a menu opens).
+  property var actionAnchor: null
   signal action(string name, int index)
   // A name in a song row's artist line was clicked.
   signal artistActivated(int index, var artist)
@@ -91,7 +93,11 @@ ListView {
     readonly property var actions: isHeader ? [] : list.actionsFor(modelData)
     // Only the mouse shows the buttons (the keys still work on the cursor row). A handler,
     // not the MouseArea: it stays hovered while the pointer is on one of the row's own buttons.
-    readonly property bool showActions: rowHover.hovered
+    readonly property bool showActions: rowHover.hovered && !textMode
+    // The pointer is on the title or artist text: the buttons fade out and the text takes their
+    // room, so every artist name shows and can be clicked. It ends when the pointer leaves the
+    // text (to the right of it, or off the row). Set by textHover below.
+    property bool textMode: false
 
     // The first 8 rows cascade up from 8 px below, 15 ms apart, from 110 ms.
     readonly property real rise: index < 8 ? Motion.effects(list.openMs, 110 + 15 * index, 130) : 1
@@ -177,6 +183,26 @@ ListView {
       onClicked: { list.cursor = cell.index; list.activated(cell.index) }
     }
 
+    HoverHandler {
+      id: textHover
+      parent: rowContent
+      enabled: !cell.isHeader && cell.actions.length > 0
+      function refresh() {
+        if (!textHover.hovered) { cell.textMode = false; return }
+        var p = textHover.point.position
+        var tx = p.x - textCol.x, ty = p.y - textCol.y
+        var first = ty < titleRow.height + textCol.spacing / 2
+        var end = first ? titleRow.eqW + titleText.contentWidth
+          : textCol.artistLinks ? artistLine.contentWidth : subText.contentWidth
+        var over = tx >= 0 && ty >= 0 && ty <= textCol.height && tx <= end
+        // Entering needs the text itself, in the room the buttons leave; once in, the text
+        // keeps the pointer over the room the buttons gave up.
+        cell.textMode = cell.textMode ? over : (over && tx <= textCol.width)
+      }
+      onPointChanged: refresh()
+      onHoveredChanged: refresh()
+    }
+
     Row {
       id: rowContent
       visible: !cell.isHeader
@@ -200,6 +226,7 @@ ListView {
       }
 
       Column {
+        id: textCol
         anchors.verticalCenter: parent.verticalCenter
         width: rowContent.width - Style.space(42) - rowContent.spacing * 2 - trailing.width
         spacing: Style.space(2)
@@ -209,6 +236,8 @@ ListView {
           : trailing.width - (durationText.visible ? durationText.width + trailing.spacing : 0)
 
         Row {
+          id: titleRow
+          readonly property real eqW: cell.now ? 14 + spacing : 0
           width: parent.width + parent.restExtra
           spacing: Style.space(6)
           Equalizer {
@@ -220,6 +249,7 @@ ListView {
             color: Calm.accent
           }
           Text {
+            id: titleText
             width: parent.width - (cell.now ? 14 + parent.spacing : 0)
             text: cell.item ? cell.item.title : ""
             textFormat: Text.PlainText
@@ -233,6 +263,8 @@ ListView {
         // A song's artists are links; every other row keeps its plain line.
         readonly property bool artistLinks: !!cell.item && !!cell.item.videoId && Model.artistsText(cell.item.artists) !== ""
         ArtistLine {
+          id: artistLine
+          scroll: cell.textMode
           width: parent.width + parent.restExtra
           visible: parent.artistLinks
           artists: cell.item ? cell.item.artists : []
@@ -243,6 +275,7 @@ ListView {
           onArtistClicked: function (a) { list.cursor = cell.index; list.artistActivated(cell.index, a) }
         }
         Text {
+          id: subText
           width: parent.width + parent.restExtra
           text: parent.artistLinks ? "" : (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
           textFormat: Text.PlainText
@@ -278,7 +311,7 @@ ListView {
             foreground: actionButton.hot ? Calm.accent : Util.alpha(list.fg, 0.75)
             fontFamily: list.family
             tooltipText: modelData.tip
-            onClicked: { list.cursor = cell.index; list.action(actionButton.modelData.name, cell.index) }
+            onClicked: { list.cursor = cell.index; list.actionAnchor = actionButton; list.action(actionButton.modelData.name, cell.index); list.actionAnchor = null }
             Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
           }
         }

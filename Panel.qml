@@ -134,7 +134,7 @@ Panel {
 
   onOpenedChanged: {
     if (svc) svc.panelOpen = opened
-    if (!opened) { allKeys = false; settingsOpen = false; saveItem = null; return }
+    if (!opened) { allKeys = false; settingsOpen = false; saveItem = null; closeArtistPicker(); return }
     if (svc) svc.lastError = ""  // old news from while it was closed
     if (svc && !svc.hasTrack && !svc.starting && tab === "queue") tab = "search"
     checkPlayingList()
@@ -443,7 +443,7 @@ Panel {
     }
   }
 
-  function runAction(name, row) {
+  function runAction(name, row, anchor) {
     var it = row && row.item
     if (!it || !svc) return
     if (name === "next" || name === "queue") {
@@ -454,7 +454,7 @@ Panel {
     } else if (name === "save") {
       root.saveRow(row)
     } else if (name === "artist") {
-      root.openArtist(row)
+      root.openArtist(row, anchor)
     } else if (name === "radio") {
       svc.radioFor(it)
       root.say("Radio from " + it.title)
@@ -470,6 +470,15 @@ Panel {
     var k = event.key
     // A text field has the keys: Search's, or the find field of a page.
     var inField = !!(root.view && root.view.inputFocused)
+    // The artist picker has the keys while it is open.
+    if (artistPicker.shown) {
+      if (k === Qt.Key_Escape) root.closeArtistPicker()
+      else if (k === Qt.Key_Down || t === "j") artistPicker.move(1)
+      else if (k === Qt.Key_Up || t === "k") artistPicker.move(-1)
+      else if (k === Qt.Key_Return || k === Qt.Key_Enter) artistPicker.act()
+      event.accepted = true
+      return
+    }
     if (k === Qt.Key_Escape) {
       if (root.allKeys) root.allKeys = false
       else if (root.saveOpen) saveView.back()
@@ -572,11 +581,21 @@ Panel {
   }
 
   // g / o: the artist or album of the row under the cursor, else of the song.
-  function openArtist(row) {
+  // One artist opens at once; several open the picker (never a guess). `anchor` is the
+  // button that was clicked: the menu opens next to it (from the key: in the middle).
+  function openArtist(row, anchor) {
     var it = row && row.item && row.item.videoId ? row.item : (svc.hasTrack ? svc.player : null)
-    var list = it && it.artists ? it.artists : []
-    for (var i = 0; i < list.length; i++) if (list[i] && list[i].name) { openArtistLink(list[i]); return }
+    var all = it && it.artists ? it.artists : []
+    var named = []
+    for (var i = 0; i < all.length; i++) if (all[i] && all[i].name) named.push(all[i])
+    if (named.length === 1) { openArtistLink(named[0]); return }
+    if (named.length < 2) return
+    var r = anchor ? anchor.mapToItem(artistPicker, 0, 0) : null
+    artistPicker.hasAnchor = !!r
+    if (r) artistPicker.anchor = Qt.rect(r.x, r.y, anchor.width, anchor.height)
+    artistPicker.artists = named
   }
+  function closeArtistPicker() { artistPicker.artists = [] }
   // An artist's page from { name, id }. No id: search the name and open the top artist.
   function openArtistLink(a) {
     if (!a || !svc) return
@@ -1084,6 +1103,16 @@ Panel {
           bar: root.bar
           panel: root
           item: root.saveItem
+        }
+
+        Views.ArtistPicker {
+          id: artistPicker
+          objectName: "artistPicker"
+          anchors.fill: parent
+          z: 5
+          family: root.family
+          onPicked: function (a) { root.closeArtistPicker(); root.openArtistLink(a) }
+          onDismissed: root.closeArtistPicker()
         }
 
         // Every key, on "?": a calm sheet over the lower panel (views/KeysSheet.qml).

@@ -210,7 +210,7 @@ Item {
     emptyText: view.busy ? "Searching" : view.error !== "" ? view.error
       : view.query.trim() !== "" ? "No results" : (view.home ? "" : "Loading suggestions")
     onActivated: function (i) { view.panel.activateRow(view.rows[i]) }
-    onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
+    onAction: function (name, i) { view.panel.runAction(name, view.rows[i], list.actionAnchor) }
     onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onHeaderActivated: function (i) { view.headerActivated(i) }
   }

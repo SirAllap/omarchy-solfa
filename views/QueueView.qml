@@ -91,10 +91,10 @@ Item {
     svc.request("queue.move", { from: row.queueIndex, to: to }, function (r) { done(r) })
   }
 
-  function runAction(name, row) {
+  function runAction(name, row, anchor) {
     if (name === "jump") jump(row)
     else if (name === "save") panel.saveRow(row)
-    else if (name === "artist") panel.openArtist(row)
+    else if (name === "artist") panel.openArtist(row, anchor)
     else if (name === "remove") remove(row)
     else if (name === "up") shift(row, -1)
     else if (name === "down") shift(row, 1)
@@ -172,7 +172,7 @@ Item {
     // The empty, loading and error states are drawn by `state` below.
     emptyText: ""
     onActivated: function (i) { view.jump(view.rows[i]) }
-    onAction: function (name, i) { view.runAction(name, view.rows[i]) }
+    onAction: function (name, i) { view.runAction(name, view.rows[i], list.actionAnchor) }
     onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
   }

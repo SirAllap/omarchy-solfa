@@ -281,7 +281,8 @@ ShellRoot {
       onTriggered: {
         // The cursor row, not hovered: no buttons. Then the pointer comes onto it: its buttons show.
         var shownAtRest = win.find(list, function (c) { return c.tooltipText !== undefined && c.tooltipText !== "" && c.opacity > 0 && c.iconText !== undefined }) ? 1 : 0
-        var onRow = win.findAny(list, function (c) { return typeof c.text === "string" && c.text.indexOf("A Much Longer") === 0 })
+        // The pointer on the buttons' side of the row (on the text it would hide them).
+        var onRow = win.find(list, function (c) { return c.tooltipText === "Remove (x)" })
         if (onRow) {
           mouse.mouseMove(stage, 2, 2)
           mouse.wait(200)

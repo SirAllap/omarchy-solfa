@@ -558,7 +558,7 @@ Item {
     emptyText: view.busy ? (view.skeletonRows > 0 ? "" : "Loading") : view.error !== "" ? view.error
       : view.finding && view.query.trim() !== "" ? (view.loadingAll ? "No match yet" : "No song matches") : ""
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.contextList()) }
-    onAction: function (name, i) { if (name === "remove") view.remove(view.rows[i]); else view.panel.runAction(name, view.rows[i]) }
+    onAction: function (name, i) { if (name === "remove") view.remove(view.rows[i]); else view.panel.runAction(name, view.rows[i], list.actionAnchor) }
     onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onHeaderActivated: function (i) { var r = view.rows[i]; if (r.more) view.panel.openPage({ browseId: r.more, title: r.header }, r.moreParams) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
