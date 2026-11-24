@@ -128,6 +128,11 @@ test("a playlist of the user's own is editable; Liked songs, albums and other pe
   delete bare.contents.twoColumnBrowseResultsRenderer.secondaryContents.sectionListRenderer.contents[0].musicPlaylistShelfRenderer.playlistId
   assert.equal(P.playlist(bare).playlistId, header.playlistId)
   assert.equal(P.playlist(bare).editable, true)
+  // A header whose only play endpoints are radios (RD…): the radio is not the
+  // list to edit (edit_playlist answers 400 to it).
+  const radioOnly = compose((h) => h.replace(/("watch(?:Playlist)?Endpoint":\{[^{}]*?"playlistId":")[^"]+/g, "$1RDAMPLorbit1"))
+  assert.ok(JSON.stringify(radioOnly).includes("RDAMPLorbit1"))
+  assert.doesNotMatch(P.playlist(radioOnly).playlistId, /^RD/)
   // Liked songs (LM, with or without the VL prefix) never is.
   const liked = P.playlist(compose((h) => h.split(header.playlistId).join("LM")))
   assert.equal(liked.playlistId, "LM")

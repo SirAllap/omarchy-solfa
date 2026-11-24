@@ -564,6 +564,9 @@ var SolfaParse = (function () {
     }
     var tracks = items(rows, { thumbPx: 120 })
     var play = firstPlaylistPlay(h.buttons)
+    // A radio ("RD…") is not the list: the header's menu holds one, and
+    // edit_playlist answers 400 to it. Fall to the shelf's id, then the header's.
+    if (play && /^RD/.test(String(play.playlistId || ""))) play = null
     // Only the user's own playlists come with the editable header. A song
     // can be taken out of those, except Liked songs.
     var own = collect(data, "musicEditablePlaylistDetailHeaderRenderer")[0] || null

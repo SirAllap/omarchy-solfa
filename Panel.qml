@@ -120,6 +120,7 @@ Panel {
     }
   }
   property string flash: ""
+  property bool flashError: false   // an error shows no success mark
   // Settings replaces the panel body; the gear in BrandCorner and Esc are
   // the only ways in and out — no new key letter is spent on it.
   property bool settingsOpen: false
@@ -392,7 +393,8 @@ Panel {
 
   // `undo`: a removal from a playlist this notice offers to undo (longer on
   // screen). Any other notice takes the offer away.
-  function say(text, undo) {
+  function say(text, undo, isError) {
+    root.flashError = !!isError
     root.undoable = undo || null
     root.undoSent = false
     root.flash = text
@@ -405,7 +407,7 @@ Panel {
   // closed one would swallow it).
   Connections {
     target: root.svc
-    function onLastErrorChanged() { if (root.opened && root.svc.lastError) { root.say(root.svc.lastError); root.svc.lastError = "" } }
+    function onLastErrorChanged() { if (root.opened && root.svc.lastError) { root.say(root.svc.lastError, null, true); root.svc.lastError = "" } }
   }
 
   // The bar matches panels by the widget that hosts them, not by this item.
@@ -1148,7 +1150,7 @@ Panel {
           id: toastRow
           anchors.centerIn: parent
           spacing: Style.space(8)
-          Text { anchors.verticalCenter: parent.verticalCenter; text: Icons.check; textFormat: Text.PlainText; color: Calm.accent; font.family: Style.font.family; font.pixelSize: Style.font.icon }
+          Text { anchors.verticalCenter: parent.verticalCenter; text: root.flashError ? Icons.close : Icons.check; textFormat: Text.PlainText; color: Calm.accent; font.family: Style.font.family; font.pixelSize: Style.font.icon }
           Text { anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, keys.width - Style.space(100) - (undoPill.visible ? undoPill.width + toastRow.spacing : 0)); elide: Text.ElideRight; text: root.flash; textFormat: Text.PlainText; color: Calm.fg; font.family: Calm.font; font.pixelSize: Style.font.body; font.weight: Font.DemiBold }
           // Undo, while the notice of a removal from a playlist shows (or u).
           Rectangle {
