@@ -391,7 +391,6 @@ Item {
       Text {
         readonly property string kind: view.info ? view.info.kind : (view.page ? view.page.kind : "")
         visible: (!!view.info || kind !== "") && !view.compact
-        height: visible ? implicitHeight : 0
         text: kind === "artist" ? "ARTIST" : kind === "playlist" ? "PLAYLIST" : kind === "album" ? "ALBUM" : ""
         color: Calm.accent
         font.family: view.family
