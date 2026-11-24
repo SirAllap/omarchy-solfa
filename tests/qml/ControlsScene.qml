@@ -279,7 +279,16 @@ ShellRoot {
       interval: 600
       running: true
       onTriggered: {
-        console.info("GEOM " + JSON.stringify(win.boxes(stage, { buttons: [], titles: [], cursor: list.cursor })))
+        // The cursor row, not hovered: no buttons. Then the pointer comes onto it: its buttons show.
+        var shownAtRest = win.find(list, function (c) { return c.tooltipText !== undefined && c.tooltipText !== "" && c.opacity > 0 && c.iconText !== undefined }) ? 1 : 0
+        var onRow = win.findAny(list, function (c) { return typeof c.text === "string" && c.text.indexOf("A Much Longer") === 0 })
+        if (onRow) {
+          mouse.mouseMove(stage, 2, 2)
+          mouse.wait(200)
+          for (var s = 5; s >= 0; s--) { mouse.mouseMove(onRow, 10 + s * Style.space(20), onRow.height / 2); mouse.wait(30) }
+          mouse.wait(250)
+        }
+        console.info("GEOM " + JSON.stringify(win.boxes(stage, { buttons: [], titles: [], cursor: list.cursor, shownAtRest: shownAtRest })))
         stage.grabToImage(function (r) {
           r.saveToFile(Quickshell.env("SOLFA_SCENE_OUT"))
           if (Quickshell.env("SOLFA_SCENE_STATES") !== "1") console.info("CLICKS " + JSON.stringify(win.clickAll()))

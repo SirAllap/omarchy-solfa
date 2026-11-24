@@ -89,9 +89,9 @@ ListView {
     readonly property bool selected: index === list.cursor
     readonly property bool now: !!item && !!item.videoId && (modelData.current === true || (modelData.current === undefined && !modelData.automix && item.videoId === list.playingId))
     readonly property var actions: isHeader ? [] : list.actionsFor(modelData)
-    // A handler, not the MouseArea: it stays hovered while the pointer is on
-    // one of the row's own buttons, so they do not hide under it.
-    readonly property bool showActions: selected || rowHover.hovered
+    // Only the mouse shows the buttons (the keys still work on the cursor row). A handler,
+    // not the MouseArea: it stays hovered while the pointer is on one of the row's own buttons.
+    readonly property bool showActions: rowHover.hovered
 
     // The first 8 rows cascade up from 8 px below, 15 ms apart, from 110 ms.
     readonly property real rise: index < 8 ? Motion.effects(list.openMs, 110 + 15 * index, 130) : 1

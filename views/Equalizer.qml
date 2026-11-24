@@ -18,6 +18,9 @@ Row {
       anchors.bottom: parent.bottom
       height: 4 + 0.5 * index
       SequentialAnimation on height {
+        id: dance
+        // Stopped (paused, closed): the bar goes back to its resting height, not frozen mid-beat.
+        onRunningChanged: if (!running) parent.height = 4 + 0.5 * index
         running: e.playing && !e.reduceMotion && e.panelOpen; loops: Animation.Infinite
         NumberAnimation { to: 13 - index; duration: 280 + index * 90; easing.type: Easing.InOutSine }
         NumberAnimation { to: 4 + index; duration: 320 + index * 70; easing.type: Easing.InOutSine }

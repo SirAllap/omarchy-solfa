@@ -90,8 +90,12 @@ class HitTargets(unittest.TestCase):
                          or a["y"] + a["h"] <= b["y"] or b["y"] + b["h"] <= a["y"])
                 self.assertTrue(apart, (a, b))
 
+    def test_the_cursor_row_shows_no_buttons_until_the_mouse_is_on_it(self):
+        self.assertEqual(self.geom["cursor"], 1)
+        self.assertEqual(self.geom["shownAtRest"], 0)
+
     def test_a_title_at_rest_runs_over_the_room_of_the_hidden_actions(self):
-        # Row 1 has the cursor (actions shown): its title stops before them.
+        # Row 1 is hovered (actions shown): its title stops before them.
         # Row 2 has the same actions hidden: its title is wider, up to the duration.
         long_titles = [t["w"] for t in self.geom["titles"] if t["text"].startswith("A Much Longer")]
         self.assertEqual(len(long_titles), 2)

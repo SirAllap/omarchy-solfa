@@ -549,6 +549,7 @@ Item {
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
     panelOpen: !!(view.svc && view.svc.panelOpen)
+    isPlaying: view.svc ? view.svc.isPlaying !== false : true
     actionsFor: function (row) {
       var out = view.panel ? view.panel.itemActions(row) : []
       if (Model.removable(view.info, row)) out.push({ name: "remove", icon: Icons.close, tip: "Remove from this playlist (x)" })
