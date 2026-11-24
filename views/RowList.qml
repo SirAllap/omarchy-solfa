@@ -203,9 +203,13 @@ ListView {
         anchors.verticalCenter: parent.verticalCenter
         width: rowContent.width - Style.space(42) - rowContent.spacing * 2 - trailing.width
         spacing: Style.space(2)
+        // At rest the row's buttons are invisible: the text runs over their room, up to the
+        // duration. The column keeps its narrow width, so the buttons never move.
+        readonly property real restExtra: cell.showActions || cell.actions.length === 0 ? 0
+          : trailing.width - durationText.width - trailing.spacing
 
         Row {
-          width: parent.width
+          width: parent.width + parent.restExtra
           spacing: Style.space(6)
           Equalizer {
             visible: cell.now
@@ -229,7 +233,7 @@ ListView {
         // A song's artists are links; every other row keeps its plain line.
         readonly property bool artistLinks: !!cell.item && !!cell.item.videoId && Model.artistsText(cell.item.artists) !== ""
         ArtistLine {
-          width: parent.width
+          width: parent.width + parent.restExtra
           visible: parent.artistLinks
           artists: cell.item ? cell.item.artists : []
           prefix: (cell.item && cell.item.explicit ? "E  " : "") + (cell.modelData.label ? cell.modelData.label + " · " : "")
@@ -239,7 +243,7 @@ ListView {
           onArtistClicked: function (a) { list.cursor = cell.index; list.artistActivated(cell.index, a) }
         }
         Text {
-          width: parent.width
+          width: parent.width + parent.restExtra
           text: parent.artistLinks ? "" : (cell.item && cell.item.explicit ? "E  " : "") + Model.labelled(cell.modelData.label, Model.rowSubtitle(cell.item))
           textFormat: Text.PlainText
           elide: Text.ElideRight
@@ -280,6 +284,7 @@ ListView {
         }
 
         Text {
+          id: durationText
           anchors.verticalCenter: parent.verticalCenter
           width: Style.space(40)
           horizontalAlignment: Text.AlignRight

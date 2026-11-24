@@ -90,12 +90,12 @@ class HitTargets(unittest.TestCase):
                          or a["y"] + a["h"] <= b["y"] or b["y"] + b["h"] <= a["y"])
                 self.assertTrue(apart, (a, b))
 
-    def test_row_actions_keep_their_room_so_the_title_does_not_jump(self):
-        # Row 1 has the cursor (actions shown), row 2 the same actions hidden:
-        # their titles get the same width.
+    def test_a_title_at_rest_runs_over_the_room_of_the_hidden_actions(self):
+        # Row 1 has the cursor (actions shown): its title stops before them.
+        # Row 2 has the same actions hidden: its title is wider, up to the duration.
         long_titles = [t["w"] for t in self.geom["titles"] if t["text"].startswith("A Much Longer")]
         self.assertEqual(len(long_titles), 2)
-        self.assertEqual(long_titles[0], long_titles[1])
+        self.assertLess(long_titles[0], long_titles[1])
 
     def test_the_whole_box_clicks_not_just_the_glyph(self):
         want = {"Shuffle the queue (s)": "shuffle", "Previous (p)": "previous", "Pause (space)": "togglePlaying",
