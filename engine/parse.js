@@ -315,11 +315,20 @@ var SolfaParse = (function () {
   }
 
   // playlistPanelVideoRenderer (the queue), also inside a wrapper that pairs
-  // a song with its music-video twin: the primary one is what plays.
+  // a song with its music-video twin. The entry is the primary one; the app
+  // plays either of the two, as its song/video switch says, and `twinId`
+  // names the other. A song queued from a playlist carries its row there
+  // (`playlistSetVideoId`, the same value the playlist's page gives that
+  // row) next to the playlist's id in its watch endpoint; in a pair, the
+  // primary's, else the twin's.
   function panelVideo(r, opts) {
     opts = opts || {}
     if (!r) return null
-    if (r.playlistPanelVideoWrapperRenderer) r = dig(r, ["playlistPanelVideoWrapperRenderer", "primaryRenderer"])
+    var twin = null
+    if (r.playlistPanelVideoWrapperRenderer) {
+      twin = dig(r, ["playlistPanelVideoWrapperRenderer", "counterpart", 0, "counterpartRenderer", "playlistPanelVideoRenderer"]) || null
+      r = dig(r, ["playlistPanelVideoWrapperRenderer", "primaryRenderer"])
+    }
     if (r && r.playlistPanelVideoRenderer) r = r.playlistPanelVideoRenderer
     if (!r || !r.videoId) return null
     var by = runs(r.longBylineText)
@@ -330,7 +339,7 @@ var SolfaParse = (function () {
       if (segs.length) artists = [{ name: segText(segs[0]), id: "" }]
     }
     var albums = linked(by, "album")
-    return track({
+    var out = track({
       kind: kindOfVideo(videoType(we)),
       videoId: String(r.videoId),
       title: text(r.title),
@@ -339,8 +348,11 @@ var SolfaParse = (function () {
       duration: seconds(text(r.lengthText)),
       thumb: bestThumb(dig(r, ["thumbnail", "thumbnails"]) || [], opts.thumbPx || 120),
       playlistId: we.playlistId || "",
+      setVideoId: r.playlistSetVideoId || (twin && twin.playlistSetVideoId) || "",
       radio: menuEndpoints(r).radio || null
     })
+    if (twin && twin.videoId) out.twinId = String(twin.videoId)
+    return out
   }
 
   function anyItem(wrapper, opts) {
@@ -552,6 +564,11 @@ var SolfaParse = (function () {
     }
     var tracks = items(rows, { thumbPx: 120 })
     var play = firstPlaylistPlay(h.buttons)
+    // Only the user's own playlists come with the editable header. A song
+    // can be taken out of those, except Liked songs.
+    var own = collect(data, "musicEditablePlaylistDetailHeaderRenderer")[0] || null
+    var playlistId = play ? String(play.playlistId || "") : (shelf && shelf.playlistId ? String(shelf.playlistId) : "")
+    if (!playlistId && own && own.playlistId) playlistId = String(own.playlistId)
     var author = text(h.straplineTextOne) || String(dig(h, ["facepile", "avatarStackViewModel", "text", "content"]) || "")
     return {
       kind: "playlist",
@@ -559,7 +576,8 @@ var SolfaParse = (function () {
       subtitle: segments(runs(h.secondSubtitle || h.subtitle)).map(segText).filter(Boolean).join(" · "),
       author: author,
       thumb: bestThumb(thumbsOf(h.thumbnail), 544),
-      playlistId: play ? String(play.playlistId || "") : (shelf && shelf.playlistId ? String(shelf.playlistId) : ""),
+      playlistId: playlistId,
+      editable: !!own && playlistId.replace(/^VL/, "") !== "LM",
       tracks: tracks,
       continuation: continuationOf(shelf || data)
     }
@@ -788,6 +806,20 @@ var SolfaParse = (function () {
     return c && typeof c.shortUrl === "string" ? c.shortUrl : ""
   }
 
+  // `browse/edit_playlist` for one removed or moved song: true only when it
+  // says so.
+  function playlistEditSucceeded(res) {
+    return !!res && res.status === "STATUS_SUCCEEDED"
+  }
+
+  // `browse/edit_playlist` for one added song: the new row's setVideoId, or
+  // "" when it was not added.
+  function playlistAddedSetVideoId(res) {
+    if (!playlistEditSucceeded(res)) return ""
+    var id = dig(res, ["playlistEditResults", 0, "playlistEditVideoAddedResultData", "setVideoId"])
+    return typeof id === "string" ? id : ""
+  }
+
   return {
     text: text,
     seconds: seconds,
@@ -818,6 +850,8 @@ var SolfaParse = (function () {
     cleanShareUrl: cleanShareUrl,
     shareEntity: shareEntity,
     sharePanelUrl: sharePanelUrl,
+    playlistEditSucceeded: playlistEditSucceeded,
+    playlistAddedSetVideoId: playlistAddedSetVideoId,
     SEARCH_FILTERS: SEARCH_FILTERS
   }
 })()

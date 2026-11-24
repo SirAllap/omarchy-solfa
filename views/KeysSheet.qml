@@ -29,9 +29,10 @@ Item {
       ["/", "Search"], ["F", "Find in a list"], ["↵", "Play or open"], ["backspace", "Back"], ["esc", "Back / close"], ["?", "Show / hide keys"] ] },
     { title: "Queue", rows: [
       ["e", "Play next"], ["a", "Add to queue"], ["R", "Start radio"], ["S", "Save to a playlist"], ["c", "Copy song link"],
-      ["x", "Remove"], ["J / K", "Move down / up"] ] },
+      ["x / Delete", "Remove"], ["J / K", "Move down / up"] ] },
     { title: "Library", rows: [
-      ["[ / ]", "Filter / section"], ["g", "Go to artist"], ["o", "Go to album"], ["w", "YouTube window"], ["i", "Sign in"] ] },
+      ["[ / ]", "Filter / section"], ["g", "Go to artist"], ["o", "Go to album"], ["w", "YouTube window"], ["i", "Sign in"],
+      ["x", "Remove from playlist"], ["u", "Undo the removal"] ] },
     { title: "Anywhere", rows: [
       [sheet.panelKey, "Open / close Solfa"], [sheet.playPauseKey, "Play / pause"],
       ["Super + Alt + N", "Next"], ["Super + Alt + B", "Previous"], ["Super + Alt + L", "Like"] ] }

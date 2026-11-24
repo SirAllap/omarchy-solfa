@@ -263,6 +263,10 @@
     var ad = !!ps.adPlaying
     var playing = ad ? !!(v && !v.paused) : state === 1
     var matches = cur && cur.videoId === videoId
+    // The entry plays as itself or as its twin (a song and its music video
+    // share one entry; the app's song/video switch picks which plays). Either
+    // way it is that entry: one row of the playlist it came from.
+    var entryPlays = !!cur && (cur.videoId === videoId || (!!cur.twinId && cur.twinId === videoId))
     var items = Array.isArray(q.items) ? q.items.length : 0
     var automix = Array.isArray(q.automixItems) ? q.automixItems.length : 0
     return {
@@ -272,6 +276,13 @@
       album: matches ? cur.album : null,
       thumb: matches && cur.thumb ? cur.thumb : (videoId ? "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg" : ""),
       kind: matches ? cur.kind : "song",
+      // The list the song plays from and, when that is a playlist, its row
+      // there: Now Playing's "Remove from playlist" needs both, and only
+      // for the queue entry that is really playing. `entryVideoIds`: the
+      // entry's own video, then its twin's; the playlist's row is one of them.
+      playlistId: entryPlays ? cur.playlistId : "",
+      setVideoId: entryPlays ? cur.setVideoId : "",
+      entryVideoIds: entryPlays ? [cur.videoId].concat(cur.twinId ? [cur.twinId] : []) : [],
       // The queue's own length for this song wins whenever it has one: the
       // player only knows as much of the song as it has streamed (0:49, then
       // 1:1x, for a 3-minute song), and after a seek near the end it can
@@ -454,7 +465,7 @@
   // Everything but the clock: a change here is worth a push.
   function keyOf(s) {
     return [s.videoId, s.title, s.playing, s.buffering, s.ended, s.ad, s.adSkippable, s.volume, s.muted, s.repeat, s.shuffle, s.like,
-      s.index, s.canNext, Math.round(s.duration), s.thumb, Math.round(s.adDuration)].join("\u0001")
+      s.index, s.canNext, Math.round(s.duration), s.thumb, Math.round(s.adDuration), s.playlistId, s.setVideoId, (s.entryVideoIds || []).join(",")].join("\u0001")
   }
 
   function schedule(isSeek) {
@@ -587,7 +598,7 @@
     var q = s.getState().queue
     for (var i = 0; i < q.items.length; i++) {
       var t = P ? P.panelVideo(q.items[i]) : null
-      if (t && t.videoId === videoId) {
+      if (t && (t.videoId === videoId || t.twinId === videoId)) {
         if (i !== q.selectedItemIndex) s.dispatch({ type: "SET_INDEX", payload: i })
         return
       }
@@ -651,6 +662,123 @@
     if (args.index === q.selectedItemIndex) fail("playing")
     var playing = playingId()
     editQueue(s, { type: "REMOVE_ITEM", payload: args.index }, playing)
+    return { removed: true }
+  }
+
+  // ---------------------------------------------------------------- playlist edits
+
+  // The browse/edit_playlist actions Remove and its undo send, in one place:
+  // shaped after YouTube Music's own requests (as ytmusicapi and YouTube.js
+  // send them). If YouTube changes one, this is what to fix.
+  var EDIT = {
+    // One row, by its setVideoId (the video too, as the site sends it).
+    remove: function (setVideoId, videoId) { return { action: "ACTION_REMOVE_VIDEO", setVideoId: setVideoId, removedVideoId: videoId } },
+    // The song again, as a new row at the end. SKIP: the playlist may hold
+    // another copy of it, and the undo must add it all the same.
+    add: function (videoId) { return { action: "ACTION_ADD_VIDEO", addedVideoId: videoId, dedupeOption: "DEDUPE_OPTION_SKIP" } },
+    // A row moved to just before another one.
+    moveBefore: function (setVideoId, successor) { return { action: "ACTION_MOVE_VIDEO_BEFORE", setVideoId: setVideoId, movedSetVideoIdSuccessor: successor } }
+  }
+
+  function editPlaylist(playlistId, action) {
+    return innertube("browse/edit_playlist", { playlistId: playlistId, actions: [action] })
+  }
+
+  // A playlist's id as edit_playlist takes it (no "VL"); Liked songs is not
+  // one to edit this way.
+  function editableList(playlistId) {
+    var id = String(playlistId).replace(/^VL/, "")
+    if (id === "LM") fail("failed")
+    return id
+  }
+
+  // The id the app's queue service knows an entry by (the entry's place in
+  // the list it was queued from, its watch endpoint's `index`), or "".
+  function entryKey(e) {
+    var r = e && e.playlistPanelVideoWrapperRenderer ? e.playlistPanelVideoWrapperRenderer.primaryRenderer : e
+    r = r && r.playlistPanelVideoRenderer
+    var i = r && r.navigationEndpoint && r.navigationEndpoint.watchEndpoint ? r.navigationEndpoint.watchEndpoint.index : undefined
+    return typeof i === "number" ? String(i) : ""
+  }
+
+  // One entry (not the one playing) out of the queue. Signed in, the queue
+  // also lives on YouTube's side, and an edit of the store alone is undone
+  // by the next sync from there: so it goes through the app's own queue
+  // service (removeItem, which tells YouTube too) when that service can
+  // name this entry alone, else through the store.
+  function removeEntry(s, at, playing) {
+    var a = app()
+    var items = s.getState().queue.items
+    var key = entryKey(items[at])
+    var named = key !== "" && items.filter(function (e) { return entryKey(e) === key }).length === 1
+    if (!(named && a && a.queue && typeof a.queue.removeItem === "function")) {
+      editQueue(s, { type: "REMOVE_ITEM", payload: at }, playing)
+      return
+    }
+    editing = true
+    try {
+      a.queue.removeItem(key)
+      keepSelection(s, playing)
+    } finally {
+      editing = false
+    }
+    checkArmed()
+  }
+
+  // For a few seconds after, a list from YouTube's side that lands late (the
+  // queue it builds on the first skip of a list just started, a sync) may
+  // bring the entry back before the song playing: it is taken out again,
+  // twice at most.
+  function keepGone(s, key, videoId) {
+    var tries = 2
+    var until = Date.now() + 6000
+    var look = function () {
+      if (tries <= 0 || Date.now() > until) return
+      var q = s.getState().queue
+      // Before the song playing, found by its video: a list put in whole
+      // leaves the selection where it was.
+      var now = playingId(), cur = q.selectedItemIndex
+      for (var j = 0; j < q.items.length; j++) {
+        var t = P.panelVideo(q.items[j]) || {}
+        if (now && (t.videoId === now || t.twinId === now)) { cur = j; break }
+      }
+      for (var k = 0; k < cur && k < q.items.length; k++) {
+        if (entryKey(q.items[k]) === key && (P.panelVideo(q.items[k]) || {}).videoId === videoId) {
+          tries--
+          removeEntry(s, k, playingId())
+          break
+        }
+      }
+      setTimeout(look, 300)
+    }
+    setTimeout(look, 300)
+  }
+
+  // Now Playing's "Remove from queue": the song playing leaves the queue.
+  // The app will not drop the entry it plays, so the player moves on to the
+  // next one first, then that entry goes. `index` is the entry the panel saw
+  // playing: if the queue has moved on since, nothing is done.
+  async function queueRemovePlaying(args) {
+    var s = needStore()
+    var q = s.getState().queue
+    var i = q.selectedItemIndex
+    if (args.index !== i || i < 0 || i >= q.items.length) fail("moved")
+    if (i >= q.items.length - 1 && !(q.automixItems || []).length) fail("last")
+    var gone = q.items[i]
+    var goneId = P ? (P.panelVideo(gone) || {}).videoId : ""
+    var goneKey = entryKey(gone)
+    var p = needPlayer()
+    p.nextVideo()
+    var until = Date.now() + 5000
+    while (s.getState().queue.selectedItemIndex === i && Date.now() < until) await sleep(50)
+    q = s.getState().queue
+    if (q.selectedItemIndex === i) fail("timeout")
+    // The same entry, else the one at its place if it is the same song.
+    var at = q.items.indexOf(gone)
+    if (at < 0 && P && q.items[i] && (P.panelVideo(q.items[i]) || {}).videoId === goneId) at = i
+    if (at < 0) fail("moved")
+    removeEntry(s, at, playingId())
+    if (goneKey && P) keepGone(s, goneKey, goneId)
     return { removed: true }
   }
 
@@ -1070,6 +1198,7 @@
     "queue.add": queueAdd,
     "queue.move": queueMove,
     "queue.remove": queueRemove,
+    "queue.removePlaying": queueRemovePlaying,
     "queue.jump": queueJump,
     "queue.more": queueMore,
 
@@ -1143,6 +1272,36 @@
         }
       } catch (e) { /* the fallback below */ }
       return fallback
+    },
+
+    // "Remove from playlist": the setVideoId names that one row, so a song
+    // that is in twice keeps its other copy. Liked songs has its own unlike.
+    "playlist.remove": async function (args) {
+      needSignIn()
+      var id = editableList(args.playlistId)
+      if (!P.playlistEditSucceeded(await editPlaylist(id, EDIT.remove(args.setVideoId, args.videoId)))) fail("failed")
+      return { removed: true }
+    },
+
+    // The undo of "Remove from playlist". YouTube Music has none: the song
+    // is added again (a new row, so a new setVideoId), then moved before
+    // the first row that followed it and is still there. `before`: the
+    // setVideoIds of the rows that followed it, nearest first; empty, it
+    // was the last row and stays at the end. { setVideoId, placed }: placed
+    // false, it came back but at the end. A failed add changes nothing.
+    "playlist.restore": async function (args) {
+      needSignIn()
+      var id = editableList(args.playlistId)
+      var added = P.playlistAddedSetVideoId(await editPlaylist(id, EDIT.add(args.videoId)))
+      if (!added) fail("failed")
+      var before = args.before || []
+      if (!before.length) return { setVideoId: added, placed: true }
+      for (var i = 0; i < before.length; i++) {
+        try {
+          if (P.playlistEditSucceeded(await editPlaylist(id, EDIT.moveBefore(added, before[i])))) return { setVideoId: added, placed: true }
+        } catch (e) { /* that row may be gone: the next one */ }
+      }
+      return { setVideoId: added, placed: false }
     },
 
     "eq.set": function (args) {

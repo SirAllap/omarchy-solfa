@@ -342,6 +342,74 @@ test("queue: add next, move and remove keep the playing track selected", async (
   assert.equal(model.automix.length, 1)
 })
 
+test("queue.removePlaying: the next song starts, then the entry that was playing leaves the queue", async () => {
+  const p = makePage()
+  await p.settle()
+  const ids = () => p.store.getState().queue.items.map((e) => e.playlistPanelVideoRenderer.videoId)
+  // The panel saw another entry playing: nothing happens.
+  await assert.rejects(p.call("queue.removePlaying", { index: 1 }), /moved/)
+  assert.deepEqual(ids(), ["AAAAAAAAAAA", "BBBBBBBBBBB", "CCCCCCCCCCC"])
+  const r = await p.call("queue.removePlaying", { index: 0 })
+  assert.deepEqual(plain(r), { removed: true })
+  assert.equal(p.player.current, "BBBBBBBBBBB", "the next song plays")
+  assert.deepEqual(ids(), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0, "the selection stays on the song playing")
+  // The last entry with autoplay after it: allowed; with nothing at all after it: refused.
+  p.store.dispatch({ type: "REMOVE_AUTOMIX_ITEM", payload: 0 })
+  p.store.dispatch({ type: "SET_INDEX", payload: 1 })
+  p.player.current = "CCCCCCCCCCC"
+  await assert.rejects(p.call("queue.removePlaying", { index: 1 }), /last/)
+  assert.deepEqual(ids(), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
+})
+
+test("queue.removePlaying on the first entry: YouTube's copy of the queue loses it too, and a late list does not bring it back", async () => {
+  // Entries of a list, each with its place there (watchEndpoint.index): the id the app's queue service knows them by.
+  const keyed = (id, title, n) => { const e = entry(id, title); e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint.index = n; return e }
+  const make = () => makePage({ items: [keyed("AAAAAAAAAAA", "First Light", 0), keyed("BBBBBBBBBBB", "Second Wind", 1), keyed("CCCCCCCCCCC", "Third Rail", 2)] })
+  const ids = (p) => p.store.getState().queue.items.map((e) => e.playlistPanelVideoRenderer.videoId)
+  const keyOf = (e) => String(e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint.index)
+  // YouTube's side keeps its own copy of the list, which only the app's queue
+  // service edits; the first skip of a list just started makes it put the
+  // whole list back into the store a moment later.
+  const withYouTube = (p, service) => {
+    let server = p.store.getState().queue.items.slice()
+    let sent = false
+    p.store.subscribe(() => {
+      if (sent || p.store.getState().queue.selectedItemIndex !== 1) return
+      sent = true
+      setImmediate(() => p.store.dispatch({ type: "RESET_ITEMS", payload: server.slice() }))
+    })
+    const asked = []
+    if (service) p.app.queue.removeItem = (key) => {
+      asked.push(key)
+      server = server.filter((e) => keyOf(e) !== key)
+      p.store.dispatch({ type: "REMOVE_ITEM", payload: p.store.getState().queue.items.findIndex((e) => keyOf(e) === key) })
+    }
+    return asked
+  }
+  const later = () => new Promise((r) => setTimeout(r, 40))
+
+  // The app's service can name the entry: it goes through it.
+  let p = make()
+  await p.settle()
+  let asked = withYouTube(p, true)
+  assert.deepEqual(plain(await p.call("queue.removePlaying", { index: 0 })), { removed: true })
+  await later()
+  assert.deepEqual(asked, ["0"], "removed through the app's queue service, by the entry's id")
+  assert.deepEqual(ids(p), ["BBBBBBBBBBB", "CCCCCCCCCCC"], "the list YouTube sends back no longer has it")
+  assert.equal(p.player.current, "BBBBBBBBBBB")
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0)
+
+  // No such service (or no id): the store, and the entry put back by the late list is taken out again.
+  p = make()
+  await p.settle()
+  withYouTube(p, false)
+  await p.call("queue.removePlaying", { index: 0 })
+  await later()
+  assert.deepEqual(ids(p), ["BBBBBBBBBBB", "CCCCCCCCCCC"])
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0, "on the song playing")
+})
+
 test("session: saved on one page, given back on a fresh one", async () => {
   const old = makePage()
   await old.settle()
@@ -980,6 +1048,85 @@ test("playlist.add checks for a duplicate and only adds it twice when forced", a
   await assert.rejects(bad.call("playlist.add", { playlistId: "PLabc", videoId: "AAAAAAAAAAA" }), /failed/)
 })
 
+test("playlist.remove sends the row's setVideoId, without the VL prefix, and needs a success", async () => {
+  const args = { playlistId: "VLPLabc", videoId: "AAAAAAAAAAA", setVideoId: "SET12345" }
+  const out = makePage()
+  await out.settle()
+  await assert.rejects(out.call("playlist.remove", args), /signin-required/)
+  assert.equal(out.requests.filter((x) => x.endpoint === "browse/edit_playlist").length, 0)
+  const p = makePage({ signedIn: true, replies: { "browse/edit_playlist": () => ({ status: "STATUS_SUCCEEDED" }) } })
+  await p.settle()
+  const r = await p.call("playlist.remove", args)
+  assert.deepEqual(JSON.parse(JSON.stringify(r)), { removed: true })
+  const req = p.requests.find((x) => x.endpoint === "browse/edit_playlist")
+  assert.equal(req.body.playlistId, "PLabc")
+  assert.deepEqual(JSON.parse(JSON.stringify(req.body.actions)), [{ action: "ACTION_REMOVE_VIDEO", setVideoId: "SET12345", removedVideoId: "AAAAAAAAAAA" }])
+  assert.match(req.init.headers.Authorization, /^SAPISIDHASH /)
+  await p.call("playlist.remove", Object.assign({}, args, { playlistId: "PLabc" }))
+  assert.equal(p.requests.filter((x) => x.endpoint === "browse/edit_playlist").pop().body.playlistId, "PLabc")
+  // Liked songs is not a playlist to edit: refused before any request.
+  const before = p.requests.length
+  await assert.rejects(p.call("playlist.remove", Object.assign({}, args, { playlistId: "LM" })), /failed/)
+  await assert.rejects(p.call("playlist.remove", Object.assign({}, args, { playlistId: "VLLM" })), /failed/)
+  assert.equal(p.requests.length, before)
+  // A reply that is not STATUS_SUCCEEDED is a failure.
+  for (const reply of [{ status: "STATUS_FAILED" }, {}, null]) {
+    const bad = makePage({ signedIn: true, replies: { "browse/edit_playlist": () => reply } })
+    await bad.settle()
+    await assert.rejects(bad.call("playlist.remove", args), /failed/)
+  }
+})
+
+test("playlist.restore adds the song again and moves it before the first row that followed it", async () => {
+  const ADDED = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "innertube", "playlist-edit-added.json"), "utf8"))
+  const NEW = ADDED.playlistEditResults[0].playlistEditVideoAddedResultData.setVideoId
+  const edits = (p) => p.requests.filter((x) => x.endpoint === "browse/edit_playlist").map((x) => ({ playlistId: x.body.playlistId, actions: plain(x.body.actions) }))
+  // moves: what each move answers, in order (true: done).
+  const page = (moves, addOk = true) => {
+    const left = moves.slice()
+    return makePage({ signedIn: true, replies: { "browse/edit_playlist": (body) => {
+      const a = body.actions[0].action
+      if (a === "ACTION_ADD_VIDEO") return addOk ? ADDED : { status: "STATUS_FAILED" }
+      if (a === "ACTION_MOVE_VIDEO_BEFORE") return { status: left.shift() ? "STATUS_SUCCEEDED" : "STATUS_FAILED" }
+      return {}
+    } } })
+  }
+  const args = { playlistId: "VLPLabc", videoId: "AAAAAAAAAAA", before: ["SUCC1", "SUCC2"] }
+  let p = page([true])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", args)), { setVideoId: NEW, placed: true })
+  assert.deepEqual(edits(p), [
+    { playlistId: "PLabc", actions: [{ action: "ACTION_ADD_VIDEO", addedVideoId: "AAAAAAAAAAA", dedupeOption: "DEDUPE_OPTION_SKIP" }] },
+    { playlistId: "PLabc", actions: [{ action: "ACTION_MOVE_VIDEO_BEFORE", setVideoId: NEW, movedSetVideoIdSuccessor: "SUCC1" }] }
+  ])
+  // The first row after it is gone: the next one.
+  p = page([false, true])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", args)), { setVideoId: NEW, placed: true })
+  assert.deepEqual(edits(p).slice(1).map((b) => b.actions[0].movedSetVideoIdSuccessor), ["SUCC1", "SUCC2"])
+  // No move works: back, but at the end.
+  p = page([false, false])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", args)), { setVideoId: NEW, placed: false })
+  // It was the last row: added, not moved.
+  p = page([])
+  await p.settle()
+  assert.deepEqual(plain(await p.call("playlist.restore", Object.assign({}, args, { before: [] }))), { setVideoId: NEW, placed: true })
+  assert.equal(edits(p).length, 1)
+  // The add fails: an error, and no move.
+  p = page([true], false)
+  await p.settle()
+  await assert.rejects(p.call("playlist.restore", args), /failed/)
+  assert.equal(edits(p).length, 1)
+  // Liked songs, and a signed-out page: nothing sent.
+  await assert.rejects(p.call("playlist.restore", Object.assign({}, args, { playlistId: "LM" })), /failed/)
+  assert.equal(edits(p).length, 1)
+  const out = makePage()
+  await out.settle()
+  await assert.rejects(out.call("playlist.restore", args), /signin-required/)
+  assert.equal(edits(out).length, 0)
+})
+
 test("the account event says Premium only for a signed-in subscriber", async () => {
   const account = async (opts) => {
     const p = makePage(opts)
@@ -1048,6 +1195,66 @@ test("a song's duration is the queue's full length while the player only knows w
   p.player.dur = 49
   p.player.current = "ZZZZZZZZZZZ"
   assert.equal((await p.call("state")).player.duration, 49)
+})
+
+test("the player names the playlist the song plays from and its row there, for the entry that plays only", async () => {
+  const fromList = (videoId, title, setVideoId) => {
+    const e = entry(videoId, title)
+    e.playlistPanelVideoRenderer.playlistSetVideoId = setVideoId
+    Object.assign(e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint, { playlistId: "PLinventedPlaylist01", playlistSetVideoId: setVideoId })
+    return e
+  }
+  const p = makePage({ items: [fromList("AAAAAAAAAAA", "First Light", "0123456789ABCDEF"), entry("BBBBBBBBBBB", "Second Wind")] })
+  await p.settle()
+  let s = (await p.call("state")).player
+  assert.equal(s.playlistId, "PLinventedPlaylist01")
+  assert.equal(s.setVideoId, "0123456789ABCDEF")
+  assert.equal(p.emitted.filter((e) => e.t === "player").pop().data.setVideoId, "0123456789ABCDEF", "pushed too")
+  // The player on another song than the queue's entry: nothing borrowed from it.
+  p.player.current = "ZZZZZZZZZZZ"
+  s = (await p.call("state")).player
+  assert.equal(s.playlistId, "")
+  assert.equal(s.setVideoId, "")
+  // A song queued on its own: no row.
+  p.player.nextVideo()
+  s = (await p.call("state")).player
+  assert.equal(s.videoId, "BBBBBBBBBBB")
+  assert.equal(s.setVideoId, "")
+})
+
+test("a song and its music video share one entry: the twin playing is still that row of the playlist", async () => {
+  const fromList = (videoId, title, setVideoId) => {
+    const e = entry(videoId, title)
+    e.playlistPanelVideoRenderer.playlistSetVideoId = setVideoId
+    Object.assign(e.playlistPanelVideoRenderer.navigationEndpoint.watchEndpoint, { playlistId: "PLinventedPlaylist01", playlistSetVideoId: setVideoId })
+    return e
+  }
+  // The entry the playlist queued (its video) and the song version the app plays.
+  const pair = { playlistPanelVideoWrapperRenderer: { primaryRenderer: fromList("VVVVVVVVVVV", "Night Drive (video)", "SETVIDEO0001"),
+    counterpart: [{ counterpartRenderer: entry("SSSSSSSSSSS", "Night Drive"), segmentMap: {} }] } }
+  const p = makePage({ items: [entry("AAAAAAAAAAA", "First Light"), pair, entry("CCCCCCCCCCC", "Third Rail")] })
+  await p.settle()
+  p.store.dispatch({ type: "SET_INDEX", payload: 1 })
+  p.player.current = "SSSSSSSSSSS"
+  let s = (await p.call("state")).player
+  assert.equal(s.videoId, "SSSSSSSSSSS")
+  assert.equal(s.playlistId, "PLinventedPlaylist01")
+  assert.equal(s.setVideoId, "SETVIDEO0001")
+  assert.deepEqual(plain(s.entryVideoIds), ["VVVVVVVVVVV", "SSSSSSSSSSS"])
+  // Its own video playing: the same entry.
+  p.player.current = "VVVVVVVVVVV"
+  s = (await p.call("state")).player
+  assert.equal(s.setVideoId, "SETVIDEO0001")
+  // Another video than either: nothing borrowed from the entry.
+  p.player.current = "ZZZZZZZZZZZ"
+  s = (await p.call("state")).player
+  assert.equal(s.setVideoId, "")
+  assert.deepEqual(plain(s.entryVideoIds), [])
+  // A queue edit while the twin plays keeps the selection on its entry.
+  p.player.current = "SSSSSSSSSSS"
+  await p.call("queue.remove", { index: 0 })
+  assert.equal(p.store.getState().queue.selectedItemIndex, 0)
+  assert.equal(p.store.getState().queue.items.length, 2)
 })
 
 test("snapshot during an ad reports adPosition/adDuration, and zeroes the regular clock", async () => {

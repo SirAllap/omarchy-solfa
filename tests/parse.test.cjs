@@ -103,6 +103,62 @@ test("a playlist edit: added, a duplicate the check refused, or a failure", () =
   assert.equal(P.playlistEditResult(null), "failed")
 })
 
+test("a playlist of the user's own is editable; Liked songs, albums and other people's are not", () => {
+  // No signed-in capture of a user's playlist exists, so this one is composed
+  // of two real ones: the rows of playlist.json under the header that
+  // playlist-edit-added.json returns as `newHeader` (the editable header).
+  const compose = (swap) => {
+    const page = JSON.parse(JSON.stringify(F("playlist")))
+    const tab = page.contents.twoColumnBrowseResultsRenderer.tabs[0].tabRenderer.content.sectionListRenderer.contents
+    tab[0] = JSON.parse(swap(JSON.stringify(F("playlist-edit-added").newHeader)))
+    return page
+  }
+  const noPlayButton = (h) => h.replace(/"watch(Playlist)?Endpoint"/g, '"somethingElse"')
+  const mine = P.playlist(compose((h) => h))
+  const header = F("playlist-edit-added").newHeader.musicEditablePlaylistDetailHeaderRenderer
+  assert.equal(mine.editable, true)
+  assert.equal(mine.playlistId, header.playlistId)
+  assert.equal(mine.tracks.length, P.playlist(F("playlist")).tracks.length)
+  assert.ok(mine.tracks.every((t) => t.setVideoId))
+  assert.equal(P.browse("VL" + header.playlistId, compose((h) => h)).editable, true)
+  // Without a Play button the page's own id is used, else the header's.
+  const noPlay = compose((h) => noPlayButton(h))
+  assert.equal(P.playlist(noPlay).playlistId, F("playlist").contents.twoColumnBrowseResultsRenderer.secondaryContents.sectionListRenderer.contents[0].musicPlaylistShelfRenderer.playlistId)
+  const bare = compose((h) => noPlayButton(h))
+  delete bare.contents.twoColumnBrowseResultsRenderer.secondaryContents.sectionListRenderer.contents[0].musicPlaylistShelfRenderer.playlistId
+  assert.equal(P.playlist(bare).playlistId, header.playlistId)
+  assert.equal(P.playlist(bare).editable, true)
+  // Liked songs (LM, with or without the VL prefix) never is.
+  const liked = P.playlist(compose((h) => h.split(header.playlistId).join("LM")))
+  assert.equal(liked.playlistId, "LM")
+  assert.equal(liked.editable, false)
+  assert.equal(P.playlist(compose((h) => h.split(header.playlistId).join("VLLM"))).editable, false)
+  // Somebody else's playlist, an album, a continuation: not editable.
+  assert.equal(P.playlist(F("playlist")).editable, false)
+  assert.equal(P.playlist(F("album")).editable, false)
+  assert.notEqual(P.browse("MPREb_x", F("album")).editable, true)
+  assert.equal(P.playlist({ continuationContents: {} }).editable, false)
+})
+
+test("a playlist removal or move: only STATUS_SUCCEEDED is done", () => {
+  assert.equal(P.playlistEditSucceeded({ status: "STATUS_SUCCEEDED" }), true)
+  assert.equal(P.playlistEditSucceeded(F("playlist-edit-added")), true)
+  assert.equal(P.playlistEditSucceeded({ status: "STATUS_FAILED" }), false)
+  assert.equal(P.playlistEditSucceeded({}), false)
+  assert.equal(P.playlistEditSucceeded(null), false)
+})
+
+test("a song added again (the undo of a removal): the new row's setVideoId", () => {
+  const added = F("playlist-edit-added")
+  const id = added.playlistEditResults[0].playlistEditVideoAddedResultData.setVideoId
+  assert.ok(id)
+  assert.equal(P.playlistAddedSetVideoId(added), id)
+  assert.equal(P.playlistAddedSetVideoId(Object.assign({}, added, { status: "STATUS_FAILED" })), "")
+  assert.equal(P.playlistAddedSetVideoId(F("playlist-edit-duplicate")), "")
+  assert.equal(P.playlistAddedSetVideoId({ status: "STATUS_SUCCEEDED" }), "", "no result, no row")
+  assert.equal(P.playlistAddedSetVideoId(null), "")
+})
+
 test("filter params decode to the filter they name", () => {
   const field = (p) => Buffer.from(decodeURIComponent(p), "base64")
   assert.equal(field(P.SEARCH_FILTERS.songs)[5], 0x08)
@@ -202,6 +258,35 @@ test("a queue page asked with a continuation: its playable entries and the next 
   assert.equal(P.queuePage(page([a], [{ nextRadioContinuationData: { continuation: "fixture-radio-2" } }])).continuation, "fixture-radio-2")
   assert.deepEqual(P.queuePage(page([b])), { entries: [b], continuation: "" })
   assert.deepEqual(P.queuePage({}), { entries: [], continuation: "" })
+})
+
+test("a queue entry from a playlist names the playlist and its row there", () => {
+  // Shaped like a song queued by playing a playlist: the row's
+  // playlistSetVideoId beside the playlist's id in the watch endpoint.
+  const fromList = JSON.parse(JSON.stringify(P.queueEntries(F("queue"))[0]))
+  const r = fromList.playlistPanelVideoRenderer
+  r.playlistSetVideoId = "0123456789ABCDEF"
+  Object.assign(r.navigationEndpoint.watchEndpoint, { playlistId: "PLinventedPlaylist01", playlistSetVideoId: "0123456789ABCDEF", index: 4 })
+  const t = P.panelVideo(fromList)
+  assert.equal(t.playlistId, "PLinventedPlaylist01")
+  assert.equal(t.setVideoId, "0123456789ABCDEF")
+  // In a song/video pair, the primary's row.
+  const other = JSON.parse(JSON.stringify(P.queueEntries(F("queue"))[1]))
+  other.playlistPanelVideoRenderer.playlistSetVideoId = "FEDCBA9876543210"
+  const pair = { playlistPanelVideoWrapperRenderer: { primaryRenderer: fromList, counterpart: [{ counterpartRenderer: other }] } }
+  assert.equal(P.panelVideo(pair).setVideoId, "0123456789ABCDEF")
+  // The pair names its twin, the video the app may play instead.
+  assert.equal(P.panelVideo(pair).twinId, other.playlistPanelVideoRenderer.videoId)
+  assert.notEqual(P.panelVideo(pair).twinId, P.panelVideo(pair).videoId)
+  // A primary without the row: the twin's.
+  const bare = JSON.parse(JSON.stringify(fromList))
+  delete bare.playlistPanelVideoRenderer.playlistSetVideoId
+  const pair2 = { playlistPanelVideoWrapperRenderer: { primaryRenderer: bare, counterpart: [{ counterpartRenderer: other }] } }
+  assert.equal(P.panelVideo(pair2).setVideoId, "FEDCBA9876543210")
+  // No pair, no twin.
+  assert.equal(P.panelVideo(fromList).twinId, undefined)
+  // Queued on its own (get_queue): no row of any playlist.
+  assert.equal(P.panelVideo(P.queueEntries(F("queue"))[0]).setVideoId, "")
 })
 
 test("suggestions are plain queries", () => {

@@ -54,9 +54,17 @@ Item {
   property int findPages: 0
   property alias cursor: list.cursor
   readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
+  // With the find field focused: the field's hints. Otherwise x only where
+  // it works (a row of the user's own playlist), and F (pinned) where there
+  // are songs to find.
+  readonly property bool removableHere: Model.removable(info, current)
   readonly property var hints: inputFocused ? [["↵ ↓", "to the list"], ["esc", query === "" ? "close" : "clear"]]
-    : findable ? [["↵", "play or open"], ["F", "find", true], ["e", "play next"], ["esc", finding ? "close find" : "back"]]
+    : findable ? (removableHere
+        ? [["↵", "play or open"], ["x", "remove"], ["F", "find", true], ["e", "play next"], ["esc", finding ? "close find" : "back"]]
+        : [["↵", "play or open"], ["F", "find", true], ["e", "play next"], ["esc", finding ? "close find" : "back"]])
     : [["↵", "play or open"], ["e", "play next"], ["esc", "back"]]
+  // Rows whose removal is on its way (by setVideoId): a second x sends nothing.
+  property var removing: ({})
 
   function shown() {}
   function move(dy) {
@@ -122,6 +130,63 @@ Item {
     })
   }
 
+  // x, Delete or the row's button: the song leaves the playlist, no
+  // confirmation, and the row goes without reloading the page.
+  function remove(row) {
+    if (!Model.removable(view.info, row) || !svc) return
+    var sid = row.item.setVideoId
+    if (view.removing[sid]) return
+    view.removing[sid] = true
+    var page = view.page
+    var title = view.info.title || (page ? page.title : "")
+    var listId = view.info.playlistId
+    // Where the row was and what followed it, for the undo (from the whole
+    // list, not the found rows).
+    var rec = Model.removalRecord(view.info, sid)
+    var undo = rec ? Object.assign({ playlistId: Model.bareListId(listId), videoId: row.item.videoId, setVideoId: sid, title: title }, rec) : null
+    svc.request("playlist.remove", { playlistId: listId, videoId: row.item.videoId, setVideoId: sid }, function (r) {
+      delete view.removing[sid]
+      if (!r.ok) { svc.report(r.error); return }
+      if (page) page.info = Model.withoutTrack(page.info, sid)
+      var at = list.cursor   // the list moves it when its rows change
+      if (view.page === page) {
+        view.info = Model.withoutTrack(view.info, sid)
+        list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
+        if (view.panel) view.panel.say(Model.removedMessage(title), undo)
+      }
+      // Other pages of it, and Now Playing when this row is the song playing.
+      if (view.panel) view.panel.trackRemoved(listId, sid)
+    })
+  }
+
+  // A row of the playlist on screen left it from elsewhere (Now Playing's
+  // button): it goes from the list as if removed here, without a reload.
+  function trackRemoved(playlistId, setVideoId) {
+    if (!view.info || view.info.kind !== "playlist" || Model.bareListId(view.info.playlistId) !== Model.bareListId(playlistId)) return
+    var d = Model.withoutTrack(view.info, setVideoId)
+    if (d === view.info) return
+    var at = list.cursor
+    view.info = d
+    if (view.page) view.page.info = Model.withoutTrack(view.page.info, setVideoId)
+    list.cursor = Model.cursorAfterRemoval(at, view.rows.length)
+  }
+
+  // A row put back by an undo (Panel.trackRestored): it comes back into the
+  // list where it was, and the cursor stays on the song it was on.
+  function trackRestored(playlistId, track, before, placed) {
+    if (!view.info || view.info.kind !== "playlist" || Model.bareListId(view.info.playlistId) !== Model.bareListId(playlistId)) return
+    var d = Model.withTrackRestored(view.info, track, before, placed)
+    if (d === view.info) return
+    var keep = view.current
+    // A row back in the middle is not a page added at the end: the found
+    // rows are worked out again from the whole list.
+    view.findCache.query = null
+    view.info = d
+    if (view.page) view.page.info = Model.withTrackRestored(view.page.info, track, before, placed)
+    var at = Model.rowIndex(view.rows, keep)
+    if (at >= 0) list.cursor = at
+  }
+
   // ---- find in this playlist
 
   function startFind() {
@@ -183,9 +248,11 @@ Item {
     function onOpenedChanged() { if (!view.panel.opened) view.leave() }
   }
 
-  // F is the only key this page takes (f is like).
+  // F finds; x removes from a playlist of the user's (f is like). Typed in
+  // the find field, both are the field's: they never get here.
   function key(t) {
     if (t === "F" && view.findable) { view.startFind(); return true }
+    if (t === "x" && Model.removable(view.info, view.current)) { remove(view.current); return true }
     return false
   }
 
@@ -482,11 +549,15 @@ Item {
     rows: view.rows
     playingId: view.svc ? view.svc.videoId : ""
     panelOpen: !!(view.svc && view.svc.panelOpen)
-    actionsFor: function (row) { return view.panel ? view.panel.itemActions(row) : [] }
+    actionsFor: function (row) {
+      var out = view.panel ? view.panel.itemActions(row) : []
+      if (Model.removable(view.info, row)) out.push({ name: "remove", icon: Icons.close, tip: "Remove from this playlist (x)" })
+      return out
+    }
     emptyText: view.busy ? (view.skeletonRows > 0 ? "" : "Loading") : view.error !== "" ? view.error
       : view.finding && view.query.trim() !== "" ? (view.loadingAll ? "No match yet" : "No song matches") : ""
     onActivated: function (i) { view.panel.activateRow(view.rows[i], view.contextList()) }
-    onAction: function (name, i) { view.panel.runAction(name, view.rows[i]) }
+    onAction: function (name, i) { if (name === "remove") view.remove(view.rows[i]); else view.panel.runAction(name, view.rows[i]) }
     onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onHeaderActivated: function (i) { var r = view.rows[i]; if (r.more) view.panel.openPage({ browseId: r.more, title: r.header }, r.moreParams) }
     onAtYEndChanged: if (atYEnd) view.loadMore()

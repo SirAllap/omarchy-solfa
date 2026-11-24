@@ -37,6 +37,14 @@ Column {
   signal artistRequested(var artist)
   // The share button was pressed (the panel copies the song's link).
   signal shareRequested()
+  // The song playing as a row of a playlist of the user's, when it plays
+  // from one (Panel.qml works it out, Model.playingRemoval): the remove
+  // button takes it out of that playlist. Otherwise, with `queueRemovable`
+  // (an entry in the queue and a song after it), the same button takes it
+  // out of the queue. Its button was pressed: removeRequested.
+  property var removal: null
+  property bool queueRemovable: false
+  signal removeRequested()
 
   Row {
     width: parent.width
@@ -387,14 +395,18 @@ Column {
     opacity: root.hasTrack ? 1 : 0.35
     Behavior on opacity { enabled: !Style.reduceMotion; NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
-    readonly property real slot: Style.space(48)
+    // Remove makes eight buttons on the line: they share the room seven
+    // would have, in narrower squares with narrower gaps, so the line stays
+    // inside the card. It is there with every song, whatever it means.
+    readonly property bool crowded: removeButton.visible
+    readonly property real slot: Style.space(crowded ? 44 : 48)
     readonly property real playSlot: Style.space(62)
     readonly property real volumeSlot: Style.space(36)
     readonly property real glyph: Style.space(20)
 
     Row {
       id: transport
-      spacing: Style.space(10)
+      spacing: Style.space(controls.crowded ? 5 : 10)
       anchors.top: parent.top
       anchors.horizontalCenter: parent.horizontalCenter
 
@@ -526,6 +538,30 @@ Column {
         fontFamily: root.family
         tooltipText: root.hasTrack ? "Copy link (c)" : "Nothing to share"
         onClicked: root.shareRequested()
+      }
+      // Takes the song playing out: out of the playlist it plays from when
+      // that is one of the user's (it keeps playing), else out of the queue
+      // (the next song starts). One button for both, so the line never
+      // changes width; on an advert it hides with Save and Share.
+      HitButton {
+        id: removeButton
+        opacity: root.eff(160, 180)
+        transform: Translate { y: Style.space(10) * (1 - root.eff(160, 180)) }
+        objectName: "removeButton"
+        onPressedDown: function (it) { cover.lookAt(it) }
+        anchors.verticalCenter: parent.verticalCenter
+        minSize: controls.slot
+        // "playlist", "queue", or "" when neither can be done.
+        readonly property string meaning: root.removal && root.svc && root.svc.signedIn ? "playlist" : root.queueRemovable ? "queue" : ""
+        visible: !!(root.svc && !root.svc.isAd)
+        enabled: root.hasTrack && meaning !== ""
+        iconText: ""
+        VIcon { anchors.centerIn: parent; name: removeButton.meaning === "playlist" ? "playlistRemove" : "close"; size: Style.space(22); color: root.fg; stroke: 1.7 }
+        foreground: root.fg
+        fontFamily: root.family
+        tooltipText: meaning === "playlist" ? "Remove from " + (root.removal.title || "this playlist")
+          : meaning === "queue" ? "Remove from queue" : "Nothing after it in the queue"
+        onClicked: root.removeRequested()
       }
     }
 

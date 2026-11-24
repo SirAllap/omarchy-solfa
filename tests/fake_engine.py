@@ -59,7 +59,8 @@ state = {
     "player": {"videoId": "AAAAAAAAAAA", "title": "First Light", "artists": [{"name": "Mira Solvent", "id": "UCfixture"}],
                "album": None, "thumb": "", "kind": "song", "duration": 200, "position": 12, "at": 0, "playing": True,
                "buffering": False, "ended": False, "ad": False, "volume": 100, "muted": False, "repeat": "NONE",
-               "shuffle": False, "like": "INDIFFERENT", "index": 0, "canNext": True, "canPrev": True},
+               "shuffle": False, "like": "INDIFFERENT", "index": 0, "canNext": True, "canPrev": True,
+               "playlistId": "", "setVideoId": ""},
     "queueVersion": 1,
     "navigations": [],
     # Google cookies in the jar: (name, domain, path). A consent answer is
@@ -203,7 +204,7 @@ def page_op(op, a):
         return {"top": None, "songs": [{"kind": "song", "videoId": "BBBBBBBBBBB", "title": "Result for " + a["q"],
                    "artists": [{"name": "Zero Seven", "id": "UCfixture7"}, {"name": "Sophie Example", "id": ""}]}],
                 "videos": [], "albums": [], "artists": [], "playlists": [], "other": [], "continuation": ""}, None
-    if op in ("like", "library", "account.info", "playlist.options", "playlist.add", "playlist.create") and not state["signedIn"]:
+    if op in ("like", "library", "account.info", "playlist.options", "playlist.add", "playlist.create", "playlist.remove", "playlist.restore") and not state["signedIn"]:
         return None, "signin-required"
     if op == "playlist.options":
         return {"playlists": [{"id": "PLfixture1", "title": "Road trip", "count": "12 tracks", "recent": True}]}, None
@@ -212,6 +213,14 @@ def page_op(op, a):
         if a.get("playlistId") == "PLfixture2" and not a.get("force"):
             return {"added": False, "duplicate": True}, None
         return {"added": True}, None
+    if op == "playlist.remove":
+        if a["playlistId"].replace("VL", "", 1) == "LM":
+            return None, "failed"
+        return {"removed": True}, None
+    if op == "playlist.restore":
+        if a["playlistId"].replace("VL", "", 1) == "LM":
+            return None, "failed"
+        return {"setVideoId": "RESTOREDSET0001", "placed": True}, None
     if op == "account.info":
         # An invented account (never a real one): Alex Example, alex@example.com.
         return {"name": "Alex Example", "email": "alex@example.com",
@@ -226,6 +235,8 @@ def page_op(op, a):
     if op == "queue.more":
         # The canned queue is empty: there is no next page to add.
         return {"added": 0, "more": False}, None
+    if op == "queue.removePlaying":
+        return {"removed": True}, None
     return {"ok": True}, None
 
 
