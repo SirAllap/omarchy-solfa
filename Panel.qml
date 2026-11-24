@@ -393,7 +393,12 @@ Panel {
 
   // `undo`: a removal from a playlist this notice offers to undo (longer on
   // screen). Any other notice takes the offer away.
+  // The notice of a removal (with its Undo) is never pushed away by another one: those wait
+  // (the last one) and show when it is over.
+  property var waitingNotice: null
   function say(text, undo, isError) {
+    if (!undo && root.undoable && !root.undoSent && root.flash !== "") { root.waitingNotice = { text: text, isError: !!isError }; return }
+    root.waitingNotice = null
     root.flashError = !!isError
     root.undoable = undo || null
     root.undoSent = false
@@ -401,7 +406,13 @@ Panel {
     flashTimer.interval = undo ? root.undoMs : 2600
     flashTimer.restart()
   }
-  Timer { id: flashTimer; interval: 2600; onTriggered: { root.flash = ""; root.undoable = null } }
+  Timer { id: flashTimer; interval: 2600
+    onTriggered: {
+      root.flash = ""; root.undoable = null
+      var w = root.waitingNotice
+      root.waitingNotice = null
+      if (w) root.say(w.text, null, w.isError)
+    } }
 
   // Only the open panel shows an error (there is one panel per bar, and a
   // closed one would swallow it).
@@ -585,7 +596,7 @@ Panel {
   // g / o: the artist or album of the row under the cursor, else of the song.
   // One artist opens at once; several open the picker (never a guess). `anchor` is the
   // button that was clicked: the menu opens next to it (from the key: in the middle).
-  function openArtist(row, anchor) {
+  function openArtist(row, anchor, first) {
     var it = row && row.item && row.item.videoId ? row.item : (svc.hasTrack ? svc.player : null)
     var all = it && it.artists ? it.artists : []
     var named = []
@@ -596,6 +607,8 @@ Panel {
     artistPicker.hasAnchor = !!r
     if (r) artistPicker.anchor = Qt.rect(r.x, r.y, anchor.width, anchor.height)
     artistPicker.artists = named
+    // Opened from a name: the picker starts on that one.
+    if (first) for (var j = 0; j < named.length; j++) if (named[j].name === first.name) artistPicker.cursor = j
   }
   function closeArtistPicker() { artistPicker.artists = [] }
   // An artist's page from { name, id }. No id: search the name and open the top artist.
@@ -830,7 +843,7 @@ Panel {
         onSaveRequested: root.saveRow(null)
         onRadioRequested: { if (root.svc && root.svc.hasTrack) { root.svc.radioFor(root.svc.player); root.say("Radio from " + root.svc.title) } }
         onShareRequested: root.copyLink()
-        onArtistRequested: function (a) { root.openArtistLink(a) }
+        onArtistRequested: function (a, anchor) { root.openArtist(null, anchor, a) }
         onRemoveRequested: root.removePlaying()
       }
 

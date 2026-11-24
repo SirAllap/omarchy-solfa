@@ -173,7 +173,6 @@ Item {
     emptyText: ""
     onActivated: function (i) { view.jump(view.rows[i]) }
     onAction: function (name, i) { view.runAction(name, view.rows[i], list.actionAnchor) }
-    onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
     onAtYEndChanged: if (atYEnd) view.loadMore()
   }
 

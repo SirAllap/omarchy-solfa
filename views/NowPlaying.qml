@@ -34,7 +34,8 @@ Column {
   signal saveRequested()
   // The Radio chip was pressed (the panel starts it and says "Radio from <title>", as key R does).
   signal radioRequested()
-  signal artistRequested(var artist)
+  // A name of the playing song was clicked; `anchor` is the line (where the picker opens).
+  signal artistRequested(var artist, var anchor)
   // The share button was pressed (the panel copies the song's link).
   signal shareRequested()
   // The song playing as a row of a playlist of the user's, when it plays
@@ -166,7 +167,7 @@ Column {
         color: Util.alpha(root.fg, 0.75)
         family: root.family
         pixelSize: Style.space(13)
-        onArtistClicked: function (a) { root.artistRequested(a) }
+        onArtistClicked: function (a) { root.artistRequested(a, artistLine) }
       }
       Text {
         width: parent.width

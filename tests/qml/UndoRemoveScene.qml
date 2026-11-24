@@ -107,6 +107,7 @@ ShellRoot {
       else if (op === "browse" && page(args)) reply = { ok: true, data: page(args) }
       else if (op === "queue") reply = { ok: true, data: { items: [], automix: [], index: 0, version: 1 } }
       else if (op === "playlist.remove" || op === "queue.removePlaying") reply = { ok: true, data: { removed: true } }
+      else if (op === "play") reply = { ok: true, data: {} }
       else if (op === "playlist.restore") { restored++; reply = { ok: true, data: { setVideoId: "NEW" + restored, placed: placed } } }
       if (cb) cb(reply)
       return 0
@@ -230,6 +231,10 @@ ShellRoot {
                 st.gone = { handled: win.key(0, "u") }
                 win.removeRow(view, "NEW1")
                 panel.say("Link copied")
+                // The lighter notice waits behind the Undo one (it is not pushed away).
+                st.gone.kept = { flash: panel.flash, waiting: panel.waitingNotice ? panel.waitingNotice.text : "" }
+                // The Undo notice runs out: the waiting one shows, and there is nothing to undo.
+                panel.flash = ""; panel.undoable = null; panel.waitingNotice = null
                 st.gone.replaced = win.key(0, "u")
                 st.gone.asked = win.count("playlist.restore") - asked
                 st.gone.sets = win.sets(view)
@@ -279,8 +284,22 @@ ShellRoot {
                     win.key(0, "u")
                     st.finding.back = win.sets(view)
                     st.finding.all = view.info.tracks.map(function (t) { return t.setVideoId })
-                    console.log("STATE " + JSON.stringify(st))
-                    Qt.quit()
+                    // Playing a song while the Undo notice shows: its own notice waits, Undo stays.
+                    view.finding = false
+                    view.query = ""
+                    win.after(function () {
+                      var n0 = win.sets(view).length
+                      win.removeRow(view, "LSET1")
+                      var played = view.rows[0]
+                      panel.activateRow(played, "PLlong")
+                      st.keep = { removed: win.sets(view).length === n0 - 1, flash: panel.flash, offered: win.undoOffered(),
+                                  waiting: panel.waitingNotice ? panel.waitingNotice.text : "" }
+                      win.key(0, "u")
+                      st.keep.back = win.sets(view).length === n0
+                      st.keep.after = panel.flash
+                      console.log("STATE " + JSON.stringify(st))
+                      Qt.quit()
+                    })
                     })
                   })
                 })

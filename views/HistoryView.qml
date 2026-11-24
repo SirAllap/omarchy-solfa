@@ -68,7 +68,6 @@ Item {
       : "Nothing played yet"
     onActivated: function (i) { view.panel.activateRow(view.rows[i], "") }
     onAction: function (name, i) { view.panel.runAction(name, view.rows[i], list.actionAnchor) }
-    onArtistActivated: function (i, artist) { view.panel.openArtistLink(artist) }
   }
 
   // Loading: four faint rows, breathing slowly (as in the queue).

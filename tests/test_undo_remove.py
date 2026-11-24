@@ -101,6 +101,7 @@ class UndoRemove(unittest.TestCase):
         g = self.state["gone"]
         self.assertFalse(g["handled"])
         self.assertFalse(g["replaced"])
+        self.assertEqual(g["kept"], {"flash": "Removed from Road trip", "waiting": "Link copied"})
         self.assertEqual(g["asked"], 0)
         self.assertEqual(g["sets"], ["NEW3", "NEW2"])
 
@@ -131,6 +132,15 @@ class UndoRemove(unittest.TestCase):
         lng = self.state["long"]
         self.assertEqual(lng["browse"], [{"id": "VLPLlong", "continuation": "fixture-long-2"}])
         self.assertEqual(lng["sent"], {"playlistId": "PLlong", "videoId": "LLLLLLLLLL3", "before": ["LSET4", "LSET5"]})
+
+    def test_a_lighter_notice_does_not_push_the_undo_away(self):
+        k = self.state["keep"]
+        self.assertTrue(k["removed"])
+        self.assertEqual(k["flash"], "Removed from Long drive", "playing a song left the Undo notice up")
+        self.assertTrue(k["offered"])
+        self.assertTrue(k["waiting"].startswith("Playing "), "the song's notice waits")
+        self.assertTrue(k["back"], "u still undoes: the song is back")
+        self.assertNotEqual(k["after"], "Removed from Long drive", "the undone notice gives way to its own")
 
     def test_with_the_find_field_open_the_found_row_comes_back_once(self):
         f = self.state["finding"]

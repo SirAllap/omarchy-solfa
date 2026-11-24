@@ -310,6 +310,8 @@ ShellRoot {
                           st.queue = { meaning: b.meaning, visible: b.visible, enabled: b.enabled, tip: b.tooltipText,
                                        rowWidth: win.rowWidth(), x: Math.round(b.x), icon: b.children.filter(function (c) { return c.hasOwnProperty("stroke") }).map(function (c) { return c.name }) }
                           var removes = win.count("playlist.remove")
+                          // The earlier Undo notice has run out (a lighter notice waits behind it).
+                          panel.flash = ""; panel.undoable = null; panel.waitingNotice = null
                           fakeSvc.hold = true
                           b.clicked()
                           b.clicked()

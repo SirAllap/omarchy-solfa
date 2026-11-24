@@ -280,45 +280,33 @@ ShellRoot {
                   done()
                 })
               },
-              // The pointer on the artist text: the buttons fade out and every name shows.
-              function (done) {
-                view.cursor = 2
-                var row0 = win.rowItem(list, 0)
-                var btn0 = win.artistButton(row0)
-                st.rest = { buttons: btn0.opacity }
-                var l0 = win.link(row0, 0)
-                win.moveOnto(l0, l0.width / 2, l0.height / 2)
-                var line = l0.parent.parent.parent
-                st.hover = { buttons: btn0.opacity, fits: win.link(row0, 2).x + win.link(row0, 2).width <= line.width + 0.5, names: 3, lineW: line.width }
-                win.grab(out, function () { done() })
-              },
-              // Off the text, to the right: the buttons come back.
+              // The artist text under a title is plain: no link in the rows, so no click and no underline.
               function (done) {
                 var row0 = win.rowItem(list, 0)
-                var btn0 = win.artistButton(row0)
-                var p = win.point(row0, row0.width - 6, row0.height / 2)
-                tc.mouseMove(stage, p.x, p.y); tc.wait(250)
-                st.right = { buttons: btn0.opacity }
-                done()
-              },
-              // Names too long for the line: it pans under the pointer and the last one is clickable.
-              function (done) {
-                var row2 = win.rowItem(list, 2)
-                var l0 = win.link(row2, 0)
-                win.moveOnto(l0, l0.width / 2, l0.height / 2)
-                var line = l0.parent.parent.parent
-                var p = win.point(line, line.width - 4, line.height / 2)
-                tc.mouseMove(stage, p.x - 20, p.y); tc.wait(60); tc.mouseMove(stage, p.x, p.y); tc.wait(200)
-                var last = win.link(row2, 2)
-                var lp = last.mapToItem(line, 0, 0)
-                st.long = { overflow: line.overflow > 0, scroll: line.scroll, lastVisible: lp.x < line.width - 4 && lp.x + last.width <= line.width + 1 }
+                st.plain = { links: !!win.link(row0, 0), text: win.findAny(row0, function (c) { return typeof c.text === "string" && c.text.indexOf("berlioz") === 0 }) !== null }
                 var n = panel.pages.length
-                tc.mouseClick(stage, p.x, p.y)
-                st.long.pages = panel.pages.length - n
-                st.long.id = win.lastPage().id
-                console.log("STATE " + JSON.stringify(st))
-                Qt.quit()
+                var t = win.findAny(row0, function (c) { return typeof c.text === "string" && c.text.indexOf("berlioz") === 0 })
+                if (t) { var p = win.point(t, 5, t.height / 2); tc.mouseMove(stage, 2, 2); tc.wait(100); tc.mouseMove(stage, p.x, p.y); tc.wait(100); tc.mouseClick(stage, p.x, p.y); tc.wait(100) }
+                st.plain.pages = panel.pages.length - n
+                st.plain.pickerShown = picker.shown
                 done()
+              },
+              // The now-playing line stays clickable: with several artists a click on a name opens the picker on it.
+              function (done) {
+                fakeSvc.player = Object.assign({}, fakeSvc.player, { artists: [{ name: "berlioz", id: "UCa1" }, { name: "Ted Jasper", id: "UCa2" }, { name: "Third Artist" }] })
+                win.after(function () {
+                  var l1 = win.findAny(win.find(stage, "nowArtistLine"), function (c) { return c.objectName === "artistLink2" })
+                  tc.mouseClick(l1, 3, l1.height / 2)
+                  st.now = { shown: picker.shown, names: picker.artists.map(function (a) { return a.name }), cursor: picker.cursor }
+                  win.key(Qt.Key_Up, "")
+                  var n = panel.pages.length
+                  win.key(Qt.Key_Return, "")
+                  st.now.opened = { shown: picker.shown, pages: panel.pages.length - n, id: win.lastPage().id }
+                  panel.back()
+                  console.log("STATE " + JSON.stringify(st))
+                  Qt.quit()
+                  done()
+                })
               }
             ])
           })

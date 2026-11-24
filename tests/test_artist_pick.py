@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""A song with several artists: "Go to artist" opens a picker, and the pointer on a row's text.
+"""A song with several artists: "Go to artist" opens a picker, and the artist text in a row is plain.
 
 Renders tests/qml/ArtistPickScene.qml (the real Panel.qml, its real views, a fake
 service) in a private Quickshell, offscreen, like test_undo_remove.py. Checks that
 g / the row's button open the artist at once with one name and a picker listing every
-name with several (Down + Enter, a click, Esc, a click outside), and that the pointer
-on the title or artist text hides the row's buttons and shows every name, panning a
-line that is still too long so its last name can be clicked.
+name with several (Down + Enter, a click, Esc, a click outside), that the artist text in a row is not a link, and the now-playing line opens the same picker.
 """
 import testenv  # noqa: F401 - isolates HOME/XDG_*/SOLFA_* before anything else runs
 import json
@@ -107,21 +105,18 @@ class ArtistPick(unittest.TestCase):
         self.assertTrue(b["closedByClick"], "a click outside closes it")
         self.assertEqual(b["clickOpened"], {"shown": False, "pages": 1, "id": "UCa1"})
 
-    def test_the_pointer_on_the_text_hides_the_buttons_and_every_name_shows(self):
-        self.assertEqual(self.state["rest"]["buttons"], 0)
-        h = self.state["hover"]
-        self.assertEqual(h["buttons"], 0, "faded out while the pointer is on the artists")
-        self.assertTrue(h["fits"], "all three names are inside the line")
+    def test_artist_text_in_a_row_is_not_a_link(self):
+        self.assertFalse(self.state["plain"]["links"])
+        self.assertTrue(self.state["plain"]["text"], "the names are there as plain text")
+        self.assertFalse(self.state["plain"]["pickerShown"])
+        self.assertEqual(self.state["plain"]["pages"], 0, "a click on the names opens no artist")
 
-    def test_the_buttons_come_back_off_the_text(self):
-        self.assertEqual(self.state["right"]["buttons"], 1)
-
-    def test_a_line_too_long_for_the_row_pans_and_its_last_name_is_clickable(self):
-        lg = self.state["long"]
-        self.assertTrue(lg["overflow"])
-        self.assertTrue(lg["scroll"])
-        self.assertTrue(lg["lastVisible"])
-        self.assertEqual((lg["pages"], lg["id"]), (1, "UCb3"))
+    def test_the_now_playing_line_opens_the_same_picker(self):
+        n = self.state["now"]
+        self.assertTrue(n["shown"])
+        self.assertEqual(n["names"], ["berlioz", "Ted Jasper", "Third Artist"])
+        self.assertEqual(n["cursor"], 1, "the picker starts on the name that was clicked")
+        self.assertEqual(n["opened"], {"shown": False, "pages": 1, "id": "UCa1"})
 
 
 if __name__ == "__main__":
