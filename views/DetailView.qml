@@ -287,7 +287,7 @@ Item {
     property string keyHint: ""   // a key that does the same, drawn as a KeyCap
     property string tooltipText: ""
     signal clicked()
-    height: Style.space(36)
+    height: Style.space(view.compactPanel ? 32 : 36)
     width: pillRow.width + Style.space(30)
     radius: height / 2
     color: primary ? Calm.accent : active ? Calm.a(Calm.accent, 0.18) : pillMouse.containsMouse ? Calm.a(Calm.fg, 0.12) : Calm.wash
@@ -352,7 +352,7 @@ Item {
   Row {
     id: backRow
     objectName: "backRow"
-    height: Style.space(36)
+    height: Style.space(view.compactPanel ? 32 : 36)
     spacing: Style.space(8)
     Pill {
       objectName: "backButton"
@@ -365,15 +365,16 @@ Item {
 
   Item {
     id: head
-    y: backRow.height + Style.space(12)
+    objectName: "detailHead"
+    y: backRow.height + Style.space(view.compactPanel ? 6 : 12)
     width: parent.width
     height: Math.max(cover.height, headCol.height)
 
     RoundCover {
       id: cover
-      width: Style.space(view.compact ? 56 : 118)
+      width: Style.space(view.compactPanel ? 44 : view.compact ? 56 : 118)
       height: width
-      cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(20)
+      cornerRadius: view.info && view.info.kind === "artist" ? -1 : Style.space(view.compactPanel ? 12 : 20)
       hold: true
       source: (view.info && view.info.thumb) || (view.page ? (view.page.thumb || "") : "")
       foreground: Calm.fg
@@ -384,7 +385,7 @@ Item {
 
     Column {
       id: headCol
-      x: cover.width + Style.space(20)  // mockup DetailView: 20 px between cover and text
+      x: cover.width + Style.space(view.compactPanel ? 14 : 20)  // mockup DetailView: 20 px between cover and text
       width: parent.width - x
       anchors.verticalCenter: cover.verticalCenter
       spacing: Style.space(4)
@@ -405,7 +406,7 @@ Item {
         elide: Text.ElideRight
         color: Calm.fg
         font.family: view.family
-        font.pixelSize: Style.space(24)
+        font.pixelSize: Style.space(view.compactPanel ? 18 : 24)
         font.weight: Font.Bold
         font.letterSpacing: -0.5
       }
@@ -421,33 +422,49 @@ Item {
         font.family: view.family
         font.pixelSize: Style.space(12)
       }
-      Row {
-        id: actions
-        topPadding: Style.space(8)
-        spacing: Style.space(8)
-        Pill {
-          visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
-          primary: true
-          glyph: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
-          text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
-          onClicked: view.playAll(false)
-        }
-        Pill {
-          visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
-          glyph: Icons.shuffle
-          text: "Shuffle"
-          onClicked: view.playAll(true)
-        }
-        Pill {
-          objectName: "findButton"
-          visible: view.findable
-          active: view.finding
-          glyph: Icons.search
-          keyHint: "F"
-          tooltipText: view.info && view.info.kind === "album" ? "Find in this album (F)" : "Find in this playlist (F)"
-          onClicked: if (view.finding) view.closeFind(); else view.startFind()
-        }
+      // The buttons' place under the title (the Row below sits on it).
+      Item {
+        id: actionsSlot
+        visible: !view.compactPanel
+        width: actions.width
+        height: actions.height
       }
+    }
+  }
+
+  // Play, Shuffle and Find: under the title, or in the compact layout up on
+  // Back's line at its right end. Placed over the slot above, never moved
+  // into the head's Column: taken out of it at run time, the Row was not
+  // drawn where it stood.
+  Row {
+    id: actions
+    x: view.compactPanel ? view.width - width : head.x + headCol.x + actionsSlot.x
+    y: view.compactPanel ? 0 : head.y + headCol.y + actionsSlot.y
+    topPadding: view.compactPanel ? 0 : Style.space(8)
+    spacing: Style.space(8)
+    Pill {
+      objectName: "playButton"
+      visible: !!view.info && (view.info.kind === "artist" ? !!view.info.radio : !!view.info.playlistId)
+      primary: true
+      glyph: view.info && view.info.kind === "artist" ? Icons.radio : Icons.play
+      text: view.info && view.info.kind === "artist" ? "Radio" : "Play"
+      onClicked: view.playAll(false)
+    }
+    Pill {
+      visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
+      glyph: Icons.shuffle
+      text: view.compactPanel ? "" : "Shuffle"
+      tooltipText: view.compactPanel ? "Shuffle" : ""
+      onClicked: view.playAll(true)
+    }
+    Pill {
+      objectName: "findButton"
+      visible: view.findable
+      active: view.finding
+      glyph: Icons.search
+      keyHint: "F"
+      tooltipText: view.info && view.info.kind === "album" ? "Find in this album (F)" : "Find in this playlist (F)"
+      onClicked: if (view.finding) view.closeFind(); else view.startFind()
     }
   }
 
@@ -531,7 +548,22 @@ Item {
   // While the rows load and their count is known (from the tile), grey placeholder
   // rows fill the grown height: never a tall empty card with a word in the middle.
   // Short screens (set by the Panel): a smaller cover and no kind label, so more rows fit.
-  readonly property bool compact: !!(panel && panel.compactHead === true)
+  readonly property bool compact: compactPanel || !!(panel && panel.compactHead === true)
+  // The compact layout (Panel.compact, from the setting compactPanel): Play,
+  // Shuffle and Find move up beside Back and a smaller cover sits beside the
+  // title. Every control stays.
+  readonly property bool compactPanel: !!(panel && panel.compact === true)
+  // The page's top down to its list once a page has loaded, worked out from
+  // the head's fonts before any page opens, whatever layout is on screen:
+  // with the compact head (smallHeadSpan) and in the compact layout
+  // (compactSpan). The Panel weighs its layouts with them.
+  FontMetrics { id: titleFm; font.family: view.family; font.pixelSize: Style.space(24); font.weight: Font.Bold }
+  FontMetrics { id: smallTitleFm; font.family: view.family; font.pixelSize: Style.space(18); font.weight: Font.Bold }
+  FontMetrics { id: subFm; font.family: view.family; font.pixelSize: Style.space(12) }
+  readonly property real smallHeadSpan: Style.space(36 + 12) + Style.space(20)
+    + Math.max(Style.space(56), Math.ceil(titleFm.height) + Math.ceil(subFm.height) + Style.space(4 + 4 + 8 + 36))
+  readonly property real compactSpan: Style.space(32 + 6) + Style.space(10)
+    + Math.max(Style.space(44), Math.ceil(smallTitleFm.height) + Math.ceil(subFm.height) + Style.space(4))
   readonly property int skeletonRows: busy && rows.length === 0 && page ? (page.count > 0 ? Math.min(page.count, 6) : 6) : 0
   readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
 
@@ -540,7 +572,7 @@ Item {
     objectName: "detailList"
     fadeBottom: false
     anchors.top: findBar.bottom
-    anchors.topMargin: view.finding ? Style.space(10) : Style.space(20)  // mockup: list 20 px under the cover
+    anchors.topMargin: view.finding || view.compactPanel ? Style.space(10) : Style.space(20)  // mockup: list 20 px under the cover
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom

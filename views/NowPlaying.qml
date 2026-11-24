@@ -21,14 +21,18 @@ Column {
   property real reserveRight: 0
   // Room for the header row (name, buttons) the panel draws over the top.
   property real topInset: 0
+  // The compact layout (Panel.qml decides, from the setting compactPanel and
+  // the rows a page's list would get): a small cover beside a one-line
+  // title, narrower gaps, a smaller play button and chips. Every control stays.
+  property bool compact: false
   // Decoration moves only while the panel is open and a song plays.
   // The panel's open clock, 0 to 350 ms (settled; also reduce-motion).
   property real openMs: 350
   function eff(delay, dur) { return Motion.effects(openMs, delay, dur) }
   readonly property bool live: !!(svc && svc.panelOpen && svc.hasTrack && svc.isPlaying)
 
-  spacing: Style.space(20)
-  topPadding: topInset + (topInset > 0 ? Style.space(24) : 0)
+  spacing: Style.space(compact ? 10 : 20)
+  topPadding: topInset + (topInset > 0 ? Style.space(compact ? 8 : 24) : 0)
 
   // The save-to-playlist button was pressed (the panel opens the picker).
   signal saveRequested()
@@ -53,9 +57,9 @@ Column {
 
     RoundCover {
       id: cover
-      width: Style.space(104)
+      width: Style.space(root.compact ? 56 : 104)
       height: width
-      cornerRadius: Style.space(22)
+      cornerRadius: Style.space(root.compact ? 14 : 22)
       source: root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: Util.alpha(root.fg, 0.08)
@@ -137,10 +141,10 @@ Column {
           text: titleBox.full
           opacity: 0
           textFormat: Text.PlainText
-          maximumLineCount: 2
+          maximumLineCount: root.compact ? 1 : 2
           wrapMode: Text.WordWrap
           font.family: root.family
-          font.pixelSize: Style.space(21)
+          font.pixelSize: Style.space(root.compact ? 17 : 21)
           font.bold: root.hasTrack
         }
         Text {
@@ -148,11 +152,11 @@ Column {
           text: titleBox.full.substring(0, Math.floor(titleBox.shown))
           textFormat: Text.PlainText
           elide: Text.ElideRight
-          maximumLineCount: 2
+          maximumLineCount: root.compact ? 1 : 2
           wrapMode: Text.WordWrap
           color: root.fg
           font.family: root.family
-          font.pixelSize: Style.space(21)
+          font.pixelSize: Style.space(root.compact ? 17 : 21)
           font.bold: root.hasTrack
         }
       }
@@ -183,7 +187,7 @@ Column {
       }
       Text {
         width: parent.width
-        text: root.hasTrack ? root.svc.album : ""
+        text: root.hasTrack && !root.compact ? root.svc.album : ""
         textFormat: Text.PlainText
         elide: Text.ElideRight
         color: Util.alpha(root.fg, 0.5)
@@ -390,7 +394,7 @@ Column {
   Item {
     id: controls
     width: parent.width
-    height: transport.height + Style.space(20) + volumeRow.height
+    height: transport.height + Style.space(root.compact ? 10 : 20) + volumeRow.height
     visible: root.full
     enabled: root.hasTrack
     opacity: root.hasTrack ? 1 : 0.35
@@ -401,7 +405,7 @@ Column {
     // inside the card. It is there with every song, whatever it means.
     readonly property bool crowded: removeButton.visible
     readonly property real slot: Style.space(crowded ? 44 : 48)
-    readonly property real playSlot: Style.space(62)
+    readonly property real playSlot: Style.space(root.compact ? 48 : 62)
     readonly property real volumeSlot: Style.space(36)
     readonly property real glyph: Style.space(20)
 
@@ -621,7 +625,7 @@ Column {
       Rectangle {
         id: sleepChip
         anchors.verticalCenter: parent.verticalCenter
-        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
+        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(root.compact ? 32 : 40); radius: height / 2
         readonly property bool active: !!(root.svc && root.svc.sleepMode !== "off")
         color: sleepMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
         border.width: 1; border.color: active ? Calm.a(Calm.accent, 0.55) : Calm.hair
@@ -652,7 +656,7 @@ Column {
       Rectangle {
         id: radioChip
         anchors.verticalCenter: parent.verticalCenter
-        width: radioRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
+        width: radioRow.implicitWidth + Style.space(24); height: Style.space(root.compact ? 32 : 40); radius: height / 2
         color: Calm.wash
         border.width: 1; border.color: Calm.hair
         // the hover fill slides in from the left, 220 ms
