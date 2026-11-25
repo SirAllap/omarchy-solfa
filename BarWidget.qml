@@ -87,7 +87,7 @@ BarWidget {
   readonly property color fg: flatRest ? barInk : restInk ? restPlan.ink : Calm.fg
   readonly property string family: barFlat ? barFamily : Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
-  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? (asleepSong ? svc.lastTitle : "Solfa") : warming ? "Starting…" : "Nothing playing"
+  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? (asleepSong ? svc.lastTitle : "Solfa") : warming ? (svc.lastTitle ? svc.lastTitle : "Starting…") : "Nothing playing"
 
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
@@ -298,7 +298,7 @@ BarWidget {
       ringColor: root.flatRest ? (root.playing ? (root.bar && Calm.valid(root.bar.urgent) ? root.bar.urgent : Calm.accent) : Calm.a(root.fg, 0.6))
         : root.playing ? Calm.accent : (root.restInk ? Calm.a(root.fg, 0.6) : Calm.muted)
       trackColor: root.restBackdrop || root.flatRest ? Calm.a(root.fg, 0.2) : Calm.hair
-      source: root.asleepSong ? root.svc.lastThumb : root.svc ? root.svc.thumb : ""
+      source: root.asleepSong || (root.warming && root.svc.lastTitle) ? root.svc.lastThumb : root.svc ? root.svc.thumb : ""
       asleep: root.asleepSong && !root.awake
       foreground: root.fg
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
