@@ -77,6 +77,7 @@ run hit-targets python3 tests/test_hit_targets.py
 run bridge-socket python3 tests/test_bridge_socket.py
 run closed python3 tests/test_closed.py
 run null-svc python3 tests/test_null_svc.py
+run bar-flat python3 tests/test_bar_flat.py
 run settings python3 tests/test_settings.py
 run account-state python3 tests/test_account_state.py
 run signin-card python3 tests/test_signin_card.py

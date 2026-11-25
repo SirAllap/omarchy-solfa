@@ -31,7 +31,7 @@ ShellRoot {
     property bool ready: true
     property var account: ({ signedIn: true, host: "music.youtube.com" })
     property var settings: ({
-      barControls: true, showTitle: true, maxLabelWidth: 160, showWhenIdle: true, notify: true,
+      barControls: true, showTitle: true, maxLabelWidth: 160, showWhenIdle: true, notify: true, barFlat: false,
       globalKeys: true, autostart: true, browser: "",
       eqEnabled: false, eqPreset: "flat", eqBands: "[0,0,0,0,0,0,0,0,0,0]", eqPreamp: 0, eqLoudness: false,
       startPaused: false, startVolume: "last", recycleHeapMb: 400, recycleHours: 12
@@ -240,6 +240,13 @@ ShellRoot {
         // Toggle "Previous, play/pause and next in the bar" with ←→.
         settingsView.change(1)
         var barToggleSaved = fakeSvc.savedCalls[fakeSvc.savedCalls.length - 1]
+        // The last row of the section, "Plain text in the bar at rest" (barFlat, off by default).
+        var barFlatBefore = !!fakeSvc.setting("barFlat", false)
+        settingsView.move(1); settingsView.move(1); settingsView.move(1); settingsView.move(1); settingsView.move(1)
+        var barFlatRow = settingsView.cursor
+        settingsView.change(1)
+        var barFlatSaved = fakeSvc.savedCalls[fakeSvc.savedCalls.length - 1]
+        settingsView.move(-1); settingsView.move(-1); settingsView.move(-1); settingsView.move(-1); settingsView.move(-1)
 
         // Sound: the master toggle, then preset cycle, then edit band 0
         // (which switches to custom).
@@ -333,6 +340,7 @@ ShellRoot {
                 console.log("STATE " + JSON.stringify({
                   initial: initial,
                   navSection: navSection, barToggleSaved: barToggleSaved,
+                  barFlatBefore: barFlatBefore, barFlatRow: barFlatRow, barFlatSaved: barFlatSaved,
                   soundSection: soundSection, eqEnabledAfterToggle: eqEnabledAfterToggle, presetAfterCycle: presetAfterCycle,
                   bandsAfterEdit: bandsAfterEdit, presetAfterEdit: presetAfterEdit,
                   sleepCalls: fakeSvc.sleepCalls, sleepAfter: sleepAfter,

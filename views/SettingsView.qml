@@ -212,7 +212,8 @@ Item {
         { toggle: function () { svc.saveSetting("showTitle", !svc.setting("showTitle", true)) } },
         { change: function (dir) { svc.saveSetting("maxLabelWidth", Model.stepNumber(svc.setting("maxLabelWidth", 160), dir * 20, 80, 400)) } },
         { toggle: function () { svc.saveSetting("showWhenIdle", !svc.setting("showWhenIdle", true)) } },
-        { toggle: function () { svc.saveSetting("notify", !svc.setting("notify", true)) } }
+        { toggle: function () { svc.saveSetting("notify", !svc.setting("notify", true)) } },
+        { toggle: function () { svc.saveSetting("barFlat", !svc.setting("barFlat", false)) } }
       ]
       case "keys": return [
         { toggle: function () { svc.saveSetting("globalKeys", !svc.setting("globalKeys", true)) } },
@@ -1004,6 +1005,8 @@ Item {
           MiniToggle { active: root.svc ? !!root.svc.setting("showWhenIdle", true) : true } }
         RowShell { label: "Notify when the song changes"; help: "A small card with the cover"; row: 4
           MiniToggle { active: root.svc ? !!root.svc.setting("notify", true) : true } }
+        RowShell { label: "Plain text in the bar at rest"; help: "The bar's own font and colour, with no pill until the pointer is on it or the panel is open"; row: 5
+          MiniToggle { active: root.svc ? !!root.svc.setting("barFlat", false) : false } }
       }
 
       // ---- Keys ----
