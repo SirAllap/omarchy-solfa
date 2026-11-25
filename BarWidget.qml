@@ -347,17 +347,6 @@ BarWidget {
       font.pixelSize: Style.font.body
     }
 
-    // Asleep song, pointer on it: a small play mark after the title.
-    Text {
-      visible: root.awake && root.showTitle
-      anchors.verticalCenter: parent.verticalCenter
-      text: "▶"
-      textFormat: Text.PlainText
-      color: root.fg
-      font.family: root.family
-      font.pixelSize: Math.round(Style.font.body * 0.8)
-    }
-
     Row {
       visible: root.showControls
       anchors.verticalCenter: parent.verticalCenter
