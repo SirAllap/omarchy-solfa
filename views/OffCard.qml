@@ -68,6 +68,19 @@ Column {
         Behavior on opacity { NumberAnimation { duration: 400 } }
       }
 
+      // The hover shadow in the cover's own colour: a tight blurred copy of it, a little below.
+      CoverGlow {
+        objectName: "offCoverShadow"
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: 14
+        width: 340
+        height: 340
+        source: card.svc ? card.svc.lastThumb : ""
+        active: true
+        opacity: card.awake ? 0.7 : 0
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+      }
+
       Item {
         id: lift
         anchors.fill: parent
@@ -78,12 +91,10 @@ Column {
         layer.enabled: true
         layer.effect: MultiEffect {
           shadowEnabled: true
-          shadowColor: card.awake ? Calm.a(Calm.accent, 0.4) : Qt.rgba(0, 0, 0, 0.55)
+          shadowColor: Qt.rgba(0, 0, 0, card.awake ? 0.35 : 0.55)
           shadowBlur: 1
           shadowVerticalOffset: card.awake ? 12 : 16
-          shadowOpacity: 1
-          Behavior on shadowColor { ColorAnimation { duration: 180 } }
-        }
+          shadowOpacity: 1        }
         RoundCover {
           id: lastCover
           objectName: "offCover"
