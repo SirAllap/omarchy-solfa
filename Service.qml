@@ -108,6 +108,7 @@ Item {
   // it asleep, also after a shell restart. Written when a real song's title or cover changes.
   property string lastTitle: ""
   property string lastThumb: ""
+  property string lastArtist: ""
   readonly property string lastSongPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/" + pluginId + "/last-song.json"
   FileView {
     id: lastSongFile
@@ -117,18 +118,21 @@ Item {
   }
   function rememberLast() {
     if (!root.hasTrack || root.isAd || !root.title) return
-    if (root.title === root.lastTitle && root.thumb === root.lastThumb) return
+    if (root.title === root.lastTitle && root.thumb === root.lastThumb && root.artist === root.lastArtist) return
     root.lastTitle = root.title
     root.lastThumb = root.thumb
-    lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb }))
+    root.lastArtist = root.artist
+    lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb, artist: root.lastArtist }))
   }
   onTitleChanged: root.rememberLast()
   onThumbChanged: root.rememberLast()
+  onArtistChanged: root.rememberLast()
   Component.onCompleted: {
     try {
       var s = JSON.parse(lastSongFile.text())
       root.lastTitle = String(s.title || "")
       root.lastThumb = String(s.thumb || "")
+      root.lastArtist = String(s.artist || "")
     } catch (e) { /* no last song yet */ }
   }
   readonly property real duration: hasTrack ? (Number(player.duration) || 0) : 0
@@ -680,6 +684,17 @@ Item {
   // ------------------------------------------------------------------ engine and window
 
   function startEngine() { root.request("engine.start", {}) }
+  // "Drop the needle": start the engine, then play once the restored track is in. One shot: it is
+  // cleared when the track lands, when the start phase ends with nothing restored, or after 60 s.
+  property bool playWhenReady: false
+  function startAndPlay() {
+    root.playWhenReady = true
+    playWhenReadyGuard.restart()
+    root.startEngine()
+  }
+  Timer { id: playWhenReadyGuard; interval: 60000; onTriggered: root.playWhenReady = false }
+  onHasTrackChanged: if (root.hasTrack && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop(); root.play() }
+  onStartingChanged: if (!root.starting && !root.hasTrack && !root.closed && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop() }
   function restartEngine() { root.request("engine.restart", {}) }
   function stopEngine() { root.request("engine.stop", {}) }
   function toggleEngine() { if (root.closed) root.startEngine(); else root.stopEngine() }

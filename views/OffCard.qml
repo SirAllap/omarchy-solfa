@@ -17,10 +17,142 @@ Column {
 
   spacing: 12
 
+  readonly property bool hasLast: !!svc && !!svc.lastTitle
+  function dropNeedle() { if (card.svc) card.svc.startAndPlay() }
+  // Pointer on the cover or the button: the cover gets its colour back and shows a round play.
+  readonly property bool awake: coverMouse.containsMouse || needleMouse.containsMouse
+
+  // A last song is known: a preview of what plays, and one button that plays it.
+  Column {
+    id: lastSong
+    objectName: "offLast"
+    visible: card.hasLast
+    width: parent.width
+    spacing: 12
+
+    Item {
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: 150
+      height: width
+      RoundCover {
+        id: lastCover
+        objectName: "offCover"
+        anchors.fill: parent
+        source: card.svc ? card.svc.lastThumb : ""
+        foreground: card.fg
+        fontFamily: card.family
+        cornerRadius: 14
+        asleep: !card.awake
+      }
+      Rectangle {
+        objectName: "offCoverPlay"
+        anchors.centerIn: parent
+        width: 52
+        height: width
+        radius: width / 2
+        color: Calm.accent
+        opacity: card.awake ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Text {
+          anchors.centerIn: parent
+          anchors.horizontalCenterOffset: 2
+          text: Icons.play
+          textFormat: Text.PlainText
+          color: Calm.onAccent
+          font.family: card.family
+          font.pixelSize: 26
+        }
+      }
+      MouseArea {
+        id: coverMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: card.dropNeedle()
+      }
+    }
+
+    Text {
+      objectName: "offLastTitle"
+      width: parent.width
+      text: card.svc ? card.svc.lastTitle : ""
+      textFormat: Text.PlainText
+      elide: Text.ElideRight
+      horizontalAlignment: Text.AlignHCenter
+      color: card.fg
+      font.family: card.family
+      font.pixelSize: 18
+      font.bold: true
+    }
+    Text {
+      objectName: "offLastArtist"
+      width: parent.width
+      visible: text !== ""
+      text: card.svc ? card.svc.lastArtist : ""
+      textFormat: Text.PlainText
+      elide: Text.ElideRight
+      horizontalAlignment: Text.AlignHCenter
+      color: Calm.muted
+      font.family: card.family
+      font.pixelSize: 13
+    }
+
+    Rectangle {
+      id: needle
+      objectName: "offNeedle"
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: Math.min(parent.width, 240)
+      height: 36
+      radius: height / 2
+      color: needleMouse.pressed ? Calm.a(Calm.accent, 0.8) : Calm.accent
+      opacity: needleMouse.containsMouse ? 1 : 0.9
+      Accessible.role: Accessible.Button
+      Accessible.name: "Drop the needle"
+      Accessible.onPressAction: card.dropNeedle()
+      Text {
+        anchors.centerIn: parent
+        text: Icons.play + " Drop the needle"
+        textFormat: Text.PlainText
+        color: Calm.onAccent
+        font.family: card.family
+        font.pixelSize: 14
+        font.bold: true
+      }
+      MouseArea {
+        id: needleMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: card.dropNeedle()
+      }
+    }
+
+    Text {
+      objectName: "offNote"
+      width: parent.width
+      text: "Starts YouTube Music in the background and picks " + (card.svc ? card.svc.lastTitle : "") + " up where you left it."
+      textFormat: Text.PlainText
+      wrapMode: Text.WordWrap
+      horizontalAlignment: Text.AlignHCenter
+      color: Calm.muted
+      font.family: card.family
+      font.pixelSize: 13
+    }
+
+    Row {
+      anchors.horizontalCenter: parent.horizontalCenter
+      spacing: 14
+      KeyHint { keys: "↵"; label: "Play"; bar: card.bar }
+      KeyHint { keys: "Esc"; label: "Close"; bar: card.bar }
+    }
+  }
+
+
   // The round power circle IS the Turn on button: click, Enter (the panel's key
   // handler) or Space turns Solfa on. Hover and press change the fill; Tab shows a ring.
   Rectangle {
     id: power
+    visible: !card.hasLast
     objectName: "offPower"
     anchors.horizontalCenter: parent.horizontalCenter
     width: 70
@@ -70,6 +202,7 @@ Column {
   }
 
   Text {
+    visible: !card.hasLast
     width: parent.width
     text: "Turn Solfa on"
     textFormat: Text.PlainText
@@ -81,6 +214,7 @@ Column {
   }
 
   Text {
+    visible: !card.hasLast
     width: parent.width
     text: "It starts YouTube Music in the background. Nothing plays until you do."
     textFormat: Text.PlainText
@@ -92,6 +226,7 @@ Column {
   }
 
   KeyHint {
+    visible: !card.hasLast
     anchors.horizontalCenter: parent.horizontalCenter
     keys: "↵"
     label: "or press Enter"

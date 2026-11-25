@@ -13,6 +13,8 @@ import "views" as Views
 ShellRoot {
   property var asleepRest: ({})
   property var asleepAwake: ({})
+  property var offClicks: ({})
+  property var clicksLog: ({})
   id: scene
 
   component FakeSvc: QtObject {
@@ -39,6 +41,7 @@ ShellRoot {
     property string thumb: ""
     property string lastTitle: ""
     property string lastThumb: ""
+    property string lastArtist: ""
     property real duration: 214
     property real position: 83
     property real progress: 0.39
@@ -52,6 +55,7 @@ ShellRoot {
     property int fastClockUsers: 0
     function toggleEngine() { calls.push("toggleEngine") }
     function startEngine() { calls.push("startEngine") }
+    function startAndPlay() { calls.push("startAndPlay") }
     function togglePlaying() { calls.push("togglePlaying") }
     function previous() {}
     function next() {}
@@ -65,7 +69,9 @@ ShellRoot {
   }
   FakeSvc { id: runningSvc }
   FakeSvc { id: closedSvc; closed: true }
-  FakeSvc { id: asleepSvc; closed: true; lastTitle: "Northern Lights" }
+  FakeSvc { id: asleepSvc; closed: true; lastTitle: "Northern Lights"; lastArtist: "The Examples" }
+  FakeSvc { id: offSvc; closed: true; lastTitle: "Northern Lights"; lastArtist: "The Examples" }
+  FakeSvc { id: offBareSvc; closed: true }
 
   component FakeBar: QtObject {
     property var svc: null
@@ -85,7 +91,7 @@ ShellRoot {
   FloatingWindow {
     id: win
     implicitWidth: 640
-    implicitHeight: 470
+    implicitHeight: 800
     visible: true
     color: Color.popups.background
 
@@ -114,6 +120,12 @@ ShellRoot {
             width: 190; height: 26; color: Color.bar ? Color.bar.background : "#101014"
             SolfaBar { id: barAsleep; bar: asleepBar; anchors.centerIn: parent }
           }
+        }
+
+        Row {
+          spacing: 12
+          Views.OffCard { id: offSong; objectName: "offSong"; width: 280; svc: offSvc }
+          Views.OffCard { id: offBare; objectName: "offBare"; width: 280; svc: offBareSvc }
         }
 
         Text { text: "Panel top: running / pointer on power / closed"; color: Color.foreground; opacity: 0.5; font.pixelSize: 11 }
@@ -191,7 +203,7 @@ ShellRoot {
         console.log("STATE " + JSON.stringify({
           barRunning: { label: barRunning.label, controls: barRunning.showControls, opacity: barRunning.children.length },
           barAsleep: { rest: asleepRest, awake: asleepAwake, asleepSong: barAsleep.asleepSong, bareMark: barClosed.showMark, bareAsleep: barClosed.asleepSong },
-          barClosed: { label: barClosed.label, controls: barClosed.showControls, closed: barClosed.closed },
+          barClosed: { label: barClosed.label, controls: barClosed.showControls, closed: barClosed.closed, w: barClosed.pillBoxW, minW: barClosed.pillMinW },
           powerClosed: { tooltip: btn.tooltipText, selected: btn.selected, opacity: btn.opacity },
           powerHover: { hot: win.find(win.find(stage, "corner1"), "powerButton").hot }
         }))
@@ -202,6 +214,24 @@ ShellRoot {
       }
     }
     Timer {
+      id: offHover
+      interval: 300
+      onTriggered: {
+        console.log("CLICKS " + JSON.stringify(scene.clicksLog))
+        console.log("OFFCARD " + JSON.stringify({
+          song: { visible: offSong.hasLast, calls: scene.offClicks.calls, awake: offSong.awake,
+            title: win.find(offSong, "offLastTitle").text, artist: win.find(offSong, "offLastArtist").text,
+            note: win.find(offSong, "offNote").text, power: win.find(offSong, "offPower").visible,
+            play: win.find(offSong, "offCoverPlay").opacity, asleep: win.find(offSong, "offCover").asleep },
+          bare: { hasLast: offBare.hasLast, power: win.find(offBare, "offPower").visible, song: win.find(offBare, "offLast").visible, calls: scene.offClicks.bareCalls }
+        }))
+        stage.grabToImage(function (r) {
+          r.saveToFile(Quickshell.env("SOLFA_SCENE_OUT"))
+          Qt.quit()
+        })
+      }
+    }
+    Timer {
       id: pillClick
       interval: 1500
       onTriggered: {
@@ -209,11 +239,16 @@ ShellRoot {
         console.log("PILLCLICK " + JSON.stringify({ opened: barClosed.opened, calls: closedSvc.calls.slice() }))
         closedSvc.calls = []
         tc.mouseClick(btn, btn.width / 2, btn.height / 2)
-        stage.grabToImage(function (r) {
-          r.saveToFile(Quickshell.env("SOLFA_SCENE_OUT"))
-          console.log("CLICKS " + JSON.stringify({ closed: closedSvc.calls }))
-          Qt.quit()
-        })
+        var clicks = { closed: closedSvc.calls }
+        // The panel's Off view with a last song: the button and the cover both drop the needle.
+        var nd = win.find(offSong, "offNeedle"), cv = win.find(offSong, "offCover")
+        tc.mouseClick(nd, nd.width / 2, nd.height / 2)
+        tc.mouseClick(cv, cv.width / 2, cv.height / 2)
+        var after = offSvc.calls.slice()
+        tc.mouseMove(cv, 5, 5)
+        offHover.start()
+        scene.offClicks = { calls: after, bareCalls: offBareSvc.calls.slice() }
+        scene.clicksLog = clicks
       }
     }
   }

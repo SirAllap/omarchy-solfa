@@ -74,7 +74,7 @@ BarWidget {
   // asleep; the pointer wakes them. Click and the tooltip say it starts Solfa.
   readonly property bool asleepSong: closed && !signingIn && !!svc && svc.lastTitle !== ""
   readonly property bool awake: asleepSong && barMouse.containsMouse
-  readonly property bool showControls: root.setting("barControls", true) && (hasTrack || warming || closed) && !vertical
+  readonly property bool showControls: root.setting("barControls", true) && (hasTrack || warming) && !vertical
   readonly property bool signingIn: svc ? svc.signingIn : false
   // Every state has content: playing = cover + title + controls; idle = the logo and "Nothing
   // playing"; off = the last song asleep, or the logo and "Solfa"; signing in = the logo and its line.
@@ -198,7 +198,7 @@ BarWidget {
   // One width rule for every state: max(content, 176). 176 is a playing pill with a short title
   // (cover, title, three buttons), so off, idle and playing share one join shape until a long
   // title makes the playing pill grow.
-  readonly property real pillMinW: barFlat ? 0 : Math.round(Style.space(176))
+  readonly property real pillMinW: barFlat || closed ? 0 : Math.round(Style.space(176))
   readonly property real pillNatW: Math.max(body.implicitWidth + 2 * pillPad, pillMinW)
   implicitWidth: visible ? pillNatW : 0
   implicitHeight: barSize
@@ -363,8 +363,7 @@ BarWidget {
       anchors.verticalCenter: parent.verticalCenter
       spacing: 0
       enabled: root.hasTrack
-      // Off: the room stays (the pill keeps the player's shape) but the buttons are not drawn.
-      opacity: root.closed ? 0 : root.hasTrack ? 1 : 0.4
+      opacity: root.hasTrack ? 1 : 0.4
 
       BarIconButton {
         bar: root.bar
@@ -397,9 +396,9 @@ BarWidget {
   MouseArea {
     id: barMouse
     // Playing: the cover and the title (the buttons take their own clicks). No song: the whole pill.
-    x: root.showControls && !root.closed ? body.x : root.pillBoxX
+    x: root.showControls ? body.x : root.pillBoxX
     y: 0
-    width: root.showControls && !root.closed ? coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + root.pillPad : root.pillBoxW
+    width: root.showControls ? coverSlot.width + (labelText.visible ? labelText.width + body.spacing : 0) + root.pillPad : root.pillBoxW
     height: parent.height
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
@@ -407,9 +406,9 @@ BarWidget {
     property real wheelAcc: 0
 
     onClicked: function (mouse) {
-      // Off: a left click starts Solfa (the saved song comes back) and opens the panel.
+      // Off: a click only opens the panel (its Off view asks first); it never turns Solfa on.
       if (root.closed) {
-        if (mouse.button === Qt.LeftButton) { if (root.svc) root.svc.startEngine(); root.toggle() }
+        if (mouse.button === Qt.LeftButton) root.toggle()
         return
       }
       if (mouse.button === Qt.MiddleButton) { if (root.svc) root.svc.togglePlaying() }
@@ -430,7 +429,7 @@ BarWidget {
       var tip = s && s.hasTrack
         ? s.title + (s.artist ? "\n" + s.artist : "") + (s.album ? "\n" + s.album : "")
           + "\n" + Model.fmtTime(s.position) + " of " + Model.fmtTime(s.duration) + ", volume " + (s.muted ? "muted" : s.volume + "%")
-        : s && s.closed ? (root.asleepSong ? "Solfa is off · click to play " + s.lastTitle : "Solfa is off · click to start")
+        : s && s.closed ? (root.asleepSong ? "Solfa is off · click for " + s.lastTitle : "Solfa is off · click to open")
         : (s ? (s.engineLine || "Nothing playing. Click to search.") : "Solfa")
       root.bar.showTooltip(root, tip)
     }

@@ -594,7 +594,7 @@ Panel {
     if (k === Qt.Key_Left || t === "h") { if (root.pages.length) root.back(); else root.cycleTab(-1); event.accepted = true; return }
     if (k === Qt.Key_Right || t === "l") { if (!root.pages.length) root.cycleTab(1); event.accepted = true; return }
     if (k === Qt.Key_Return || k === Qt.Key_Enter) {
-      if (svc.closed) svc.startEngine()
+      if (svc.closed) { if (svc.lastTitle) svc.startAndPlay(); else svc.startEngine() }
       else if (v === queueView) queueView.activate()
       else if (v === libraryView && !libraryView.signedIn) svc.signIn()
       else if (cur) root.activateRow(cur, v === detailView ? detailView.contextList() : "")
