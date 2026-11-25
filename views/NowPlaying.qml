@@ -72,12 +72,11 @@ Column {
       breathe: root.hasTrack
       live: root.live
       reduceMotion: Style.reduceMotion
-      // Loading the last song back: a squishy blob on the dimmed cover.
-      SquishyLoader {
+      // Loading the last song back: a band of light sweeps across the dimmed cover.
+      CoverShimmer {
         objectName: "ghostLoader"
-        anchors.centerIn: parent
         visible: root.ghost
-        size: Math.round(cover.width * 0.28)
+        radius: cover.cornerRadius
       }
       // pops .8 to 1 and fades in (no turn), 20 ms in
       scale: 0.8 + 0.2 * Motion.spatial(root.openMs, 20, 200)
@@ -290,7 +289,7 @@ Column {
       minimum: 0
       maximum: root.svc && root.svc.isAd ? Math.max(1, root.svc.adDuration) : (root.ghost && root.svc.lastDuration > 0 ? root.svc.lastDuration : root.svc && root.svc.duration > 0 ? root.svc.duration : 1)
       // the fill grows from 0 to the real position, 140 ms in
-      value: (root.ghost ? Math.max(0, root.svc.lastPosition) : root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0) * root.eff(60, 220)
+      value: (root.ghost ? Math.max(0, root.svc.lastPosition) : root.svc && root.svc.resuming && root.svc.resumeAt > 0 ? root.svc.resumeAt : root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0) * root.eff(60, 220)
       step: 1
       enabled: root.svc && root.svc.duration > 0 && !root.svc.isAd
       fillColor: root.svc && root.svc.isAd ? Color.urgent : Calm.accent
@@ -304,7 +303,7 @@ Column {
         id: posText
         anchors.verticalCenter: parent.verticalCenter
         text: root.svc && root.svc.isAd ? Model.fmtTime(root.svc.adPosition)
-          : Model.fmtTime(seek.dragging ? seek.liveValue : root.ghost ? Math.max(0, root.svc.lastPosition) : (root.svc ? root.svc.position : 0))
+          : Model.fmtTime(seek.dragging ? seek.liveValue : root.ghost ? Math.max(0, root.svc.lastPosition) : root.svc && root.svc.resuming && root.svc.resumeAt > 0 ? root.svc.resumeAt : (root.svc ? root.svc.position : 0))
         textFormat: Text.PlainText
         color: Util.alpha(root.fg, 0.6)
         font.family: root.family

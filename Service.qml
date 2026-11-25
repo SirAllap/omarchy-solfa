@@ -719,6 +719,9 @@ Item {
   // Where to pick up, taken when Play on is pressed: the restored track lands at 0:00 and would
   // overwrite lastPosition before the seek.
   property real resumeAt: -1
+  // True from the moment the restored song lands until it plays at its place: the hero shows
+  // resumeAt meanwhile, so the time does not flash 0:00.
+  readonly property bool resuming: resumeKick.running
   function startAndPlay() {
     root.resumeAt = root.lastPosition
     root.playWhenReady = true
