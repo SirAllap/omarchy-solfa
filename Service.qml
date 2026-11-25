@@ -103,6 +103,34 @@ Item {
   readonly property string artist: hasTrack ? Model.artistsText(player.artists) : ""
   readonly property string album: hasTrack && player.album ? (player.album.name || "") : ""
   readonly property string thumb: hasTrack ? (player.thumb || "") : ""
+
+  // The last song played (title and cover), kept in a small state file so the closed bar can show
+  // it asleep, also after a shell restart. Written when a real song's title or cover changes.
+  property string lastTitle: ""
+  property string lastThumb: ""
+  readonly property string lastSongPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/" + pluginId + "/last-song.json"
+  FileView {
+    id: lastSongFile
+    path: root.lastSongPath
+    blockLoading: true
+    printErrors: false
+  }
+  function rememberLast() {
+    if (!root.hasTrack || root.isAd || !root.title) return
+    if (root.title === root.lastTitle && root.thumb === root.lastThumb) return
+    root.lastTitle = root.title
+    root.lastThumb = root.thumb
+    lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb }))
+  }
+  onTitleChanged: root.rememberLast()
+  onThumbChanged: root.rememberLast()
+  Component.onCompleted: {
+    try {
+      var s = JSON.parse(lastSongFile.text())
+      root.lastTitle = String(s.title || "")
+      root.lastThumb = String(s.thumb || "")
+    } catch (e) { /* no last song yet */ }
+  }
   readonly property real duration: hasTrack ? (Number(player.duration) || 0) : 0
   readonly property int volume: player && player.volume !== undefined ? player.volume : 100
   readonly property bool muted: !!(player && player.muted)

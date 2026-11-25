@@ -18,6 +18,7 @@ Item {
   property color fill: "transparent"
   property string fontFamily: ""
   property bool dim: false
+  property bool asleep: false
   property string glyph: ""
 
   readonly property int gap: Math.max(2, Math.round(barSize * 0.1))
@@ -44,6 +45,7 @@ Item {
     fill: root.fill
     fontFamily: root.fontFamily
     dim: root.dim
+    asleep: root.asleep
     glyph: root.glyph !== "" ? root.glyph : Icons.note
   }
 }

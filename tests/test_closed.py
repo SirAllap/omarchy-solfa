@@ -74,6 +74,24 @@ class Closed(unittest.TestCase):
         self.assertEqual(s["barClosed"]["label"], "Solfa", "no stale song")
         self.assertFalse(s["barClosed"]["controls"], "no transport on a closed Solfa")
 
+    def test_off_with_a_last_song_shows_it_asleep_and_wakes_on_hover(self):
+        a = self.found["STATE"]["barAsleep"]
+        self.assertTrue(a["asleepSong"])
+        self.assertEqual(a["rest"]["label"], "Northern Lights")
+        self.assertFalse(a["rest"]["mark"], "the cover slot, not the Solfa mark")
+        self.assertTrue(a["rest"]["italic"])
+        self.assertEqual(a["rest"]["opacity"], 0.5)
+        w = a["awake"]
+        self.assertTrue(w["awake"], "the pointer on the pill wakes the song")
+        self.assertFalse(w["italic"])
+        self.assertEqual(w["opacity"], 1)
+        self.assertEqual(w["tip"], "Solfa is off · click to play Northern Lights")
+
+    def test_off_with_no_last_song_keeps_the_mark_and_no_power_glyph(self):
+        s = self.found["STATE"]["barAsleep"]
+        self.assertFalse(s["bareAsleep"])
+        self.assertTrue(s["bareMark"])
+
     def test_a_click_on_the_off_pill_opens_the_panel_and_leaves_solfa_off(self):
         p = self.found["PILLCLICK"]
         self.assertIsNotNone(p, "the pill click was not logged:\n" + self.found["log"])

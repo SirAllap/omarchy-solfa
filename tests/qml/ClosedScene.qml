@@ -11,6 +11,8 @@ import "views" as Views
 // power button, and closed. Saves a picture to $SOLFA_SCENE_OUT and logs
 // what the widgets show as one "STATE {...}" line.
 ShellRoot {
+  property var asleepRest: ({})
+  property var asleepAwake: ({})
   id: scene
 
   component FakeSvc: QtObject {
@@ -35,6 +37,8 @@ ShellRoot {
     property string album: "Placeholder Skies"
     property string engineLine: closed ? "Solfa is off" : ""
     property string thumb: ""
+    property string lastTitle: ""
+    property string lastThumb: ""
     property real duration: 214
     property real position: 83
     property real progress: 0.39
@@ -61,6 +65,7 @@ ShellRoot {
   }
   FakeSvc { id: runningSvc }
   FakeSvc { id: closedSvc; closed: true }
+  FakeSvc { id: asleepSvc; closed: true; lastTitle: "Northern Lights" }
 
   component FakeBar: QtObject {
     property var svc: null
@@ -69,11 +74,13 @@ ShellRoot {
     property color barForeground: Color.foreground
     property string fontFamily: Style.font.family
     property var shell: QtObject { function serviceFor(id) { return svc } }
-    function showTooltip(item, text) {}
+    property string tip: ""
+    function showTooltip(item, text) { tip = text }
     function hideTooltip(item) {}
   }
   FakeBar { id: runningBar; svc: runningSvc }
   FakeBar { id: closedBar; svc: closedSvc }
+  FakeBar { id: asleepBar; svc: asleepSvc }
 
   FloatingWindow {
     id: win
@@ -94,14 +101,18 @@ ShellRoot {
 
         Text { text: "Bar: playing / closed"; color: Color.foreground; opacity: 0.5; font.pixelSize: 11 }
         Row {
-          spacing: 16
+          spacing: 12
           Rectangle {
-            width: 280; height: 26; color: Color.bar ? Color.bar.background : "#101014"
+            width: 190; height: 26; color: Color.bar ? Color.bar.background : "#101014"
             SolfaBar { id: barRunning; bar: runningBar; anchors.centerIn: parent }
           }
           Rectangle {
-            width: 280; height: 26; color: Color.bar ? Color.bar.background : "#101014"
+            width: 190; height: 26; color: Color.bar ? Color.bar.background : "#101014"
             SolfaBar { id: barClosed; bar: closedBar; anchors.centerIn: parent }
+          }
+          Rectangle {
+            width: 190; height: 26; color: Color.bar ? Color.bar.background : "#101014"
+            SolfaBar { id: barAsleep; bar: asleepBar; anchors.centerIn: parent }
           }
         }
 
@@ -154,6 +165,19 @@ ShellRoot {
       onTriggered: {
         var c1 = win.find(stage, "corner1")
         var btn = win.find(c1, "powerButton")
+        asleepRest = { label: barAsleep.label, italic: win.find(barAsleep, "barTitle").font.italic, opacity: win.find(barAsleep, "barTitle").opacity, mark: barAsleep.showMark }
+        tc.mouseMove(barAsleep, barAsleep.pillBoxX + barAsleep.pillBoxW / 2, barAsleep.height / 2)
+        awakeCheck.start()
+      }
+    }
+    // The pointer sits on the asleep pill first; its woken look is read, then the pointer moves on.
+    Timer {
+      id: awakeCheck
+      interval: 300
+      onTriggered: {
+        var t = win.find(barAsleep, "barTitle")
+        asleepAwake = { awake: barAsleep.awake, italic: t.font.italic, opacity: t.opacity, tip: asleepBar.tip }
+        var btn = win.find(win.find(stage, "corner1"), "powerButton")
         tc.mouseMove(btn, btn.width / 2, btn.height / 2)
         hoverDone.start()
       }
@@ -166,6 +190,7 @@ ShellRoot {
         var btn = win.find(c2, "powerButton")
         console.log("STATE " + JSON.stringify({
           barRunning: { label: barRunning.label, controls: barRunning.showControls, opacity: barRunning.children.length },
+          barAsleep: { rest: asleepRest, awake: asleepAwake, asleepSong: barAsleep.asleepSong, bareMark: barClosed.showMark, bareAsleep: barClosed.asleepSong },
           barClosed: { label: barClosed.label, controls: barClosed.showControls, closed: barClosed.closed },
           powerClosed: { tooltip: btn.tooltipText, selected: btn.selected, opacity: btn.opacity },
           powerHover: { hot: win.find(win.find(stage, "corner1"), "powerButton").hot }
