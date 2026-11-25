@@ -224,6 +224,7 @@ Item {
         { change: function (dir) { svc.saveSetting("recycleHeapMb", Model.stepNumber(Model.recycleHeapMbFor(svc.setting("recycleHeapMb", 400)), dir * 50, Model.RECYCLE_HEAP_MB_RANGE[0], Model.RECYCLE_HEAP_MB_RANGE[1])) } },
         { change: function (dir) { svc.saveSetting("recycleHours", Model.stepNumber(Model.recycleHoursFor(svc.setting("recycleHours", 12)), dir, Model.RECYCLE_HOURS_RANGE[0], Model.RECYCLE_HOURS_RANGE[1])) } },
         { toggle: function () { svc.saveSetting("reduceMotion", !svc.setting("reduceMotion", false)) } },
+        { change: function (dir) { svc.saveSetting("compactPanel", Model.cycleList(["auto", "always", "never"], String(svc.setting("compactPanel", "auto")), dir)) } },
         { act: function () { root.cacheNote = "Clearing…"; svc.clearCache(function (r) { root.cacheNote = r.ok ? "Cleared" : "Could not clear the cache" }) } },
         { act: function () { svc.resetSettings() } },
         { act: function () { root.actErase() } }
@@ -1085,14 +1086,25 @@ Item {
           } }
         RowShell { label: "Reduce motion"; help: "Stops springs, glows, comets and typing"; row: 2
           MiniToggle { active: root.settingOr("reduceMotion", false) } }
-        RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 3
+        RowShell { label: "Compact panel"; help: "Smaller player and page header. Auto: where a page would show fewer than 4 songs"; row: 3
+          Dropdown {
+            id: compactDrop
+            objectName: "compactPanelDrop"
+            row: 3
+            readonly property var labels: ({ auto: "Auto", always: "Always", never: "Never" })
+            text: compactDrop.labels[root.settingOr("compactPanel", "auto")] || "Auto"
+            current: root.settingOr("compactPanel", "auto")
+            options: ["auto", "always", "never"].map(function (k) { return { key: k, label: compactDrop.labels[k] } })
+            onPicked: function (key) { root.svc.saveSetting("compactPanel", key) }
+          } }
+        RowShell { label: "Clear cache"; help: root.cacheNote !== "" ? root.cacheNote : "Keeps you signed in"; row: 4
           QuietButton { label: "Clear" } }
-        RowShell { label: "Reset settings"; row: 4
+        RowShell { label: "Reset settings"; row: 5
           QuietButton { label: "Reset" } }
         RowShell {
           label: "Erase engine data"
           help: root.eraseArmed ? "Press again to erase. This signs you out." : (root.eraseNote !== "" ? root.eraseNote : "Deletes the profile; signs you out")
-          row: 5
+          row: 6
           labelColor: root.dangerColor
           QuietButton { visible: root.eraseArmed; standalone: true; label: "Keep"; onClicked: root.disarm() }
           QuietButton { label: root.eraseArmed ? "Yes, erase" : "Erase"; icon: "trash"; danger: true }

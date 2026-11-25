@@ -110,6 +110,9 @@ class SettingsKeyboard(unittest.TestCase):
         self.assertEqual(self.state["clearCacheCalls"], 1)
         self.assertEqual(self.state["cacheNoteAfter"], "Cleared")
 
+    def test_advanced_compact_panel_steps_auto_always_never(self):
+        self.assertEqual(self.state["compactSteps"], ["always", "never", "auto"])
+
     def test_erase_needs_two_enters_and_calls_the_op_only_on_the_second(self):
         self.assertTrue(self.state["armedAfterFirst"])
         self.assertFalse(self.state["armedAfterSecond"])
@@ -230,7 +233,7 @@ class SettingsSource(unittest.TestCase):
     def test_every_row_and_stepper_says_which_row_it_is(self):
         rows, steps = self.rows(), self.steppers()
         self.assertGreaterEqual(len(rows), 20)
-        self.assertEqual(len(steps), 10)  # incl. the Keys › Panel key picker
+        self.assertEqual(len(steps), 11)  # incl. the Keys › Panel key picker and Advanced › Compact panel
         for use in rows + steps:
             self.assertRegex(use, r"\brow: \d+", use[:80])
 

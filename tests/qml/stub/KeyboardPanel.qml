@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import qs.Commons
 
 // Test stand-in for the Omarchy shell's KeyboardPanel (a layer-shell window
@@ -26,11 +27,20 @@ Item {
     var w = Math.max(1, Number(width) || 1)
     return Math.round(cap !== undefined && Number(cap) > 0 ? Math.min(w, Number(cap)) : w)
   }
+  // The screen's room for the card, as the shell's KeyboardPanel works it
+  // out (screen height less bar, gap and margin): SOLFA_CARD_MAX_H, else 0
+  // (no screen known, no limit).
+  readonly property real availableCardHeight: Number(Quickshell.env("SOLFA_CARD_MAX_H") || 0)
   function fittedContentHeight(implicitHeight, cap) {
     var h = (Number(implicitHeight) || 0) + root.padding * 2
-    return Math.round(cap !== undefined && Number(cap) > 0 ? Math.min(h, Number(cap)) : h)
+    var most = root.availableCardHeight > 0 ? root.availableCardHeight : h
+    if (cap !== undefined && Number(cap) > 0) most = Math.min(most, Number(cap))
+    return Math.round(Math.min(h, most))
   }
-  function cappedContentHeight(height) { return Math.round(Math.max(root.padding * 2, Number(height) || 0)) }
+  function cappedContentHeight(height) {
+    var h = Math.max(root.padding * 2, Number(height) || 0)
+    return Math.round(root.availableCardHeight > 0 ? Math.min(h, root.availableCardHeight) : h)
+  }
 
   width: root.contentWidth
   height: root.contentHeight

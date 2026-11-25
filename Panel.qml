@@ -47,14 +47,65 @@ Panel {
   readonly property real roomH: Style.space(940)
   readonly property real baseH: panel.cappedContentHeight(roomH)
   readonly property real maxGrow: panel.availableCardHeight > 0 ? Math.max(0, panel.availableCardHeight - baseH) : Style.space(400)
-  // The stage's height with no page open: measured at rest, never mid-motion.
+  // The stage's height with no page open: measured at rest, never mid-motion
+  // (and worked out from the card when the layout changes under a page:
+  // measureChrome below).
   property real stageRest: 0
   // Where the free screen height cannot fit 4 full rows under the full header (1080p),
   // the detail header gets a smaller cover; fonts, colours and buttons are the same.
   readonly property bool compactHead: stageRest > 0 && panel.availableCardHeight > 0
     && stageRest + maxGrow - Style.space(36 + 12 + 118 + 20) < 4 * Style.space(66)
   readonly property real headCover: compactHead ? 56 : 118
-  readonly property real headH: Style.space(36 + 12 + headCover + 20)
+  readonly property real headH: compact ? detailView.compactSpan : Style.space(36 + 12 + headCover + 20)
+
+  // The compact layout (setting compactPanel): the player and the page's head
+  // take less height (NowPlaying, DetailView), every control stays. "auto",
+  // unless set: only where a page's list would show fewer than 4 whole rows
+  // without it, even grown to the free screen height and with the compact
+  // head above; "always"; "never". A tall screen keeps the full layout.
+  readonly property string compactMode: {
+    var m = svc ? String(svc.setting("compactPanel", "auto")) : "auto"
+    return m === "always" || m === "never" ? m : "auto"
+  }
+  // What the full layout leaves of the card for the stage (the card's height
+  // less the stage's: the same at rest, under a page and mid-motion), with
+  // the player's controls on show. Measured only while the layout is full
+  // and kept while it is compact, so going compact never changes what decided
+  // it. 0 until measured.
+  property real fullChrome: 0
+  // The tallest the card gets: a page grown to the free screen height.
+  readonly property real maxCard: baseH + maxGrow
+  function wholeRows(h) { return Math.floor((h + Style.space(8)) / (Style.space(58) + Style.space(8))) }
+  readonly property bool compact: compactMode === "always" || compactMode === "auto" && fullChrome > 0
+    && panel.availableCardHeight > 0 && wholeRows(maxCard - fullChrome - detailView.smallHeadSpan) < 4
+  // After every change of the stage's height (called later: going compact
+  // moves the stage's own anchors).
+  function measureChrome() {
+    if (!keys.hasWindow || settingsOpen || keys.blocked || stage.height <= 0) return
+    // Rows and columns lay out late (on the next frame, and not at all while
+    // the panel is hidden): lay out the ones above and below the stage now,
+    // innermost first, so a new scale or a song's controls are counted. Only
+    // those (Row, Column: a `populate` and no `contentY`), and only in a
+    // window: a Shape laid out with no window takes the shell down.
+    var settle = function (it) {
+      for (var i = 0; i < it.children.length; i++) if (it.children[i] !== stage) settle(it.children[i])
+      if (it.hasOwnProperty("populate") && !it.hasOwnProperty("contentY")) it.ensurePolished()
+    }
+    settle(keys)
+    var chrome = panel.contentHeight - stage.height
+    // The layout changed under a page (compact on or off, a song's controls
+    // came): the stage at rest is another height, and so is the growth.
+    if ((pages.length > 0 || growth !== 0) && Math.abs(baseH - chrome - stageRest) >= 0.5) {
+      stageRest = baseH - chrome
+      syncGrowth()
+    }
+    if (!compact && hero.full && !(svc && svc.isAd)) fullChrome = chrome
+  }
+  // A new scale or new fonts: measured again, in the full layout. (The
+  // screen's height alone changes the card, not what it leaves the stage.)
+  function remeasureChrome() { fullChrome = 0; Qt.callLater(measureChrome) }
+  onRoomHChanged: remeasureChrome()
+  Connections { target: detailView; function onSmallHeadSpanChanged() { root.remeasureChrome() } }
   function syncGrowth() {
     var tgt = 0
     if (pages.length > 0 && !settingsOpen) {
@@ -838,6 +889,7 @@ Panel {
         svc: root.svc
         bar: root.bar
         topInset: brand.height
+        compact: root.compact
         removal: root.playingRemoval
         queueRemovable: root.playingQueueIndex >= 0
         onSaveRequested: root.saveRow(null)
@@ -908,6 +960,10 @@ Panel {
       // Off, the same: only the way back on.
       readonly property bool off: root.svc ? root.svc.closed === true : false
       readonly property bool blocked: gated || off
+      // The shell makes the card's window after the card: nothing is measured
+      // before it is there (measureChrome), and all of it once it comes.
+      readonly property bool hasWindow: Window.window !== null
+      onHasWindowChanged: Qt.callLater(root.measureChrome)
 
       // The tab bar's pill: a faint rounded track, and one accent pill that
       // glides under the open tab (a still pill under reduce-motion).
@@ -935,7 +991,7 @@ Panel {
         objectName: "panelTabs"
         visible: !keys.blocked && !root.settingsOpen
         anchors.top: gate.visible ? gate.bottom : hero.bottom
-        anchors.topMargin: Style.space(28)
+        anchors.topMargin: Style.space(root.compact ? 10 : 28)
         anchors.left: parent.left
         anchors.leftMargin: Style.space(4)
         width: parent.width - Style.space(8)
@@ -1055,7 +1111,7 @@ Panel {
         id: stage
         visible: root.settingsOpen || !keys.blocked
         anchors.top: root.settingsOpen ? parent.top : tabRow.bottom
-        anchors.topMargin: root.settingsOpen ? 0 : Style.space(12)
+        anchors.topMargin: root.settingsOpen ? 0 : Style.space(root.compact ? 8 : 12)
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: footer.top
@@ -1063,7 +1119,10 @@ Panel {
 
         // The view change: the old view fades out and the new one in, each
         // sliding a few px, on one 200 ms OutCubic clock (instant with reduce motion).
-        onHeightChanged: if (root.pages.length === 0 && root.growth === 0 && height > 0) root.stageRest = height
+        onHeightChanged: {
+          if (root.pages.length === 0 && root.growth === 0 && height > 0) root.stageRest = height
+          Qt.callLater(root.measureChrome)
+        }
         property var last: root.view
         property var prev: null
         property real mix: 1

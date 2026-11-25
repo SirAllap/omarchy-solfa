@@ -283,7 +283,15 @@ ShellRoot {
             settingsView.switchColumn(); settingsView.move(1); settingsView.act()  // keys(4) -> advanced(5)
 
             win.grab(Quickshell.env("SOLFA_SCENE_OUT4"), function () {
+              // Compact panel (row 3): the arrows step auto -> always -> never.
               settingsView.move(3)
+              settingsView.change(1)
+              var compactAfterOne = fakeSvc.setting("compactPanel", "auto")
+              settingsView.change(1)
+              var compactAfterTwo = fakeSvc.setting("compactPanel", "auto")
+              settingsView.change(1)
+              var compactAfterThree = fakeSvc.setting("compactPanel", "auto")
+              settingsView.move(1)
               settingsView.act()  // Clear cache
               var cacheNoteAfter = settingsView.cacheNote
               settingsView.move(2)
@@ -346,6 +354,7 @@ ShellRoot {
                   sleepCalls: fakeSvc.sleepCalls, sleepAfter: sleepAfter,
                   showAllKeysCount: scene.showAllKeysCount,
                   clearCacheCalls: fakeSvc.clearCacheCalls, cacheNoteAfter: cacheNoteAfter,
+                  compactSteps: [compactAfterOne, compactAfterTwo, compactAfterThree],
                   armedAfterFirst: armedAfterFirst, armedAfterSecond: armedAfterSecond, eraseCalls: fakeSvc.eraseCalls,
                   eraseArmTimerRunning: eraseArmTimerRunning, eraseArmedAfterMove: eraseArmedAfterMove,
                   eraseArmedAfterHide: eraseArmedAfterHide, eraseCallsBeforeConfirm: eraseCallsBeforeConfirm,
