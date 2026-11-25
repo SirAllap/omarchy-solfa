@@ -137,6 +137,8 @@ Item {
   // Where the song was left: noted every 10 s while it plays and when it pauses.
   function notePosition() {
     if (!root.hasTrack || root.isAd || !root.title || root.title !== root.lastTitle) return
+    // Not loaded yet, or the restored song still parked at 0:00: keep the place it was left.
+    if (!(root.duration > 0) || (root.position < 1 && root.lastPosition > 0 && !root.isPlaying)) return
     root.lastPosition = root.position
     root.lastDuration = root.duration
     root.saveLast()
