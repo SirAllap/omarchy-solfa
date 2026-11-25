@@ -205,7 +205,8 @@ ShellRoot {
     implicitHeight: 34
     visible: true
     color: "transparent"
-    Rectangle { id: barBox; anchors.fill: parent; color: Color.bar ? Color.bar.background : "#101014"
+    // After: the box is exactly as wide as the widget, so the PNG's edges are the bar notch's edges.
+    Rectangle { id: barBox; anchors.centerIn: parent; height: parent.height; width: scene.before ? parent.width : Math.round(bar.implicitWidth); color: Color.bar ? Color.bar.background : "#101014"
       SolfaBar { id: bar; bar: shotBar; anchors.centerIn: parent } }
     TestCase { id: barTc; name: "shots-bar"; when: false }
   }

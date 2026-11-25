@@ -199,7 +199,10 @@ BarWidget {
   // (cover, title, three buttons), so off, idle and playing share one join shape until a long
   // title makes the playing pill grow.
   readonly property real pillMinW: barFlat || closed ? 0 : Math.round(Style.space(176))
-  readonly property real pillNatW: Math.max(body.implicitWidth + 2 * pillPad, pillMinW)
+  // Off there are no buttons, whose own inner margin gives the player its air at the ends: the
+  // closed pill adds that air itself, the same on both sides, at rest and on hover.
+  readonly property real closedAir: closed ? Math.round(Style.space(6)) : 0
+  readonly property real pillNatW: Math.max(body.implicitWidth + 2 * (pillPad + closedAir), pillMinW)
   implicitWidth: visible ? pillNatW : 0
   implicitHeight: barSize
   // The shell underlines a widget whose panel is open. Solfa shows that state
