@@ -709,13 +709,34 @@ Item {
   // "Play on": start the engine, then play once the restored track is in. One shot: it is
   // cleared when the track lands, when the start phase ends with nothing restored, or after 60 s.
   property bool playWhenReady: false
+  // Where to pick up, taken when Play on is pressed: the restored track lands at 0:00 and would
+  // overwrite lastPosition before the seek.
+  property real resumeAt: -1
   function startAndPlay() {
+    root.resumeAt = root.lastPosition
     root.playWhenReady = true
     playWhenReadyGuard.restart()
     root.startEngine()
   }
-  Timer { id: playWhenReadyGuard; interval: 60000; onTriggered: root.playWhenReady = false }
-  onHasTrackChanged: if (root.hasTrack && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop(); root.play() }
+  Timer { id: playWhenReadyGuard; interval: 60000; onTriggered: { root.playWhenReady = false; resumeKick.stop() } }
+  onHasTrackChanged: if (root.hasTrack && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop(); resumeKick.tries = 0; resumeKick.restart() }
+  // The page takes a moment after the track appears before it obeys seek and play, so this
+  // nudges it until the song plays where it was left (at most ~10 s).
+  Timer {
+    id: resumeKick
+    property int tries: 0
+    interval: 700
+    repeat: true
+    onTriggered: {
+      tries++
+      if (!root.hasTrack || tries > 14) { stop(); return }
+      if (!(root.duration > 0)) return
+      var want = root.resumeAt
+      if (want > 2 && want < root.duration - 2 && Math.abs(root.position - want) > 3) root.seek(want)
+      if (!root.isPlaying) root.play()
+      else if (want <= 2 || Math.abs(root.position - want) <= 3) stop()
+    }
+  }
   onStartingChanged: if (!root.starting && !root.hasTrack && !root.closed && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop() }
   function restartEngine() { root.request("engine.restart", {}) }
   function stopEngine() { root.request("engine.stop", {}) }
