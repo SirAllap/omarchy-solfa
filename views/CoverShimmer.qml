@@ -1,39 +1,58 @@
 import QtQuick
+import QtQuick.Shapes
 import "../lib"
 import qs.Ui
 import qs.Commons
 
-// Loading state on a cover: a soft band of light sweeps across it, the way modern players show a
-// card on its way. Reduce motion: the band stays still.
+// Loading state on a cover: a bright beam runs around the cover's rounded edge, over a soft
+// dark veil, so "loading" reads at a glance and stays inside the cover's own corners.
+// Reduce motion: the beam stands still.
 Item {
   id: root
   property real radius: 0
+  property color color: Calm.accent
   property bool running: visible
   anchors.fill: parent
-  Item {
-    id: band
+
+  Rectangle {
     anchors.fill: parent
-    clip: true
-    Rectangle {
-      id: light
-      width: root.width * 0.9
-      height: root.height * 2.2
-      y: -root.height * 0.6
-      rotation: 20
-      gradient: Gradient {
-        orientation: Gradient.Horizontal
-        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0) }
-        GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.22) }
-        GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0) }
-      }
-      NumberAnimation on x {
-        running: root.running && !Style.reduceMotion
-        from: -light.width * 1.2
-        to: root.width + light.width * 0.2
-        duration: 1400
-        easing.type: Easing.InOutQuad
-        loops: Animation.Infinite
-      }
+    radius: root.radius
+    color: Qt.rgba(0, 0, 0, 0.38)
+  }
+
+  Shape {
+    id: shape
+    anchors.fill: parent
+    preferredRendererType: Shape.CurveRenderer
+    readonly property real w: 4
+    // Perimeter of the rounded rectangle the stroke runs on, in pixels.
+    readonly property real r: Math.max(0, root.radius - w / 2)
+    readonly property real per: 2 * (width - w - 2 * r) + 2 * (height - w - 2 * r) + 2 * Math.PI * r
+    property real phase: 0
+    // The track: a faint full ring.
+    ShapePath {
+      strokeWidth: shape.w
+      strokeColor: Qt.rgba(root.color.r, root.color.g, root.color.b, 0.22)
+      fillColor: "transparent"
+      PathRectangle { x: shape.w / 2; y: shape.w / 2; width: shape.width - shape.w; height: shape.height - shape.w; radius: shape.r }
+    }
+    // The beam: one dash, a quarter of the way round, running along it.
+    ShapePath {
+      strokeWidth: shape.w
+      strokeColor: root.color
+      fillColor: "transparent"
+      capStyle: ShapePath.RoundCap
+      strokeStyle: ShapePath.DashLine
+      dashPattern: [shape.per * 0.3 / shape.w, shape.per * 0.7 / shape.w]
+      dashOffset: -shape.phase / shape.w
+      PathRectangle { x: shape.w / 2; y: shape.w / 2; width: shape.width - shape.w; height: shape.height - shape.w; radius: shape.r }
+    }
+    NumberAnimation on phase {
+      running: root.running && !Style.reduceMotion
+      from: 0
+      to: shape.per
+      duration: 1300
+      loops: Animation.Infinite
     }
   }
 }
