@@ -126,8 +126,10 @@ Item {
     root.lastThumb = root.thumb
     root.lastArtist = root.artist
     root.lastAlbum = root.album
-    root.lastDuration = root.duration
-    root.lastPosition = root.position
+    // A new song lands before its length is known: start it at 0, and notePosition fills in
+    // the length and the place as soon as it plays.
+    root.lastDuration = root.duration > 0 ? root.duration : 0
+    root.lastPosition = root.duration > 0 ? root.position : 0
     root.saveLast()
   }
   function saveLast() {
@@ -143,7 +145,10 @@ Item {
     root.lastDuration = root.duration
     root.saveLast()
   }
-  Timer { interval: 10000; repeat: true; running: root.isPlaying; onTriggered: root.notePosition() }
+  // Every 3 s while it plays (a tiny file), when it pauses, when the length arrives, and right
+  // before Solfa is turned off, so the place survives turning off and on again.
+  Timer { interval: 3000; repeat: true; running: root.isPlaying; onTriggered: root.notePosition() }
+  onDurationChanged: if (root.duration > 0 && root.lastDuration <= 0) root.notePosition()
   onIsPlayingChanged: if (!root.isPlaying) root.notePosition()
   onTitleChanged: root.rememberLast()
   onThumbChanged: root.rememberLast()
@@ -741,7 +746,7 @@ Item {
   }
   onStartingChanged: if (!root.starting && !root.hasTrack && !root.closed && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop() }
   function restartEngine() { root.request("engine.restart", {}) }
-  function stopEngine() { root.request("engine.stop", {}) }
+  function stopEngine() { root.notePosition(); root.request("engine.stop", {}) }
   function toggleEngine() { if (root.closed) root.startEngine(); else root.stopEngine() }
   // Sign in is offered while the bridge is still starting (a fresh install,
   // a shell restart): a click then must say so, not vanish. Unlike
