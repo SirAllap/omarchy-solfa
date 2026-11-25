@@ -72,6 +72,13 @@ Column {
       breathe: root.hasTrack
       live: root.live
       reduceMotion: Style.reduceMotion
+      // Loading the last song back: a squishy blob on the dimmed cover.
+      SquishyLoader {
+        objectName: "ghostLoader"
+        anchors.centerIn: parent
+        visible: root.ghost
+        size: Math.round(cover.width * 0.28)
+      }
       // pops .8 to 1 and fades in (no turn), 20 ms in
       scale: 0.8 + 0.2 * Motion.spatial(root.openMs, 20, 200)
       opacity: root.eff(20, 160) * coverMix
