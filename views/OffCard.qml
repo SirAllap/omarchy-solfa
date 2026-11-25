@@ -60,11 +60,11 @@ Column {
         objectName: "offGlow"
         z: -1
         anchors.centerIn: parent
-        width: 640
-        height: 640
+        width: 440
+        height: 380
         source: card.svc ? card.svc.lastThumb : ""
         active: card.awake
-        opacity: card.awake ? 0.22 : 0.08
+        opacity: card.awake ? 0.4 : 0.14
         Behavior on opacity { NumberAnimation { duration: 400 } }
       }
 

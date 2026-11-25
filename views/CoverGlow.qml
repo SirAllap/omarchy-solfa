@@ -21,22 +21,37 @@ Item {
   opacity: 0.35
   visible: source.toString() !== ""
 
+  // The blur runs on a small copy, padded by blurMax on every side, then scaled up to this
+  // item: so the glow fades to nothing at the edge (no square border), at the cost of a tiny pass.
+  readonly property int core: 96
+  readonly property int pad: 64
+
   Image {
     id: img
     visible: false
-    anchors.fill: parent
+    width: root.core
+    height: root.core
     source: root.source
-    sourceSize.width: 96
-    sourceSize.height: 96
+    sourceSize.width: root.core
+    sourceSize.height: root.core
     fillMode: Image.PreserveAspectCrop
     asynchronous: true
   }
   MultiEffect {
-    anchors.fill: parent
+    anchors.centerIn: parent
+    width: root.core
+    height: root.core
     source: img
+    autoPaddingEnabled: true
     blurEnabled: true
-    blurMax: 64
+    blurMax: root.pad
     blur: 1
+    transform: Scale {
+      origin.x: root.core / 2
+      origin.y: root.core / 2
+      xScale: root.width / (root.core + 2 * root.pad)
+      yScale: root.height / (root.core + 2 * root.pad)
+    }
     saturation: root.active ? root.saturation : -1
     Behavior on saturation { enabled: !root.reduceMotion; NumberAnimation { duration: root.fadeMs } }
   }

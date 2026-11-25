@@ -3,16 +3,16 @@ import QtTest
 import Quickshell
 import qs.Commons
 import qs.Ui
-import "views" as Views
-import "lib"
+import "lib/Model.js" as Model
 
-// The PR screenshots of the Off state (#33), made from the real QML: the bar pill off (at rest and
-// hovered) and the panel's Off view (at rest, hovered, and with no last song), each saved as its own
-// PNG in $SOLFA_SHOT_OUT. An INVENTED song; the cover is the generated gradient in $SOLFA_SHOT_COVER.
-// Run by tests/bar_off_shots.py (offscreen, QT_SCALE_FACTOR=2). Never the live desktop.
+// The PR screenshots of the Off state (#33), from the real QML: the bar widget and the real
+// Panel.qml, each state saved as its own PNG in $SOLFA_SHOT_OUT. $SOLFA_SHOT_SET is "before"
+// (main's code) or "after". Invented song only; the cover is the generated gradient in
+// $SOLFA_SHOT_COVER. Every grab waits for the animations to end, and the pointer moves on only
+// after the grab is saved. Run by tests/bar_off_shots.py (offscreen, 2x). Never the live desktop.
 ShellRoot {
   id: scene
-  property int pending: 0
+  readonly property bool before: Quickshell.env("SOLFA_SHOT_SET") === "before"
 
   component FakeSvc: QtObject {
     property bool closed: false
@@ -68,9 +68,9 @@ ShellRoot {
     function setVolume(v) {}
   }
 
-  FakeSvc { id: shotSvc; closed: true; lastTitle: "Glass Harbour"; lastArtist: "The Quiet Tides"; lastAlbum: "Low Light"
-    lastPosition: 102; lastDuration: 238; lastThumb: "file://" + Quickshell.env("SOLFA_SHOT_COVER") }
-  FakeSvc { id: bareSvc; closed: true }
+  FakeSvc { id: barSvc; closed: true; hasTrack: false; isPlaying: false
+    property string lastArtist: "The Quiet Tides"
+    lastTitle: scene.before ? "" : "Glass Harbour"; lastThumb: scene.before ? "" : "file://" + Quickshell.env("SOLFA_SHOT_COVER") }
 
   component FakeBar: QtObject {
     property var svc: null
@@ -84,96 +84,183 @@ ShellRoot {
     function hideTooltip(item) {}
   }
 
-  FakeBar { id: shotBar; svc: shotSvc }
+  FakeBar { id: shotBar; svc: barSvc }
 
-  function save(item, name) {
-    scene.pending++
-    item.grabToImage(function (r) {
-      r.saveToFile(Quickshell.env("SOLFA_SHOT_OUT") + "/" + name)
-      scene.pending--
-      console.log("SHOT " + name)
+  QtObject {
+    id: fakeSvc
+    property string lastTitle: "Glass Harbour"
+    property string lastArtist: "The Quiet Tides"
+    property string lastAlbum: "Low Light"
+    property real lastPosition: 102
+    property real lastDuration: 238
+    property string lastThumb: "file://" + Quickshell.env("SOLFA_SHOT_COVER")
+    function startAndPlay() {}
+    property bool bridgeUp: true
+    property bool ready: true
+    property bool signingIn: false
+    property bool gated: false
+    property bool closed: false
+    property bool signedIn: true
+    property string panelKeyLabel: "Super+Shift+M"
+    property var panelKeyChosen: ({ keys: "SUPER + SHIFT + M" })
+    property var playPauseKeyChosen: ({ keys: "SUPER + ALT + P" })
+    property string playPauseKeyLabel: "Super+Alt+P"
+    property var panelKeyOptions: ["", "SUPER + SHIFT + M"]
+    property bool premium: false
+    property bool hasTrack: true
+    property bool isPlaying: true
+    property bool isAd: false
+    property bool adSkippable: false
+    property bool panelOpen: false
+    property string lastError: ""
+    property var engine: ({ status: "ready", error: "", signedIn: true, host: "music.youtube.com", wantRunning: true })
+    property var account: ({ signedIn: true, host: "music.youtube.com" })
+    property var player: ({ videoId: "AAAAAAAAAAA", title: "Northern Lights", artists: [{ name: "The Examples" }], playing: true, volume: 70, duration: 200, position: 42 })
+    property string videoId: "AAAAAAAAAAA"
+    property string title: "Northern Lights"
+    property string artist: "The Examples"
+    property string album: ""
+    property string thumb: ""
+    property real duration: 200
+    property real position: 42
+    property int volume: 70
+    property bool muted: false
+    property string repeatMode: "NONE"
+    property string like: "INDIFFERENT"
+    property int fastClockUsers: 0
+    property string engineLine: "Playing"
+    property var settings: ({
+      barControls: true, showTitle: true, maxLabelWidth: 160, showWhenIdle: true, notify: true,
+      globalKeys: true, autostart: true, browser: "",
+      eqEnabled: false, eqPreset: "flat", eqBands: "[0,0,0,0,0,0,0,0,0,0]", eqPreamp: 0, eqLoudness: false,
+      startPaused: false, startVolume: "last", recycleHeapMb: 400, recycleHours: 12
     })
+    function setting(name, fallback) {
+      var v = settings ? settings[name] : undefined
+      return v === undefined || v === null ? fallback : v
+    }
+    function saveSetting(key, value) { var n = Object.assign({}, settings); n[key] = value; settings = n }
+    function resetSettings() {}
+    property string sleepMode: "off"
+    function nudgeSleepMode(dir) { sleepMode = Model.nextSleepOption(sleepMode, dir) }
+    property string solfaVersion: "0.1.0-fixture"
+    function engineVersion(cb) { if (cb) cb({ ok: true, data: { product: "FakeChrome/999.0 (fixture)" } }) }
+    function clearCache(cb) { if (cb) cb({ ok: true, data: {} }) }
+    function eraseProfile(cb) { if (cb) cb({ ok: true, data: {} }) }
+    property var accountDetails: ({ name: "Alex Example", email: "alex@example.com", avatar: "" })
+    function accountInfo(cb) { if (cb) cb({ ok: true, data: accountDetails }) }
+    function accountSwitch(cb) { if (cb) cb({ ok: true, data: {} }) }
+    function accountSignOut(cb) { if (cb) cb({ ok: true, data: {} }) }
+    // Everything a view may call: recorded, never acted on.
+    property var calls: []
+    function request(op, args, cb) {
+      calls.push(op)
+      // SOLFA_SCENE_OUT0 (the parity render) wants a queue to draw; the
+      // other runs keep the old "not found".
+      if (op === "queue" && cb && Quickshell.env("SOLFA_SCENE_OUT0")) {
+        var names = [["Northern Lights", "The Examples"], ["Paper Lanterns", "The Quiet Meridian"], ["Static Bloom", "Orla Vance"], ["Seventeen Windows", "Kite & Compass"], ["Slow Neon", "Hollow Parade"]]
+        cb({ ok: true, data: { index: 0, items: names.map(function (n, i) { return { videoId: "ID" + i, title: n[0], artists: [{ name: n[1] }], duration: 200 + i * 17, kind: "song" } }) } })
+        return 0
+      }
+      if (cb) cb({ ok: false, error: "not-found" })
+      return 0
+    }
+    function report(code) {}
+    function startEngine() { calls.push("startEngine") }
+    function restartEngine() {}
+    function toggleEngine() {}
+    function togglePlaying() {}
+    function next() {}
+    function previous() {}
+    function seek(s) {}
+    function seekBy(d) {}
+    function setVolume(v) {}
+    function nudgeVolume(s) {}
+    function toggleMute() {}
+    function toggleLike() {}
+    function dislike() {}
+    function cycleRepeat() {}
+    function shuffle() {}
+    function skipAd() {}
+    function signIn() { calls.push("signIn") }
+    function showWindow() { calls.push("showWindow") }
+    function hideWindow() { calls.push("hideWindow") }
+    function playItem(item, cb) {}
+    function radioFor(item) {}
+    function enqueue(item, next, cb) {}
   }
 
-  component PanelCard: Rectangle {
-    property alias svcRef: off.svc
-    property alias offCard: off
-    width: 460
-    height: head.height + off.implicitHeight + 24 + 28
-    radius: 18
-    clip: true
-    color: Calm.surface
-    border.width: 1
-    border.color: Calm.hair
-    Views.BrandCorner { id: head; x: 24; y: 20; showRight: false; svc: off.svc }
-    Views.OffCard { id: off; x: 24; y: head.height + 24; width: parent.width - 48; bar: shotBar }
+
+  // The panel as it is when Solfa is off.
+  function turnOff() {
+    fakeSvc.hasTrack = false; fakeSvc.isPlaying = false; fakeSvc.ready = false
+    fakeSvc.player = null; fakeSvc.videoId = ""; fakeSvc.title = ""; fakeSvc.artist = ""; fakeSvc.position = 0; fakeSvc.duration = 0
+    fakeSvc.engine = { status: "stopped", error: "", signedIn: true, host: "", wantRunning: false }
+    fakeSvc.closed = true; fakeSvc.engineLine = Model.engineLine(fakeSvc.engine, fakeSvc.account)
+  }
+
+  FloatingWindow {
+    id: barWin
+    implicitWidth: 220
+    implicitHeight: 34
+    visible: true
+    color: "transparent"
+    Rectangle { id: barBox; anchors.fill: parent; color: Color.bar ? Color.bar.background : "#101014"
+      SolfaBar { id: bar; bar: shotBar; anchors.centerIn: parent } }
+    TestCase { id: barTc; name: "shots-bar"; when: false }
   }
 
   FloatingWindow {
     id: win
-    implicitWidth: 1100
-    implicitHeight: 760
+    implicitWidth: 640
+    implicitHeight: 900
     visible: true
-    color: Color.popups.background
-
-    TestCase { id: tc; name: "shots"; when: false }
-
-    Item {
-      id: stage
-      anchors.fill: parent
-      Row {
-        x: 20; y: 16; spacing: 20
-        Rectangle { id: barRestBox; width: 220; height: 34; color: Color.bar ? Color.bar.background : "#101014"
-          SolfaBar { id: barRest; bar: shotBar; anchors.centerIn: parent } }
-        Rectangle { id: barHoverBox; width: 220; height: 34; color: Color.bar ? Color.bar.background : "#101014"
-          SolfaBar { id: barHover; bar: shotBar; anchors.centerIn: parent } }
-      }
-      Row {
-        x: 20; y: 70; spacing: 20
-        PanelCard { id: restCard; svcRef: shotSvc }
-        PanelCard { id: hoverCard; svcRef: shotSvc }
-        PanelCard { id: bareCard; svcRef: bareSvc }
-      }
-    }
-
-    function find(item, name) {
-      if (item.objectName === name) return item
-      for (var i = 0; i < item.children.length; i++) { var f = find(item.children[i], name); if (f) return f }
-      return null
-    }
-
-    Timer {
-      interval: 1200; running: true
-      onTriggered: {
-        scene.save(barRestBox, "01-bar-off-rest.png")
-        scene.save(restCard, "03-panel-off-rest.png")
-        scene.save(bareCard, "05-panel-off-no-song.png")
-        tc.mouseMove(barHover, 2, 2)
-        tc.mouseMove(barHover, barHover.pillBoxX + barHover.pillBoxW / 2, barHover.height / 2)
-        step2.start()
-      }
-    }
-    Timer {
-      id: step2; interval: 600
-      onTriggered: {
-        scene.save(barHoverBox, "02-bar-off-hover.png")
-        step2b.start()
-      }
-    }
-    // The grab renders on the next frame: the pointer moves on only after it.
-    Timer {
-      id: step2b; interval: 500
-      onTriggered: {
-        var cv = win.find(hoverCard, "offCover")
-        tc.mouseMove(cv, cv.width / 2, cv.height / 2)
-        step3.start()
-      }
-    }
-    Timer {
-      id: step3; interval: 900
-      onTriggered: { scene.save(hoverCard, "04-panel-off-hover.png"); done.start() }
-    }
-    Timer { interval: 30000; running: true; onTriggered: Qt.quit() }
-    Timer { id: done; interval: 1500; onTriggered: Qt.quit() }
+    color: "transparent"
+    Item { id: stage; anchors.fill: parent
+      SolfaPanel { id: panel; svc: fakeSvc } }
+    TestCase { id: tc; name: "shots-panel"; when: false }
   }
+
+  function find(item, name) {
+    if (item.objectName === name) return item
+    for (var i = 0; i < item.children.length; i++) { var f = find(item.children[i], name); if (f) return f }
+    return null
+  }
+
+  // One step at a time: wait for the screen to settle, then run it. A grab calls next() when saved.
+  property var steps: []
+  property int at: 0
+  Timer { id: settle; interval: 2000; onTriggered: scene.steps[scene.at++]() }
+  function next() { if (scene.at < scene.steps.length) settle.restart(); else Qt.quit() }
+  function save(item, name) {
+    item.grabToImage(function (r) {
+      r.saveToFile(Quickshell.env("SOLFA_SHOT_OUT") + "/" + name)
+      console.log("SHOT " + name)
+      scene.next()
+    })
+  }
+  function card() { return find(stage, "panelCard") }
+
+  Component.onCompleted: {
+    turnOff()
+    var beforeSteps = [
+      function () { save(barBox, "before-bar.png") },
+      function () { panel.open(); next() },
+      function () { save(card(), "before-panel.png") }
+    ]
+    var afterSteps = [
+      function () { save(barBox, "after-bar-rest.png") },
+      function () { barTc.mouseMove(bar, 1, 1); barTc.mouseMove(bar, bar.pillBoxX + bar.pillBoxW / 2, bar.height / 2); next() },
+      function () { save(barBox, "after-bar-hover.png") },
+      function () { panel.open(); next() },
+      function () { save(card(), "after-panel-rest.png") },
+      function () { var cv = find(stage, "offCover"); tc.mouseMove(cv, 1, 1); tc.mouseMove(cv, cv.width / 2, cv.height / 2); next() },
+      function () { save(card(), "after-panel-hover.png") },
+      function () { tc.mouseMove(stage, 1, 1); fakeSvc.lastTitle = ""; fakeSvc.lastThumb = ""; next() },
+      function () { save(card(), "after-panel-no-song.png") }
+    ]
+    steps = before ? beforeSteps : afterSteps
+    next()
+  }
+  Timer { interval: 60000; running: true; onTriggered: Qt.quit() }
 }

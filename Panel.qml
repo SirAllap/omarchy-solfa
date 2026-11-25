@@ -175,6 +175,8 @@ Panel {
   // Settings replaces the panel body; the gear in BrandCorner and Esc are
   // the only ways in and out — no new key letter is spent on it.
   property bool settingsOpen: false
+  // Off with a last song known: the Off view previews it, so the header is only the name row.
+  readonly property bool offPreview: !!(svc && svc.closed && svc.lastTitle)
   // "Save to playlist": the song being saved ({ videoId, title }), or null.
   property var saveItem: null
   readonly property bool saveOpen: saveItem !== null
@@ -699,7 +701,7 @@ Panel {
     contentHeight: root.svc && root.svc.gated && !root.settingsOpen
       ? panel.fittedContentHeight(hero.implicitHeight + gate.implicitHeight + Style.space(20))
       : root.svc && root.svc.closed && !root.settingsOpen
-      ? panel.fittedContentHeight(hero.implicitHeight + offCard.implicitHeight + Style.space(28))
+      ? panel.fittedContentHeight((root.offPreview ? brand.height : hero.implicitHeight) + offCard.implicitHeight + Style.space(28))
       : panel.cappedContentHeight(root.roomH + root.growth)
 
     // A plain Item, not a FocusScope: a scope hands focus back to the child
@@ -882,7 +884,7 @@ Panel {
         objectName: "panelHero"
         openMs: keys.tms
         // Settings replaces the whole body: no hero, no transport, no tabs.
-        visible: !root.settingsOpen
+        visible: !root.settingsOpen && !root.offPreview
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -946,7 +948,7 @@ Panel {
       Views.OffCard {
         id: offCard
         objectName: "offCard"
-        anchors.top: hero.bottom
+        anchors.top: root.offPreview ? brand.bottom : hero.bottom
         anchors.topMargin: Style.space(18)
         width: parent.width
         visible: keys.off && !root.settingsOpen
