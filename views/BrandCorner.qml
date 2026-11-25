@@ -55,6 +55,31 @@ Row {
     font.pixelSize: Style.space(22)
     font.weight: Font.Bold
   }
+  // Off: a small grey dot and "Off" after the name.
+  Rectangle {
+    id: offChip
+    objectName: root.showLeft ? "offChip" : ""
+    anchors.verticalCenter: parent.verticalCenter
+    visible: root.showLeft && root.closed
+    width: offRow.implicitWidth + Style.space(20)
+    height: offRow.implicitHeight + Style.space(6)
+    radius: height / 2
+    color: Calm.wash
+    Row {
+      id: offRow
+      anchors.centerIn: parent
+      spacing: Style.space(6)
+      Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Style.space(6); height: width; radius: width / 2; color: Calm.muted }
+      Text {
+        text: "Off"
+        textFormat: Text.PlainText
+        color: Calm.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.space(12)
+        font.weight: Font.Medium
+      }
+    }
+  }
   Rectangle {
     id: premium
     objectName: root.showLeft ? "premiumBadge" : ""

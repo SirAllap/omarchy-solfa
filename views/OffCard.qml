@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "../lib"
 import qs.Ui
 import qs.Commons
@@ -18,9 +19,15 @@ Column {
   spacing: 12
 
   readonly property bool hasLast: !!svc && !!svc.lastTitle
-  function dropNeedle() { if (card.svc) card.svc.startAndPlay() }
-  // Pointer on the cover or the button: the cover gets its colour back and shows a round play.
-  readonly property bool awake: coverMouse.containsMouse || needleMouse.containsMouse
+  readonly property real pos: svc && svc.lastPosition !== undefined ? Number(svc.lastPosition) : -1
+  readonly property real len: svc && svc.lastDuration !== undefined ? Number(svc.lastDuration) : 0
+  // Where it was left is known: the thin line and "picks up at m:ss".
+  readonly property bool hasPos: len > 0 && pos >= 0
+  readonly property string sub: !svc ? "" : (svc.lastArtist || "") + (svc.lastArtist && svc.lastAlbum ? " · " : "") + (svc.lastAlbum || "")
+  function playOn() { if (card.svc) card.svc.startAndPlay() }
+  // Pointer on the cover or the button: the cover gets its colour back, lifts, and shows a round play.
+  readonly property bool awake: coverMouse.containsMouse || playMouse.containsMouse
+  function fmt(s) { var n = Math.max(0, Math.floor(s)); return Math.floor(n / 60) + ":" + (n % 60 < 10 ? "0" : "") + (n % 60) }
 
   // A last song is known: a preview of what plays, and one button that plays it.
   Column {
@@ -30,37 +37,83 @@ Column {
     width: parent.width
     spacing: 12
 
+    Text {
+      objectName: "offEyebrow"
+      width: parent.width
+      text: "LAST PLAYED"
+      textFormat: Text.PlainText
+      horizontalAlignment: Text.AlignHCenter
+      color: Calm.muted
+      font.family: card.family
+      font.pixelSize: 11
+      font.letterSpacing: 1.6
+    }
+
     Item {
+      id: coverBox
       anchors.horizontalCenter: parent.horizontalCenter
-      width: 150
+      width: 168
       height: width
-      RoundCover {
-        id: lastCover
-        objectName: "offCover"
-        anchors.fill: parent
-        source: card.svc ? card.svc.lastThumb : ""
-        foreground: card.fg
-        fontFamily: card.family
-        cornerRadius: 14
-        asleep: !card.awake
-      }
-      Rectangle {
-        objectName: "offCoverPlay"
+
+      // The cover's colour, spread softly behind the whole card: grey at rest, in colour on hover.
+      CoverGlow {
+        objectName: "offGlow"
+        z: -1
         anchors.centerIn: parent
-        width: 52
-        height: width
-        radius: width / 2
-        color: Calm.accent
-        opacity: card.awake ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 120 } }
-        Text {
+        width: 640
+        height: 640
+        source: card.svc ? card.svc.lastThumb : ""
+        active: card.awake
+        opacity: card.awake ? 0.22 : 0.08
+        Behavior on opacity { NumberAnimation { duration: 400 } }
+      }
+
+      Item {
+        id: lift
+        anchors.fill: parent
+        scale: card.awake ? 1 : 0.97
+        y: card.awake ? -2 : 0
+        Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          shadowEnabled: true
+          shadowColor: card.awake ? Calm.a(Calm.accent, 0.4) : Qt.rgba(0, 0, 0, 0.55)
+          shadowBlur: 1
+          shadowVerticalOffset: card.awake ? 12 : 16
+          shadowOpacity: 1
+          Behavior on shadowColor { ColorAnimation { duration: 180 } }
+        }
+        RoundCover {
+          id: lastCover
+          objectName: "offCover"
+          anchors.fill: parent
+          source: card.svc ? card.svc.lastThumb : ""
+          foreground: card.fg
+          fontFamily: card.family
+          cornerRadius: 16
+          asleep: !card.awake
+        }
+        Rectangle {
+          objectName: "offCoverPlay"
           anchors.centerIn: parent
-          anchors.horizontalCenterOffset: 2
-          text: Icons.play
-          textFormat: Text.PlainText
-          color: Calm.onAccent
-          font.family: card.family
-          font.pixelSize: 26
+          width: 58
+          height: width
+          radius: width / 2
+          color: Qt.rgba(1, 1, 1, 0.92)
+          opacity: card.awake ? 1 : 0
+          scale: card.awake ? 1 : 0.85
+          Behavior on opacity { NumberAnimation { duration: 140 } }
+          Behavior on scale { NumberAnimation { duration: 140 } }
+          Text {
+            anchors.centerIn: parent
+            anchors.horizontalCenterOffset: 2
+            text: Icons.play
+            textFormat: Text.PlainText
+            color: Qt.rgba(0.05, 0.055, 0.07, 1)
+            font.family: card.family
+            font.pixelSize: 28
+          }
         }
       }
       MouseArea {
@@ -68,69 +121,120 @@ Column {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: card.dropNeedle()
+        onClicked: card.playOn()
       }
     }
 
-    Text {
-      objectName: "offLastTitle"
+    Column {
       width: parent.width
-      text: card.svc ? card.svc.lastTitle : ""
-      textFormat: Text.PlainText
-      elide: Text.ElideRight
-      horizontalAlignment: Text.AlignHCenter
-      color: card.fg
-      font.family: card.family
-      font.pixelSize: 18
-      font.bold: true
-    }
-    Text {
-      objectName: "offLastArtist"
-      width: parent.width
-      visible: text !== ""
-      text: card.svc ? card.svc.lastArtist : ""
-      textFormat: Text.PlainText
-      elide: Text.ElideRight
-      horizontalAlignment: Text.AlignHCenter
-      color: Calm.muted
-      font.family: card.family
-      font.pixelSize: 13
-    }
-
-    Rectangle {
-      id: needle
-      objectName: "offNeedle"
-      anchors.horizontalCenter: parent.horizontalCenter
-      width: Math.min(parent.width, 240)
-      height: 36
-      radius: height / 2
-      color: needleMouse.pressed ? Calm.a(Calm.accent, 0.8) : Calm.accent
-      opacity: needleMouse.containsMouse ? 1 : 0.9
-      Accessible.role: Accessible.Button
-      Accessible.name: "Drop the needle"
-      Accessible.onPressAction: card.dropNeedle()
+      spacing: 4
       Text {
-        anchors.centerIn: parent
-        text: Icons.play + " Drop the needle"
+        objectName: "offLastTitle"
+        width: parent.width
+        text: card.svc ? card.svc.lastTitle : ""
         textFormat: Text.PlainText
-        color: Calm.onAccent
+        elide: Text.ElideRight
+        horizontalAlignment: Text.AlignHCenter
+        color: card.fg
         font.family: card.family
-        font.pixelSize: 14
+        font.pixelSize: 20
         font.bold: true
       }
+      Text {
+        objectName: "offLastArtist"
+        width: parent.width
+        visible: text !== ""
+        text: card.sub
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
+        horizontalAlignment: Text.AlignHCenter
+        color: Calm.muted
+        font.family: card.family
+        font.pixelSize: 13
+      }
+    }
+
+    // Where it was left, read only: 1:42 ──●── 3:58.
+    Row {
+      id: progress
+      objectName: "offProgress"
+      visible: card.hasPos
+      anchors.horizontalCenter: parent.horizontalCenter
+      spacing: 10
+      readonly property real frac: card.hasPos ? Math.max(0, Math.min(1, card.pos / card.len)) : 0
+      readonly property color ink: card.awake ? Calm.accent : Calm.a(Calm.fg, 0.35)
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: card.fmt(card.pos)
+        textFormat: Text.PlainText
+        color: Calm.muted
+        font.family: card.family
+        font.pixelSize: 12
+      }
+      Item {
+        anchors.verticalCenter: parent.verticalCenter
+        width: 200
+        height: 10
+        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 2; radius: 1; color: Calm.hair }
+        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width * progress.frac; height: 2; radius: 1; color: progress.ink }
+        Rectangle { anchors.verticalCenter: parent.verticalCenter; x: parent.width * progress.frac - width / 2; width: 8; height: 8; radius: 4; color: progress.ink }
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: card.fmt(card.len)
+        textFormat: Text.PlainText
+        color: Calm.muted
+        font.family: card.family
+        font.pixelSize: 12
+      }
+    }
+
+    Item {
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: 200
+      height: 44
+      Rectangle {
+        id: playOnButton
+        objectName: "offPlayOn"
+        anchors.fill: parent
+        radius: height / 2
+        color: playMouse.pressed ? Calm.a(Calm.accent, 0.8) : Calm.accent
+        Accessible.role: Accessible.Button
+        Accessible.name: "Play on"
+        Accessible.onPressAction: card.playOn()
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          shadowEnabled: true
+          shadowColor: Calm.a(Calm.accent, 0.55)
+          shadowBlur: card.awake ? 1 : 0.55
+          shadowVerticalOffset: card.awake ? 10 : 5
+          shadowOpacity: 1
+          Behavior on shadowBlur { NumberAnimation { duration: 180 } }
+        }
+        Text {
+          anchors.centerIn: parent
+          text: Icons.play + " Play on"
+          textFormat: Text.PlainText
+          color: Calm.onAccent
+          font.family: card.family
+          font.pixelSize: 15
+          font.bold: true
+        }
+      }
       MouseArea {
-        id: needleMouse
+        id: playMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: card.dropNeedle()
+        onClicked: card.playOn()
       }
     }
 
     Text {
       objectName: "offNote"
       width: parent.width
-      text: "Starts YouTube Music in the background and picks " + (card.svc ? card.svc.lastTitle : "") + " up where you left it."
+      text: card.hasPos ? "Starts YouTube Music in the background and picks up at " + card.fmt(card.pos) + "."
+        : "Starts YouTube Music in the background and picks " + (card.svc ? card.svc.lastTitle : "") + " up where you left it."
       textFormat: Text.PlainText
       wrapMode: Text.WordWrap
       horizontalAlignment: Text.AlignHCenter
@@ -142,11 +246,10 @@ Column {
     Row {
       anchors.horizontalCenter: parent.horizontalCenter
       spacing: 14
-      KeyHint { keys: "↵"; label: "Play"; bar: card.bar }
+      KeyHint { keys: "↵"; label: "Play on"; bar: card.bar }
       KeyHint { keys: "Esc"; label: "Close"; bar: card.bar }
     }
   }
-
 
   // The round power circle IS the Turn on button: click, Enter (the panel's key
   // handler) or Space turns Solfa on. Hover and press change the fill; Tab shows a ring.

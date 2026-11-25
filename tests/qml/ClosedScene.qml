@@ -42,6 +42,9 @@ ShellRoot {
     property string lastTitle: ""
     property string lastThumb: ""
     property string lastArtist: ""
+    property string lastAlbum: ""
+    property real lastPosition: -1
+    property real lastDuration: 0
     property real duration: 214
     property real position: 83
     property real progress: 0.39
@@ -240,8 +243,8 @@ ShellRoot {
         closedSvc.calls = []
         tc.mouseClick(btn, btn.width / 2, btn.height / 2)
         var clicks = { closed: closedSvc.calls }
-        // The panel's Off view with a last song: the button and the cover both drop the needle.
-        var nd = win.find(offSong, "offNeedle"), cv = win.find(offSong, "offCover")
+        // The panel's Off view with a last song: the button and the cover both Play on.
+        var nd = win.find(offSong, "offPlayOn"), cv = win.find(offSong, "offCover")
         tc.mouseClick(nd, nd.width / 2, nd.height / 2)
         tc.mouseClick(cv, cv.width / 2, cv.height / 2)
         var after = offSvc.calls.slice()

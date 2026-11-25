@@ -100,7 +100,7 @@ class Closed(unittest.TestCase):
         self.assertTrue(p["opened"], "the panel did not open: " + str(p))
         self.assertEqual(p["calls"], [], "a click on the off pill never starts the engine: " + str(p))
 
-    def test_the_off_view_with_a_last_song_drops_the_needle(self):
+    def test_the_off_view_with_a_last_song_plays_on(self):
         o = self.found["OFFCARD"]
         self.assertIsNotNone(o, "the off card was not logged:\n" + self.found["log"])
         s = o["song"]
@@ -108,7 +108,7 @@ class Closed(unittest.TestCase):
         self.assertEqual((s["title"], s["artist"]), ("Northern Lights", "The Examples"))
         self.assertEqual(s["note"], "Starts YouTube Music in the background and picks Northern Lights up where you left it.")
         self.assertFalse(s["power"], "no power circle while a last song is known")
-        self.assertEqual(s["calls"], ["startAndPlay", "startAndPlay"], "button and cover both drop the needle (start, then play once loaded)")
+        self.assertEqual(s["calls"], ["startAndPlay", "startAndPlay"], "button and cover both Play on (start, then play once loaded)")
         self.assertTrue(s["awake"] and not s["asleep"] and s["play"] == 1, "the pointer wakes the cover and shows the round play: " + str(s))
 
     def test_the_off_view_with_no_last_song_is_unchanged(self):

@@ -109,6 +109,9 @@ Item {
   property string lastTitle: ""
   property string lastThumb: ""
   property string lastArtist: ""
+  property string lastAlbum: ""
+  property real lastPosition: -1   // seconds where it was left; -1 unknown
+  property real lastDuration: 0
   readonly property string lastSongPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/" + pluginId + "/last-song.json"
   FileView {
     id: lastSongFile
@@ -122,8 +125,24 @@ Item {
     root.lastTitle = root.title
     root.lastThumb = root.thumb
     root.lastArtist = root.artist
-    lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb, artist: root.lastArtist }))
+    root.lastAlbum = root.album
+    root.lastDuration = root.duration
+    root.lastPosition = root.position
+    root.saveLast()
   }
+  function saveLast() {
+    lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb, artist: root.lastArtist,
+      album: root.lastAlbum, position: root.lastPosition, duration: root.lastDuration }))
+  }
+  // Where the song was left: noted every 10 s while it plays and when it pauses.
+  function notePosition() {
+    if (!root.hasTrack || root.isAd || !root.title || root.title !== root.lastTitle) return
+    root.lastPosition = root.position
+    root.lastDuration = root.duration
+    root.saveLast()
+  }
+  Timer { interval: 10000; repeat: true; running: root.isPlaying; onTriggered: root.notePosition() }
+  onIsPlayingChanged: if (!root.isPlaying) root.notePosition()
   onTitleChanged: root.rememberLast()
   onThumbChanged: root.rememberLast()
   onArtistChanged: root.rememberLast()
@@ -133,6 +152,9 @@ Item {
       root.lastTitle = String(s.title || "")
       root.lastThumb = String(s.thumb || "")
       root.lastArtist = String(s.artist || "")
+      root.lastAlbum = String(s.album || "")
+      root.lastPosition = s.position === undefined ? -1 : Number(s.position) || 0
+      root.lastDuration = Number(s.duration) || 0
     } catch (e) { /* no last song yet */ }
   }
   readonly property real duration: hasTrack ? (Number(player.duration) || 0) : 0
@@ -684,7 +706,7 @@ Item {
   // ------------------------------------------------------------------ engine and window
 
   function startEngine() { root.request("engine.start", {}) }
-  // "Drop the needle": start the engine, then play once the restored track is in. One shot: it is
+  // "Play on": start the engine, then play once the restored track is in. One shot: it is
   // cleared when the track lands, when the start phase ends with nothing restored, or after 60 s.
   property bool playWhenReady: false
   function startAndPlay() {
