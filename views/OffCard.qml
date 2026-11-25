@@ -209,19 +209,12 @@ Column {
         objectName: "offPlayOn"
         anchors.fill: parent
         radius: height / 2
-        color: playMouse.pressed ? Calm.a(Calm.accent, 0.8) : Calm.accent
+        // Flat and clean: no glow. Hover only lifts the fill a little; press dims it.
+        color: playMouse.pressed ? Qt.darker(Calm.accent, 1.12) : playMouse.containsMouse ? Qt.lighter(Calm.accent, 1.1) : Calm.accent
+        Behavior on color { ColorAnimation { duration: 120 } }
         Accessible.role: Accessible.Button
         Accessible.name: "Play on"
         Accessible.onPressAction: card.playOn()
-        layer.enabled: true
-        layer.effect: MultiEffect {
-          shadowEnabled: true
-          shadowColor: Calm.a(Calm.accent, 0.55)
-          shadowBlur: card.awake ? 1 : 0.55
-          shadowVerticalOffset: card.awake ? 10 : 5
-          shadowOpacity: 1
-          Behavior on shadowBlur { NumberAnimation { duration: 180 } }
-        }
         Text {
           anchors.centerIn: parent
           text: Icons.play + " Play on"
