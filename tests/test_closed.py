@@ -106,9 +106,9 @@ class Closed(unittest.TestCase):
         s = o["song"]
         self.assertTrue(s["visible"])
         self.assertEqual((s["title"], s["artist"]), ("Northern Lights", "The Examples"))
-        self.assertEqual(s["note"], "Starts YouTube Music in the background and picks Northern Lights up where you left it.")
+        self.assertEqual(s["note"], "Click the cover to play on. It starts YouTube Music in the background and picks Northern Lights up where you left it.")
         self.assertFalse(s["power"], "no power circle while a last song is known")
-        self.assertEqual(s["calls"], ["startAndPlay", "startAndPlay"], "button and cover both Play on (start, then play once loaded)")
+        self.assertEqual(s["calls"], ["startAndPlay"], "button and cover both Play on (start, then play once loaded)")
         self.assertTrue(s["awake"] and not s["asleep"] and s["play"] == 1, "the pointer wakes the cover and shows the round play: " + str(s))
 
     def test_the_off_view_with_no_last_song_is_unchanged(self):

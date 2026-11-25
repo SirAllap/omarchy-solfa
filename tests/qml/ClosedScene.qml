@@ -243,9 +243,8 @@ ShellRoot {
         closedSvc.calls = []
         tc.mouseClick(btn, btn.width / 2, btn.height / 2)
         var clicks = { closed: closedSvc.calls }
-        // The panel's Off view with a last song: the button and the cover both Play on.
-        var nd = win.find(offSong, "offPlayOn"), cv = win.find(offSong, "offCover")
-        tc.mouseClick(nd, nd.width / 2, nd.height / 2)
+        // The panel's Off view with a last song: a click on the cover is Play on.
+        var cv = win.find(offSong, "offCover")
         tc.mouseClick(cv, cv.width / 2, cv.height / 2)
         var after = offSvc.calls.slice()
         tc.mouseMove(cv, 5, 5)

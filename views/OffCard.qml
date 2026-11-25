@@ -26,7 +26,7 @@ Column {
   readonly property string sub: !svc ? "" : (svc.lastArtist || "") + (svc.lastArtist && svc.lastAlbum ? " · " : "") + (svc.lastAlbum || "")
   function playOn() { if (card.svc) card.svc.startAndPlay() }
   // Pointer on the cover or the button: the cover gets its colour back, lifts, and shows a round play.
-  readonly property bool awake: coverMouse.containsMouse || playMouse.containsMouse
+  readonly property bool awake: coverMouse.containsMouse
   function fmt(s) { var n = Math.max(0, Math.floor(s)); return Math.floor(n / 60) + ":" + (n % 60 < 10 ? "0" : "") + (n % 60) }
 
   // A last song is known: a preview of what plays, and one button that plays it.
@@ -200,45 +200,11 @@ Column {
       }
     }
 
-    Item {
-      anchors.horizontalCenter: parent.horizontalCenter
-      width: 200
-      height: 44
-      Rectangle {
-        id: playOnButton
-        objectName: "offPlayOn"
-        anchors.fill: parent
-        radius: height / 2
-        // Flat and clean: no glow. Hover only lifts the fill a little; press dims it.
-        color: playMouse.pressed ? Qt.darker(Calm.accent, 1.12) : playMouse.containsMouse ? Qt.lighter(Calm.accent, 1.1) : Calm.accent
-        Behavior on color { ColorAnimation { duration: 120 } }
-        Accessible.role: Accessible.Button
-        Accessible.name: "Play on"
-        Accessible.onPressAction: card.playOn()
-        Text {
-          anchors.centerIn: parent
-          text: Icons.play + " Play on"
-          textFormat: Text.PlainText
-          color: Calm.onAccent
-          font.family: card.family
-          font.pixelSize: 15
-          font.bold: true
-        }
-      }
-      MouseArea {
-        id: playMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: card.playOn()
-      }
-    }
-
     Text {
       objectName: "offNote"
       width: parent.width
-      text: card.hasPos ? "Starts YouTube Music in the background and picks up at " + card.fmt(card.pos) + "."
-        : "Starts YouTube Music in the background and picks " + (card.svc ? card.svc.lastTitle : "") + " up where you left it."
+      text: card.hasPos ? "Click the cover to play on. It starts YouTube Music in the background and picks up at " + card.fmt(card.pos) + "."
+        : "Click the cover to play on. It starts YouTube Music in the background and picks " + (card.svc ? card.svc.lastTitle : "") + " up where you left it."
       textFormat: Text.PlainText
       wrapMode: Text.WordWrap
       horizontalAlignment: Text.AlignHCenter
