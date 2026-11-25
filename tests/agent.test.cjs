@@ -139,7 +139,9 @@ function makePage(opts = {}) {
   const app = {
     queue: {
       store,
-      selectQueueItem(item) { this.selected = item; player.current = item.playlistPanelVideoRenderer.videoId },
+      // Like the app's: it finds the item in queue.items only; an autoplay
+      // entry is not there, so for it the call does nothing.
+      selectQueueItem(item) { if (!store.getState().queue.items.includes(item)) return; this.selected = item; player.current = item.playlistPanelVideoRenderer.videoId },
       shuffle() { this.shuffled = true }
     },
     dispatchEvent(ev) {
@@ -632,8 +634,15 @@ test("queue jump uses the app's own selection", async () => {
   await p.settle()
   await p.call("queue.jump", { index: 2 })
   assert.equal(p.player.current, "CCCCCCCCCCC")
+  assert.equal(p.navigations.length, 0)
+})
+
+test("queue jump on an autoplay row navigates to that song, as selectQueueItem only knows queue.items", async () => {
+  const p = makePage()
+  await p.settle()
   await p.call("queue.jump", { index: 0, automix: true })
-  assert.equal(p.player.current, "DDDDDDDDDDD")
+  assert.equal(p.navigations.length, 1)
+  assert.equal(p.navigations[0].watchEndpoint.videoId, "DDDDDDDDDDD")
 })
 
 test("queue.more: the next page goes at the end with the app's own token, the playing song stays selected", async () => {

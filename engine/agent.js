@@ -789,7 +789,9 @@
     var list = args.automix ? q.automixItems : q.items
     if (args.index < 0 || args.index >= list.length) fail("out-of-range")
     var entry = list[args.index]
-    if (a && a.queue && typeof a.queue.selectQueueItem === "function") {
+    // selectQueueItem finds the entry in queue.items only: for an autoplay
+    // entry it finds nothing and does nothing, so those go by navigation.
+    if (!args.automix && a && a.queue && typeof a.queue.selectQueueItem === "function") {
       a.queue.selectQueueItem(entry)
     } else {
       var t = P ? P.panelVideo(entry) : null
