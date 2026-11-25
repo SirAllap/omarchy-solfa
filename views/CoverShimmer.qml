@@ -17,14 +17,14 @@ Item {
   Rectangle {
     anchors.fill: parent
     radius: root.radius
-    color: Qt.rgba(0, 0, 0, 0.38)
+    color: Qt.rgba(0, 0, 0, 0.45)
   }
 
   Shape {
     id: shape
     anchors.fill: parent
     preferredRendererType: Shape.CurveRenderer
-    readonly property real w: 4
+    readonly property real w: 5
     // Perimeter of the rounded rectangle the stroke runs on, in pixels.
     readonly property real r: Math.max(0, root.radius - w / 2)
     readonly property real per: 2 * (width - w - 2 * r) + 2 * (height - w - 2 * r) + 2 * Math.PI * r
@@ -53,6 +53,41 @@ Item {
       to: shape.per
       duration: 1300
       loops: Animation.Infinite
+    }
+  }
+
+  // Centre: equaliser bars bouncing in a frosted disc, readable on a light or a dark cover.
+  Rectangle {
+    anchors.centerIn: parent
+    width: Math.round(Math.min(root.width, root.height) * 0.44)
+    height: width
+    radius: width / 2
+    color: Qt.rgba(0.06, 0.06, 0.09, 0.62)
+    border.width: 1
+    border.color: Qt.rgba(1, 1, 1, 0.14)
+    Row {
+      anchors.centerIn: parent
+      spacing: Math.max(2, Math.round(parent.width * 0.07))
+      Repeater {
+        model: 4
+        Rectangle {
+          required property int index
+          readonly property real full: root.height * 0.24
+          width: Math.max(3, Math.round(root.width * 0.035))
+          radius: width / 2
+          anchors.verticalCenter: parent.verticalCenter
+          color: "white"
+          height: full * 0.3
+          SequentialAnimation on height {
+            running: root.running && !Style.reduceMotion
+            loops: Animation.Infinite
+            PauseAnimation { duration: index * 110 }
+            NumberAnimation { to: full; duration: 260; easing.type: Easing.OutQuad }
+            NumberAnimation { to: full * 0.3; duration: 260; easing.type: Easing.InQuad }
+            PauseAnimation { duration: (3 - index) * 110 }
+          }
+        }
+      }
     }
   }
 }
