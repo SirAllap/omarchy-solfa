@@ -92,6 +92,7 @@ run remove-playing python3 tests/test_remove_playing.py
 run remove-while-finding python3 tests/test_remove_while_finding.py
 run undo-remove python3 tests/test_undo_remove.py
 run short-screen python3 tests/test_short_screen.py
+run lyrics-wrap python3 tests/test_lyrics_wrap.py
 run artist-pick python3 tests/test_artist_pick.py
 run widget-move python3 tests/test_widget_move.py
 run signin-bridge-down python3 tests/test_signin_bridge_down.py

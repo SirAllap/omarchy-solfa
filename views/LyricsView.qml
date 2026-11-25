@@ -66,7 +66,12 @@ Item {
     function onTrackChanged(v) { if (view.active) view.load() }
   }
 
-  onLineChanged: if (timed && line >= 0) lines.currentIndex = line
+  // The row's height goes in before the index: the view places the current
+  // line by the range it has when the index changes.
+  onLineChanged: if (timed && line >= 0) {
+    curRow.text = lyrics.lines[line].text || " "
+    lines.currentIndex = line
+  }
 
   readonly property color ok: Qt.rgba(0.498, 0.647, 0.576, 1)
   readonly property color err: Qt.rgba(0.725, 0.439, 0.486, 1)
@@ -187,6 +192,21 @@ Item {
     anchors.topMargin: 30
     anchors.bottomMargin: source.height
     visible: view.timed
+    // A line's row is as tall as its text wraps at the current-line size, the
+    // biggest: turning current moves no other line. Short lines keep lineH.
+    component Probe: Text {
+      readonly property real rowH: Math.max(view.lineH, implicitHeight + 16)
+      visible: false
+      width: lines.width - 8
+      textFormat: Text.PlainText
+      wrapMode: Text.Wrap
+      font.family: view.family
+      font.pixelSize: 22
+      font.weight: Font.Bold
+    }
+    Probe { id: firstRow; text: view.timed && view.lyrics.lines.length ? view.lyrics.lines[0].text || " " : " " }
+    Probe { id: curRow; text: " " }
+    Probe { id: lastRow; text: view.timed && view.lyrics.lines.length ? view.lyrics.lines[view.lyrics.lines.length - 1].text || " " : " " }
     ListView {
       id: lines
       anchors.fill: parent
@@ -194,28 +214,30 @@ Item {
       model: view.timed ? view.lyrics.lines : []
       boundsBehavior: Flickable.StopAtBounds
       highlightRangeMode: ListView.ApplyRange
-      preferredHighlightBegin: height / 2 - view.lineH / 2
-      preferredHighlightEnd: height / 2 + view.lineH / 2
+      // Rows differ in height: centre the current one, and let the first and
+      // the last reach the middle too.
+      preferredHighlightBegin: height / 2 - curRow.rowH / 2
+      preferredHighlightEnd: height / 2 + curRow.rowH / 2
       highlightMoveDuration: 320
-      header: Item { height: lines.height / 2 - view.lineH / 2 }
-      footer: Item { height: lines.height / 2 - view.lineH / 2 }
+      header: Item { height: lines.height / 2 - firstRow.rowH / 2 }
+      footer: Item { height: lines.height / 2 - lastRow.rowH / 2 }
       delegate: Item {
         id: ln
         required property var modelData
         required property int index
         readonly property real dist: Math.abs(index - view.line)
         width: ListView.view ? ListView.view.width : 0
-        height: view.lineH
+        height: size.rowH
         opacity: Math.max(0.16, 1 - dist * 0.3)
         Behavior on opacity { NumberAnimation { duration: 320 } }
+        Probe { id: size; text: ln.modelData.text === "" ? " " : ln.modelData.text }
         Text {
           x: 4
           width: parent.width - 8
           anchors.verticalCenter: parent.verticalCenter
           text: ln.modelData.text === "" ? " " : ln.modelData.text
           textFormat: Text.PlainText
-          elide: Text.ElideRight
-          maximumLineCount: 1
+          wrapMode: Text.Wrap
           color: ln.dist === 0 ? view.fg : Util.alpha(view.fg, 0.64)
           font.family: view.family
           font.pixelSize: ln.dist === 0 ? 22 : 18
@@ -270,7 +292,7 @@ Item {
           width: plainCol.width
           text: modelData === "" ? " " : modelData
           textFormat: Text.PlainText
-          elide: Text.ElideRight
+          wrapMode: Text.Wrap
           color: Util.alpha(view.fg, 0.64)
           font.family: view.family
           font.pixelSize: 15
