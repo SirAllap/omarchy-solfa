@@ -114,9 +114,9 @@ LATE = {(h, b, "late"): (card_height(h, b), "auto", b) for h in (810, 1080) for 
 # The panel made out of any window, a song already there, and put in one
 # later (the shell makes the panel's window after the panel).
 NOWIN = {(h, None, "nowin-" + m): (card_height(h, None), m, None) for h in (810, 1440) for m in ("auto", "always")}
-# Whole rows the compact layout shows at the least: 4, but 3 on a 720 px
-# screen at the default font (0 in the full layout).
-MIN_ROWS = {(720, None): 3}
+# Whole rows the compact layout shows at the least: 4, but 2 on a 720 px
+# screen at the default font (the fonts and buttons keep their size there).
+MIN_ROWS = {(720, None): 2}
 
 
 @unittest.skipUnless(QS and os.path.isdir(os.path.join(SHELL_DIR, "Ui")) and os.environ.get("WAYLAND_DISPLAY"),

@@ -144,7 +144,7 @@ Column {
           maximumLineCount: root.compact ? 1 : 2
           wrapMode: Text.WordWrap
           font.family: root.family
-          font.pixelSize: Style.space(root.compact ? 17 : 21)
+          font.pixelSize: Style.space(21)
           font.bold: root.hasTrack
         }
         Text {
@@ -156,7 +156,7 @@ Column {
           wrapMode: Text.WordWrap
           color: root.fg
           font.family: root.family
-          font.pixelSize: Style.space(root.compact ? 17 : 21)
+          font.pixelSize: Style.space(21)
           font.bold: root.hasTrack
         }
       }
@@ -405,7 +405,7 @@ Column {
     // inside the card. It is there with every song, whatever it means.
     readonly property bool crowded: removeButton.visible
     readonly property real slot: Style.space(crowded ? 44 : 48)
-    readonly property real playSlot: Style.space(root.compact ? 48 : 62)
+    readonly property real playSlot: Style.space(62)
     readonly property real volumeSlot: Style.space(36)
     readonly property real glyph: Style.space(20)
 
@@ -625,7 +625,7 @@ Column {
       Rectangle {
         id: sleepChip
         anchors.verticalCenter: parent.verticalCenter
-        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(root.compact ? 32 : 40); radius: height / 2
+        width: sleepRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
         readonly property bool active: !!(root.svc && root.svc.sleepMode !== "off")
         color: sleepMouse.containsMouse ? Calm.a(Calm.fg, 0.1) : Calm.wash
         border.width: 1; border.color: active ? Calm.a(Calm.accent, 0.55) : Calm.hair
@@ -656,7 +656,7 @@ Column {
       Rectangle {
         id: radioChip
         anchors.verticalCenter: parent.verticalCenter
-        width: radioRow.implicitWidth + Style.space(24); height: Style.space(root.compact ? 32 : 40); radius: height / 2
+        width: radioRow.implicitWidth + Style.space(24); height: Style.space(40); radius: height / 2
         color: Calm.wash
         border.width: 1; border.color: Calm.hair
         // the hover fill slides in from the left, 220 ms

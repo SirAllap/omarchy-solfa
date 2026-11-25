@@ -287,7 +287,7 @@ Item {
     property string keyHint: ""   // a key that does the same, drawn as a KeyCap
     property string tooltipText: ""
     signal clicked()
-    height: Style.space(view.compactPanel ? 32 : 36)
+    height: Style.space(36)
     width: pillRow.width + Style.space(30)
     radius: height / 2
     color: primary ? Calm.accent : active ? Calm.a(Calm.accent, 0.18) : pillMouse.containsMouse ? Calm.a(Calm.fg, 0.12) : Calm.wash
@@ -352,7 +352,7 @@ Item {
   Row {
     id: backRow
     objectName: "backRow"
-    height: Style.space(view.compactPanel ? 32 : 36)
+    height: Style.space(36)
     spacing: Style.space(8)
     Pill {
       objectName: "backButton"
@@ -406,7 +406,7 @@ Item {
         elide: Text.ElideRight
         color: Calm.fg
         font.family: view.family
-        font.pixelSize: Style.space(view.compactPanel ? 18 : 24)
+        font.pixelSize: Style.space(24)
         font.weight: Font.Bold
         font.letterSpacing: -0.5
       }
@@ -453,8 +453,7 @@ Item {
     Pill {
       visible: !!view.info && (view.info.kind === "artist" ? !!view.info.shuffle : !!view.info.playlistId)
       glyph: Icons.shuffle
-      text: view.compactPanel ? "" : "Shuffle"
-      tooltipText: view.compactPanel ? "Shuffle" : ""
+      text: "Shuffle"
       onClicked: view.playAll(true)
     }
     Pill {
@@ -558,12 +557,11 @@ Item {
   // with the compact head (smallHeadSpan) and in the compact layout
   // (compactSpan). The Panel weighs its layouts with them.
   FontMetrics { id: titleFm; font.family: view.family; font.pixelSize: Style.space(24); font.weight: Font.Bold }
-  FontMetrics { id: smallTitleFm; font.family: view.family; font.pixelSize: Style.space(18); font.weight: Font.Bold }
   FontMetrics { id: subFm; font.family: view.family; font.pixelSize: Style.space(12) }
   readonly property real smallHeadSpan: Style.space(36 + 12) + Style.space(20)
     + Math.max(Style.space(56), Math.ceil(titleFm.height) + Math.ceil(subFm.height) + Style.space(4 + 4 + 8 + 36))
-  readonly property real compactSpan: Style.space(32 + 6) + Style.space(10)
-    + Math.max(Style.space(44), Math.ceil(smallTitleFm.height) + Math.ceil(subFm.height) + Style.space(4))
+  readonly property real compactSpan: Style.space(36 + 6) + Style.space(10)
+    + Math.max(Style.space(44), Math.ceil(titleFm.height) + Math.ceil(subFm.height) + Style.space(4))
   readonly property int skeletonRows: busy && rows.length === 0 && page ? (page.count > 0 ? Math.min(page.count, 6) : 6) : 0
   readonly property real wantListH: rows.length > 0 ? Math.min(rows.length, 6) * Style.space(66) : 0
 
