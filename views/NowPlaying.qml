@@ -63,7 +63,7 @@ Column {
       width: Style.space(root.compact ? 56 : 104)
       height: width
       cornerRadius: Style.space(root.compact ? 14 : 22)
-      source: root.ghost ? root.svc.lastThumb : root.svc ? root.svc.thumb : ""
+      source: root.ghost && root.svc ? root.svc.lastThumb : root.svc ? root.svc.thumb : ""
       foreground: root.fg
       fill: Util.alpha(root.fg, 0.08)
       fontFamily: root.family
@@ -129,7 +129,7 @@ Column {
         id: titleBox
         width: parent.width
         height: titleGhost.implicitHeight
-        readonly property string full: root.hasTrack ? root.svc.title : root.ghost ? root.svc.lastTitle : (root.svc && root.svc.engineLine ? root.svc.engineLine : (root.svc && root.svc.starting ? "Starting YouTube Music" : "Nothing playing"))
+        readonly property string full: root.hasTrack ? root.svc.title : root.ghost && root.svc ? root.svc.lastTitle : (root.svc && root.svc.engineLine ? root.svc.engineLine : (root.svc && root.svc.starting ? "Starting YouTube Music" : "Nothing playing"))
         readonly property bool typing: root.live && !Style.reduceMotion && root.hasTrack
         property real shown: full.length
         // the title crossfades as it changes (the letters then write in)
@@ -184,7 +184,7 @@ Column {
       }
       Text {
         width: parent.width
-        text: artistLine.visible ? "" : root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.ghost ? root.svc.lastArtist : root.svc.artist)
+        text: artistLine.visible ? "" : root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.ghost && root.svc ? root.svc.lastArtist : root.svc.artist)
           : root.svc && root.svc.ready ? "Press / to search, or pick something below."
           : root.svc && root.svc.closed ? "Nothing plays until you turn it on." : ""
         textFormat: Text.PlainText
@@ -196,7 +196,7 @@ Column {
       }
       Text {
         width: parent.width
-        text: (root.hasTrack || root.ghost) && !root.compact ? (root.ghost ? root.svc.lastAlbum : root.svc.album) : ""
+        text: (root.hasTrack || root.ghost) && !root.compact ? (root.ghost && root.svc ? root.svc.lastAlbum : root.svc.album) : ""
         textFormat: Text.PlainText
         elide: Text.ElideRight
         color: Util.alpha(root.fg, 0.5)
@@ -287,9 +287,9 @@ Column {
       Behavior on knobSize { enabled: !Style.reduceMotion; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
       bar: root.bar
       minimum: 0
-      maximum: root.svc && root.svc.isAd ? Math.max(1, root.svc.adDuration) : (root.ghost && root.svc.lastDuration > 0 ? root.svc.lastDuration : root.svc && root.svc.duration > 0 ? root.svc.duration : 1)
+      maximum: root.svc && root.svc.isAd ? Math.max(1, root.svc.adDuration) : (root.ghost && root.svc && root.svc.lastDuration > 0 ? root.svc.lastDuration : root.svc && root.svc.duration > 0 ? root.svc.duration : 1)
       // the fill grows from 0 to the real position, 140 ms in
-      value: (root.ghost ? Math.max(0, root.svc.lastPosition) : root.svc && root.svc.resuming && root.svc.resumeAt > 0 ? root.svc.resumeAt : root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0) * root.eff(60, 220)
+      value: (root.ghost && root.svc ? Math.max(0, root.svc.lastPosition) : root.svc && root.svc.resuming && root.svc.resumeAt > 0 ? root.svc.resumeAt : root.svc ? (root.svc.isAd ? root.svc.adPosition : root.svc.position) : 0) * root.eff(60, 220)
       step: 1
       enabled: root.svc && root.svc.duration > 0 && !root.svc.isAd
       fillColor: root.svc && root.svc.isAd ? Color.urgent : Calm.accent
@@ -303,7 +303,7 @@ Column {
         id: posText
         anchors.verticalCenter: parent.verticalCenter
         text: root.svc && root.svc.isAd ? Model.fmtTime(root.svc.adPosition)
-          : Model.fmtTime(seek.dragging ? seek.liveValue : root.ghost ? Math.max(0, root.svc.lastPosition) : root.svc && root.svc.resuming && root.svc.resumeAt > 0 ? root.svc.resumeAt : (root.svc ? root.svc.position : 0))
+          : Model.fmtTime(seek.dragging ? seek.liveValue : root.ghost && root.svc ? Math.max(0, root.svc.lastPosition) : root.svc && root.svc.resuming && root.svc.resumeAt > 0 ? root.svc.resumeAt : (root.svc ? root.svc.position : 0))
         textFormat: Text.PlainText
         color: Util.alpha(root.fg, 0.6)
         font.family: root.family
@@ -387,7 +387,7 @@ Column {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: !(root.svc && root.svc.isAd)
-        text: root.svc ? Model.fmtTime(root.ghost && root.svc.lastDuration > 0 ? root.svc.lastDuration : root.svc.duration) : ""
+        text: root.svc ? Model.fmtTime(root.ghost && root.svc && root.svc.lastDuration > 0 ? root.svc.lastDuration : root.svc.duration) : ""
         textFormat: Text.PlainText
         color: Util.alpha(root.fg, 0.6)
         font.family: root.family
