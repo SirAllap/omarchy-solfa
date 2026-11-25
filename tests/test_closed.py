@@ -72,7 +72,7 @@ class Closed(unittest.TestCase):
         self.assertEqual(s["barRunning"]["label"], "Northern Lights")
         self.assertTrue(s["barRunning"]["controls"])
         self.assertEqual(s["barClosed"]["label"], "Solfa", "no stale song")
-        self.assertFalse(s["barClosed"]["controls"], "no transport on a closed Solfa")
+        self.assertTrue(s["barClosed"]["controls"], "the player's room is kept (buttons not drawn): the pill does not change shape")
 
     def test_off_with_a_last_song_shows_it_asleep_and_wakes_on_hover(self):
         a = self.found["STATE"]["barAsleep"]
@@ -92,11 +92,11 @@ class Closed(unittest.TestCase):
         self.assertFalse(s["bareAsleep"])
         self.assertTrue(s["bareMark"])
 
-    def test_a_click_on_the_off_pill_opens_the_panel_and_leaves_solfa_off(self):
+    def test_a_click_on_the_off_pill_opens_the_panel_and_starts_solfa(self):
         p = self.found["PILLCLICK"]
         self.assertIsNotNone(p, "the pill click was not logged:\n" + self.found["log"])
         self.assertTrue(p["opened"], "the panel did not open: " + str(p))
-        self.assertEqual(p["calls"], [], "a click on the pill must not start or toggle the engine: " + str(p))
+        self.assertEqual(p["calls"], ["startEngine"], "a click on the off pill starts Solfa: " + str(p))
 
     def test_the_power_button_is_lit_when_closed_and_starts_solfa(self):
         s = self.found["STATE"]
