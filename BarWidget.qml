@@ -66,11 +66,15 @@ BarWidget {
   // starts it again (a left click also opens the panel).
   readonly property bool closed: svc ? svc.closed : false
   readonly property bool playing: svc ? svc.isPlaying : false
-  readonly property bool showControls: root.setting("barControls", true) && hasTrack && !vertical
+  // The engine is starting or bringing the saved song back: the bar already has the player's
+  // shape (cover slot, placeholder text, dimmed buttons) so the song arriving only swaps text
+  // and cover. Bridge down counts as starting; the same state as the panel's "Starting".
+  readonly property bool warming: svc ? (!svc.closed && !svc.signingIn && !svc.hasTrack && (!svc.bridgeUp || svc.starting)) : false
+  readonly property bool showControls: root.setting("barControls", true) && (hasTrack || warming) && !vertical
   readonly property bool signingIn: svc ? svc.signingIn : false
   // Every state has content: playing = cover + title + controls; idle = the logo and "Nothing
   // playing"; off = the logo, "Solfa" and a power glyph; signing in = the logo and its line.
-  readonly property bool showMark: !hasTrack || signingIn
+  readonly property bool showMark: (!hasTrack && !warming) || signingIn
   readonly property bool showTitle: root.setting("showTitle", true) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
   // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
@@ -79,7 +83,7 @@ BarWidget {
   readonly property color fg: flatRest ? barInk : restInk ? restPlan.ink : Calm.fg
   readonly property string family: barFlat ? barFamily : Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
-  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : "Nothing playing"
+  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : warming ? "Starting…" : "Nothing playing"
 
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
@@ -347,6 +351,8 @@ BarWidget {
       visible: root.showControls
       anchors.verticalCenter: parent.verticalCenter
       spacing: 0
+      enabled: root.hasTrack
+      opacity: root.hasTrack ? 1 : 0.4
 
       BarIconButton {
         bar: root.bar
