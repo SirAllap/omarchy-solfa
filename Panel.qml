@@ -879,6 +879,36 @@ Panel {
         }
       }
 
+      // The cover's colour spreads softly behind the header and the hero (#34; inspired by
+      // Spinbloom). It sits under them, fades out before the seek bar, and cross-fades on a new song.
+      Item {
+        id: heroGlowBox
+        objectName: "heroGlow"
+        anchors.fill: parent
+        visible: hero.visible && !!root.svc && root.svc.hasTrack && !root.svc.isAd && (root.svc.thumb || "") !== ""
+        Views.CoverGlow {
+          id: heroGlow
+          readonly property real size: hero.coverSize * 3.4
+          width: size * 1.25
+          height: size
+          x: hero.x + hero.coverCenter.x - width / 2
+          y: hero.y + hero.coverCenter.y - height / 2
+          source: root.svc ? root.svc.thumb : ""
+          active: true
+          saturation: 0.25
+          reduceMotion: Style.reduceMotion
+          opacity: Calm.light ? 0.3 : 0.36
+          // A new cover: dip and come back, instead of a jump.
+          onSourceChanged: if (!Style.reduceMotion) swap.restart()
+          SequentialAnimation {
+            id: swap
+            NumberAnimation { target: heroGlowBox; property: "opacity"; to: 0; duration: 150 }
+            PauseAnimation { duration: 120 }
+            NumberAnimation { target: heroGlowBox; property: "opacity"; to: 1; duration: 400; easing.type: Easing.OutCubic }
+          }
+        }
+      }
+
       Views.NowPlaying {
         id: hero
         objectName: "panelHero"

@@ -50,11 +50,16 @@ Column {
   // button takes it out of that playlist. Otherwise, with `queueRemovable`
   // (an entry in the queue and a song after it), the same button takes it
   // out of the queue. Its button was pressed: removeRequested.
+  // The cover's middle, in this item: the panel centres the cover glow (#34) on it.
+  readonly property point coverCenter: Qt.point(cover.x + cover.width / 2, cover.y + cover.height / 2 + coverRowY)
+  readonly property real coverRowY: coverRow.y
+  readonly property real coverSize: cover.width
   property var removal: null
   property bool queueRemovable: false
   signal removeRequested()
 
   Row {
+    id: coverRow
     width: parent.width
     spacing: Style.space(14)
 
