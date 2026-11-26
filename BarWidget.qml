@@ -70,11 +70,15 @@ BarWidget {
   // shape (cover slot, placeholder text, dimmed buttons) so the song arriving only swaps text
   // and cover. Bridge down counts as starting; the same state as the panel's "Starting".
   readonly property bool warming: svc ? (!svc.closed && !svc.signingIn && !svc.hasTrack && (!svc.bridgeUp || svc.starting)) : false
+  // Closed with a last song known (and a bar that has room for a title): the cover and the title,
+  // asleep; the pointer wakes them. Click and the tooltip say it starts Solfa.
+  readonly property bool asleepSong: closed && !signingIn && !!svc && svc.lastTitle !== ""
+  readonly property bool awake: asleepSong && barMouse.containsMouse
   readonly property bool showControls: root.setting("barControls", true) && (hasTrack || warming) && !vertical
   readonly property bool signingIn: svc ? svc.signingIn : false
   // Every state has content: playing = cover + title + controls; idle = the logo and "Nothing
-  // playing"; off = the logo, "Solfa" and a power glyph; signing in = the logo and its line.
-  readonly property bool showMark: (!hasTrack && !warming) || signingIn
+  // playing"; off = the last song asleep, or the logo and "Solfa"; signing in = the logo and its line.
+  readonly property bool showMark: (!hasTrack && !warming && !asleepSong) || signingIn
   readonly property bool showTitle: root.setting("showTitle", true) && !vertical
   readonly property real maxLabelWidth: Number(root.setting("maxLabelWidth", 160)) || 160
   // The pill is painted with Calm.surface, not the bar's colour, so its ink is Calm.fg / Calm.muted
@@ -83,7 +87,7 @@ BarWidget {
   readonly property color fg: flatRest ? barInk : restInk ? restPlan.ink : Calm.fg
   readonly property string family: barFlat ? barFamily : Calm.font
   // The bar is shared: the title only. Artist, album and time are in the tooltip.
-  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? "Solfa" : warming ? "Starting…" : "Nothing playing"
+  readonly property string label: signingIn ? "Signing in…" : svc && hasTrack ? svc.title : closed ? (asleepSong ? svc.lastTitle : "Solfa") : warming ? (svc.lastTitle ? svc.lastTitle : "Starting…") : "Nothing playing"
 
   visible: hasTrack || root.setting("showWhenIdle", true)
   // Even padding: the pill's side padding equals the gap above and below the cover.
@@ -194,8 +198,11 @@ BarWidget {
   // One width rule for every state: max(content, 176). 176 is a playing pill with a short title
   // (cover, title, three buttons), so off, idle and playing share one join shape until a long
   // title makes the playing pill grow.
-  readonly property real pillMinW: barFlat ? 0 : Math.round(Style.space(176))
-  readonly property real pillNatW: Math.max(body.implicitWidth + 2 * pillPad, pillMinW)
+  readonly property real pillMinW: barFlat || closed ? 0 : Math.round(Style.space(176))
+  // Off there are no buttons, whose own inner margin gives the player its air at the ends: the
+  // closed pill adds that air itself, the same on both sides, at rest and on hover.
+  readonly property real closedAir: closed ? Math.round(Style.space(6)) : 0
+  readonly property real pillNatW: Math.max(body.implicitWidth + 2 * (pillPad + closedAir), pillMinW)
   implicitWidth: visible ? pillNatW : 0
   implicitHeight: barSize
   // The shell underlines a widget whose panel is open. Solfa shows that state
@@ -291,7 +298,8 @@ BarWidget {
       ringColor: root.flatRest ? (root.playing ? (root.bar && Calm.valid(root.bar.urgent) ? root.bar.urgent : Calm.accent) : Calm.a(root.fg, 0.6))
         : root.playing ? Calm.accent : (root.restInk ? Calm.a(root.fg, 0.6) : Calm.muted)
       trackColor: root.restBackdrop || root.flatRest ? Calm.a(root.fg, 0.2) : Calm.hair
-      source: root.svc ? root.svc.thumb : ""
+      source: root.asleepSong || (root.warming && root.svc.lastTitle) ? root.svc.lastThumb : root.svc ? root.svc.thumb : ""
+      asleep: root.asleepSong && !root.awake
       foreground: root.fg
       fill: root.hasTrack ? Util.alpha(root.fg, 0.08) : "transparent"
       fontFamily: root.family
@@ -305,6 +313,7 @@ BarWidget {
       id: markSlot
       anchors.verticalCenter: parent.verticalCenter
       visible: root.showMark
+      opacity: root.closed ? 0.5 : 1
       size: coverSlot.width
       // Flat at rest: the record drawn in the bar's text colour alone.
       rim: root.flatRest ? root.fg : "#e6e8ec"
@@ -326,6 +335,7 @@ BarWidget {
 
     Text {
       id: labelText
+      objectName: "barTitle"
       visible: root.showTitle
       anchors.verticalCenter: parent.verticalCenter
       width: Math.min(root.maxLabelWidth, implicitWidth)
@@ -333,18 +343,11 @@ BarWidget {
       textFormat: Text.PlainText
       elide: Text.ElideRight
       color: root.fg
+      // Asleep: italic and dimmed; awake (pointer on it): upright, full ink.
+      font.italic: root.asleepSong && !root.awake
+      opacity: root.closed && !root.awake ? 0.5 : 1
       font.family: root.family
       font.pixelSize: Style.font.body
-    }
-
-    // Off: a small power mark, the same ink as the name ("click to turn on").
-    Views.Icon {
-      visible: root.closed && !root.vertical
-      anchors.verticalCenter: parent.verticalCenter
-      name: "power"
-      color: root.fg
-      size: Math.round(Style.font.body * 1.1)
-      stroke: 1.8
     }
 
     Row {
@@ -395,7 +398,7 @@ BarWidget {
     property real wheelAcc: 0
 
     onClicked: function (mouse) {
-      // Off: a click only opens the panel (its Off view has "Turn Solfa on"); it never turns Solfa on.
+      // Off: a click only opens the panel (its Off view asks first); it never turns Solfa on.
       if (root.closed) {
         if (mouse.button === Qt.LeftButton) root.toggle()
         return
@@ -418,7 +421,7 @@ BarWidget {
       var tip = s && s.hasTrack
         ? s.title + (s.artist ? "\n" + s.artist : "") + (s.album ? "\n" + s.album : "")
           + "\n" + Model.fmtTime(s.position) + " of " + Model.fmtTime(s.duration) + ", volume " + (s.muted ? "muted" : s.volume + "%")
-        : s && s.closed ? "Solfa is off. Click to turn it on."
+        : s && s.closed ? (root.asleepSong ? "Solfa is off · click for " + s.lastTitle : "Solfa is off · click to open")
         : (s ? (s.engineLine || "Nothing playing. Click to search.") : "Solfa")
       root.bar.showTooltip(root, tip)
     }

@@ -103,6 +103,73 @@ Item {
   readonly property string artist: hasTrack ? Model.artistsText(player.artists) : ""
   readonly property string album: hasTrack && player.album ? (player.album.name || "") : ""
   readonly property string thumb: hasTrack ? (player.thumb || "") : ""
+
+  // The last song played (title and cover), kept in a small state file so the closed bar can show
+  // it asleep, also after a shell restart. Written when a real song's title or cover changes.
+  property string lastTitle: ""
+  property string lastThumb: ""
+  property string lastArtist: ""
+  property string lastAlbum: ""
+  property real lastPosition: -1   // seconds where it was left; -1 unknown
+  property real lastDuration: 0
+  property string lastVideoId: ""   // the song itself, so Play on plays THIS song, not whatever the page restores
+  readonly property string lastSongPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/" + pluginId + "/last-song.json"
+  FileView {
+    id: lastSongFile
+    path: root.lastSongPath
+    blockLoading: true
+    printErrors: false
+  }
+  function rememberLast() {
+    if (!root.hasTrack || root.isAd || !root.title) return
+    // Play on is bringing the saved song back: a different song the page shows meanwhile is
+    // not "the last song" yet.
+    if ((root.playWhenReady || resumeKick.running) && root.lastVideoId !== "" && root.videoId !== root.lastVideoId) return
+    if (root.videoId === root.lastVideoId && root.title === root.lastTitle && root.thumb === root.lastThumb && root.artist === root.lastArtist) return
+    root.lastTitle = root.title
+    root.lastVideoId = root.videoId
+    root.lastThumb = root.thumb
+    root.lastArtist = root.artist
+    root.lastAlbum = root.album
+    // A new song lands before its length is known: start it at 0, and notePosition fills in
+    // the length and the place as soon as it plays.
+    root.lastDuration = root.duration > 0 ? root.duration : 0
+    root.lastPosition = root.duration > 0 ? root.position : 0
+    root.saveLast()
+  }
+  function saveLast() {
+    lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb, artist: root.lastArtist,
+      album: root.lastAlbum, videoId: root.lastVideoId, position: root.lastPosition, duration: root.lastDuration }))
+  }
+  // Where the song was left: noted every 10 s while it plays and when it pauses.
+  function notePosition() {
+    if (!root.hasTrack || root.isAd || !root.title || root.title !== root.lastTitle) return
+    // Not loaded yet, or the restored song still parked at 0:00: keep the place it was left.
+    if (!(root.duration > 0) || (root.position < 1 && root.lastPosition > 0 && !root.isPlaying)) return
+    root.lastPosition = root.position
+    root.lastDuration = root.duration
+    root.saveLast()
+  }
+  // Every 3 s while it plays (a tiny file), when it pauses, when the length arrives, and right
+  // before Solfa is turned off, so the place survives turning off and on again.
+  Timer { interval: 3000; repeat: true; running: root.isPlaying; onTriggered: root.notePosition() }
+  onDurationChanged: if (root.duration > 0 && root.lastDuration <= 0) root.notePosition()
+  onIsPlayingChanged: if (!root.isPlaying) root.notePosition()
+  onTitleChanged: root.rememberLast()
+  onThumbChanged: root.rememberLast()
+  onArtistChanged: root.rememberLast()
+  Component.onCompleted: {
+    try {
+      var s = JSON.parse(lastSongFile.text())
+      root.lastTitle = String(s.title || "")
+      root.lastThumb = String(s.thumb || "")
+      root.lastArtist = String(s.artist || "")
+      root.lastAlbum = String(s.album || "")
+      root.lastPosition = s.position === undefined ? -1 : Number(s.position) || 0
+      root.lastDuration = Number(s.duration) || 0
+      root.lastVideoId = String(s.videoId || "")
+    } catch (e) { /* no last song yet */ }
+  }
   readonly property real duration: hasTrack ? (Number(player.duration) || 0) : 0
   readonly property int volume: player && player.volume !== undefined ? player.volume : 100
   readonly property bool muted: !!(player && player.muted)
@@ -189,6 +256,7 @@ Item {
   // defaults nobody chose.
   onSettingsChanged: { if (root.settingsLoaded) root.maybeRestartBridge(); root.sendEq(); root.sendStart() }
   onReadyChanged: {
+    if (root.ready && root.signInWhenUp) { root.signInWhenUp = false; if (!root.signedIn) root.signIn() }
     if (root.ready) { root.sendEq(); root.settled = false; root.queueEmpty = false; settleTimer.restart(); root.probeQueue() }
     else { settleTimer.stop(); root.settled = false }
   }
@@ -652,12 +720,57 @@ Item {
   // ------------------------------------------------------------------ engine and window
 
   function startEngine() { root.request("engine.start", {}) }
+  // "Play on": start the engine, then play once the restored track is in. One shot: it is
+  // cleared when the track lands, when the start phase ends with nothing restored, or after 60 s.
+  property bool playWhenReady: false
+  // Where to pick up, taken when Play on is pressed: the restored track lands at 0:00 and would
+  // overwrite lastPosition before the seek.
+  property real resumeAt: -1
+  // True from the moment the restored song lands until it plays at its place: the hero shows
+  // resumeAt meanwhile, so the time does not flash 0:00.
+  readonly property bool resuming: resumeKick.running
+  function startAndPlay() {
+    root.resumeAt = root.lastPosition
+    root.playWhenReady = true
+    playWhenReadyGuard.restart()
+    root.startEngine()
+  }
+  Timer { id: playWhenReadyGuard; interval: 60000; onTriggered: { root.playWhenReady = false; resumeKick.stop() } }
+  onHasTrackChanged: if (root.hasTrack && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop(); resumeKick.tries = 0; resumeKick.switched = false; resumeKick.restart() }
+  // The page takes a moment after the track appears before it obeys seek and play, so this
+  // nudges it until the song plays where it was left (at most ~10 s).
+  Timer {
+    id: resumeKick
+    property int tries: 0
+    property bool switched: false
+    interval: 700
+    repeat: true
+    onTriggered: {
+      tries++
+      if (!root.hasTrack || tries > 14) { stop(); return }
+      // The page may bring back another song (one played later on another device, or its own
+      // last one): play the song Solfa showed, once, then go on seeking it.
+      if (root.lastVideoId !== "" && root.videoId !== root.lastVideoId) {
+        if (!switched) { switched = true; root.playItem({ videoId: root.lastVideoId }) }
+        return
+      }
+      if (!(root.duration > 0)) return
+      var want = root.resumeAt
+      if (want > 2 && want < root.duration - 2 && Math.abs(root.position - want) > 3) root.seek(want)
+      if (!root.isPlaying) root.play()
+      else if (want <= 2 || Math.abs(root.position - want) <= 3) stop()
+    }
+  }
+  onStartingChanged: if (!root.starting && !root.hasTrack && !root.closed && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop() }
   function restartEngine() { root.request("engine.restart", {}) }
-  function stopEngine() { root.request("engine.stop", {}) }
+  function stopEngine() { root.notePosition(); root.request("engine.stop", {}) }
   function toggleEngine() { if (root.closed) root.startEngine(); else root.stopEngine() }
   // Sign in is offered while the bridge is still starting (a fresh install,
   // a shell restart): a click then must say so, not vanish. Unlike
   // reportFailure(), bridge-down is reported too.
+  // "Sign in" on the welcome card: the engine starts first, then Google's sign-in opens.
+  property bool signInWhenUp: false
+  onGatedChanged: if (root.gated && root.signInWhenUp) root.signInWhenUp = false
   function signIn() { root.request("signin.begin", {}, function (r) { if (!r.ok) root.report(r.error) }) }
   // "Use my browser's sign-in" was removed before the marketplace release;
   // importedSession stays read-only, for a profile from before this build.

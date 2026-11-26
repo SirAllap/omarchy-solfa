@@ -46,7 +46,7 @@ def render(workdir, scale="1"):
     run = subprocess.run([QS, "-p", os.path.join(cfg, "shell.qml"), "--no-color"], env=env,
                          capture_output=True, text=True, timeout=60)
     found = {"log": (run.stdout + run.stderr)[-3000:]}
-    for key in ("STATE", "CLICKS", "PILLCLICK"):
+    for key in ("STATE", "CLICKS", "PILLCLICK", "OFFCARD"):
         m = re.search(key + r" (\{.*\})", run.stdout + run.stderr)
         found[key] = json.loads(m.group(1)) if m else None
     return found
@@ -72,21 +72,59 @@ class Closed(unittest.TestCase):
         self.assertEqual(s["barRunning"]["label"], "Northern Lights")
         self.assertTrue(s["barRunning"]["controls"])
         self.assertEqual(s["barClosed"]["label"], "Solfa", "no stale song")
-        self.assertFalse(s["barClosed"]["controls"], "no transport on a closed Solfa")
+        self.assertFalse(s["barClosed"]["controls"], "no room kept for hidden buttons")
+        self.assertEqual(s["barClosed"]["minW"], 0)
+        self.assertLess(s["barClosed"]["w"], 176, "the off pill fits its content")
 
-    def test_a_click_on_the_off_pill_opens_the_panel_and_leaves_solfa_off(self):
+    def test_off_with_a_last_song_shows_it_asleep_and_wakes_on_hover(self):
+        a = self.found["STATE"]["barAsleep"]
+        self.assertTrue(a["asleepSong"])
+        self.assertEqual(a["rest"]["label"], "Northern Lights")
+        self.assertFalse(a["rest"]["mark"], "the cover slot, not the Solfa mark")
+        self.assertTrue(a["rest"]["italic"])
+        self.assertEqual(a["rest"]["opacity"], 0.5)
+        w = a["awake"]
+        self.assertTrue(w["awake"], "the pointer on the pill wakes the song")
+        self.assertFalse(w["italic"])
+        self.assertEqual(w["opacity"], 1)
+        self.assertEqual(w["tip"], "Solfa is off · click for Northern Lights")
+
+    def test_off_with_no_last_song_keeps_the_mark_and_no_power_glyph(self):
+        s = self.found["STATE"]["barAsleep"]
+        self.assertFalse(s["bareAsleep"])
+        self.assertTrue(s["bareMark"])
+
+    def test_a_click_on_the_off_pill_opens_the_panel_only(self):
         p = self.found["PILLCLICK"]
         self.assertIsNotNone(p, "the pill click was not logged:\n" + self.found["log"])
         self.assertTrue(p["opened"], "the panel did not open: " + str(p))
-        self.assertEqual(p["calls"], [], "a click on the pill must not start or toggle the engine: " + str(p))
+        self.assertEqual(p["calls"], [], "a click on the off pill never starts the engine: " + str(p))
 
-    def test_the_power_button_is_lit_when_closed_and_starts_solfa(self):
+    def test_the_off_view_with_a_last_song_plays_on(self):
+        o = self.found["OFFCARD"]
+        self.assertIsNotNone(o, "the off card was not logged:\n" + self.found["log"])
+        s = o["song"]
+        self.assertTrue(s["visible"])
+        self.assertEqual((s["title"], s["artist"]), ("Northern Lights", "The Examples"))
+        self.assertEqual(s["note"], "Click the cover to play on. It starts YouTube Music in the background and picks Northern Lights up where you left it.")
+        self.assertFalse(s["power"], "no power circle while a last song is known")
+        self.assertEqual(s["calls"], ["startAndPlay"], "button and cover both Play on (start, then play once loaded)")
+        self.assertTrue(s["awake"] and not s["asleep"] and s["play"] == 1, "the pointer wakes the cover and shows the round play: " + str(s))
+
+    def test_the_off_view_with_no_last_song_is_a_welcome(self):
+        b = self.found["OFFCARD"]["bare"]
+        self.assertFalse(b["hasLast"])
+        self.assertTrue(b["welcome"] and b["record"], "the welcome record shows: " + str(b))
+        self.assertTrue(b["signIn"], "not signed in: the sign-in line shows")
+        self.assertFalse(b["song"])
+        c = self.found["CLICKS"]
+        self.assertEqual(c["bare"], ["startEngine", "startEngine"], "the record and a chip turn Solfa on: " + str(c))
+        self.assertEqual(c["tabs"], ["search", "library"], "each opens its own tab: " + str(c))
+
+    def test_no_power_button_while_off(self):
         s = self.found["STATE"]
-        self.assertEqual(s["powerClosed"]["tooltip"], "Turn Solfa on")
-        self.assertTrue(s["powerClosed"]["selected"])
-        self.assertEqual(s["powerClosed"]["opacity"], 1)
-        self.assertTrue(s["powerHover"]["hot"])
-        self.assertEqual(self.found["CLICKS"]["closed"], ["toggleEngine"])
+        self.assertFalse(s["powerClosed"]["visible"], "off, the card is the way on: no power button in the header")
+        self.assertTrue(s["powerHover"]["hot"], "running, the power button is there and reacts")
 
 
 if __name__ == "__main__":

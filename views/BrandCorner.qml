@@ -55,6 +55,31 @@ Row {
     font.pixelSize: Style.space(22)
     font.weight: Font.Bold
   }
+  // Off with a last song: a small grey dot and "Off" after the name.
+  Rectangle {
+    id: offChip
+    objectName: root.showLeft ? "offChip" : ""
+    anchors.verticalCenter: parent.verticalCenter
+    visible: root.showLeft && root.closed && !!root.svc.lastTitle
+    width: offRow.implicitWidth + Style.space(20)
+    height: offRow.implicitHeight + Style.space(6)
+    radius: height / 2
+    color: Calm.wash
+    Row {
+      id: offRow
+      anchors.centerIn: parent
+      spacing: Style.space(6)
+      Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Style.space(6); height: width; radius: width / 2; color: Calm.muted }
+      Text {
+        text: "Off"
+        textFormat: Text.PlainText
+        color: Calm.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.space(12)
+        font.weight: Font.Medium
+      }
+    }
+  }
   Rectangle {
     id: premium
     objectName: root.showLeft ? "premiumBadge" : ""
@@ -114,7 +139,9 @@ Row {
     VIcon { anchors.centerIn: parent; name: "power"; size: Style.space(22); stroke: 1.4; color: power.foreground }
     foreground: root.closed ? Calm.fg : root.muted
     selected: root.closed
-    visible: root.showRight && root.reachable
+    // Off with a last song: the cover is the way back on (it plays on where it was left), so
+    // a second "on" button here would only start it from 0:00.
+    visible: root.showRight && root.reachable && !root.closed
     opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: root.closed ? "Turn Solfa on" : "Turn Solfa off — the music stops"

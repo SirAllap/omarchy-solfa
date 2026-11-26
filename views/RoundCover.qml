@@ -17,6 +17,8 @@ Item {
   property string glyph: Icons.note
   property string fontFamily: ""
   property bool dim: false
+  // Asleep (the bar's last song while Solfa is off): fully grey and half faded.
+  property bool asleep: false
   // The calm vinyl motif (rings and a label dot) in place of the glyph.
   property bool motif: false
   // Corner radius; below zero is a full circle (the bar's record cover).
@@ -135,8 +137,8 @@ Item {
     property Item pic: null
     anchors.fill: parent
     preferredRendererType: Shape.CurveRenderer
-    layer.enabled: root.dim
-    layer.effect: MultiEffect { saturation: -0.8 }
+    layer.enabled: root.dim || root.asleep
+    layer.effect: MultiEffect { saturation: root.asleep ? -1 : -0.8 }
 
     ShapePath {
       strokeWidth: -1
@@ -166,12 +168,12 @@ Item {
   CoverShape {
     pic: held
     visible: root.heldShown
-    opacity: root.dim ? 0.75 : 1
+    opacity: root.asleep ? 0.5 : root.dim ? 0.75 : 1
   }
   CoverShape {
     pic: img
     visible: opacity > 0
-    opacity: (img.status === Image.Ready ? 1 : 0) * (root.dim ? 0.75 : 1)
+    opacity: (img.status === Image.Ready ? 1 : 0) * (root.asleep ? 0.5 : root.dim ? 0.75 : 1)
     // fades in over a held picture; with none, it is simply there
     Behavior on opacity { enabled: root.heldShown && !root.reduceMotion; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
   }

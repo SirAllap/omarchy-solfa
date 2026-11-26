@@ -175,6 +175,8 @@ Panel {
   // Settings replaces the panel body; the gear in BrandCorner and Esc are
   // the only ways in and out — no new key letter is spent on it.
   property bool settingsOpen: false
+  // Off with a last song known: the Off view previews it, so the header is only the name row.
+  readonly property bool offPreview: !!(svc && svc.closed)
   // "Save to playlist": the song being saved ({ videoId, title }), or null.
   property var saveItem: null
   readonly property bool saveOpen: saveItem !== null
@@ -594,7 +596,7 @@ Panel {
     if (k === Qt.Key_Left || t === "h") { if (root.pages.length) root.back(); else root.cycleTab(-1); event.accepted = true; return }
     if (k === Qt.Key_Right || t === "l") { if (!root.pages.length) root.cycleTab(1); event.accepted = true; return }
     if (k === Qt.Key_Return || k === Qt.Key_Enter) {
-      if (svc.closed) svc.startEngine()
+      if (svc.closed) { if (svc.lastTitle) svc.startAndPlay(); else svc.startEngine() }
       else if (v === queueView) queueView.activate()
       else if (v === libraryView && !libraryView.signedIn) svc.signIn()
       else if (cur) root.activateRow(cur, v === detailView ? detailView.contextList() : "")
@@ -699,7 +701,7 @@ Panel {
     contentHeight: root.svc && root.svc.gated && !root.settingsOpen
       ? panel.fittedContentHeight(hero.implicitHeight + gate.implicitHeight + Style.space(20))
       : root.svc && root.svc.closed && !root.settingsOpen
-      ? panel.fittedContentHeight(hero.implicitHeight + offCard.implicitHeight + Style.space(28))
+      ? panel.fittedContentHeight((root.offPreview ? brand.height : hero.implicitHeight) + offCard.implicitHeight + Style.space(28))
       : panel.cappedContentHeight(root.roomH + root.growth)
 
     // A plain Item, not a FocusScope: a scope hands focus back to the child
@@ -882,7 +884,7 @@ Panel {
         objectName: "panelHero"
         openMs: keys.tms
         // Settings replaces the whole body: no hero, no transport, no tabs.
-        visible: !root.settingsOpen
+        visible: !root.settingsOpen && !root.offPreview
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -946,12 +948,13 @@ Panel {
       Views.OffCard {
         id: offCard
         objectName: "offCard"
-        anchors.top: hero.bottom
+        anchors.top: root.offPreview ? brand.bottom : hero.bottom
         anchors.topMargin: Style.space(18)
         width: parent.width
         visible: keys.off && !root.settingsOpen
         svc: root.svc
         bar: root.bar
+        onTabRequested: function (key) { root.showTab(key) }
       }
 
       // While YouTube Music waits on Google (cookies, sign-in) there is one
