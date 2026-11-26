@@ -88,6 +88,8 @@ ShellRoot {
 
   QtObject {
     id: fakeSvc
+    property bool starting: false
+    property bool signInWhenUp: false
     property string lastTitle: "Glass Harbour"
     property string lastArtist: "The Quiet Tides"
     property string lastAlbum: "Low Light"
@@ -258,7 +260,18 @@ ShellRoot {
       function () { var cv = find(stage, "offCover"); tc.mouseMove(cv, 1, 1); tc.mouseMove(cv, cv.width / 2, cv.height / 2); next() },
       function () { save(card(), "after-panel-hover.png") },
       function () { tc.mouseMove(stage, 1, 1); fakeSvc.lastTitle = ""; fakeSvc.lastThumb = ""; next() },
-      function () { save(card(), "after-panel-no-song.png") }
+      function () { save(card(), "after-panel-no-song.png") },
+      function () { fakeSvc.signedIn = false; fakeSvc.account = { signedIn: false, host: "" }; next() },
+      function () { save(card(), "after-panel-first-run-signed-out.png") },
+      // Play on pressed: the engine starts and brings the song back; the hero shows it, loading.
+      function () {
+        fakeSvc.signedIn = true; fakeSvc.account = { signedIn: true, host: "music.youtube.com" }
+        fakeSvc.lastTitle = "Glass Harbour"; fakeSvc.lastThumb = "file://" + Quickshell.env("SOLFA_SHOT_COVER")
+        fakeSvc.engine = { status: "starting", error: "", signedIn: true, host: "", wantRunning: true }
+        fakeSvc.closed = false; fakeSvc.starting = true; fakeSvc.engineLine = ""
+        next()
+      },
+      function () { save(card(), "after-panel-starting.png") }
     ]
     steps = before ? beforeSteps : afterSteps
     next()
