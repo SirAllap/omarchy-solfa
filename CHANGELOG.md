@@ -1,11 +1,47 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
-- Fixed: signing in could come back signed out. The sign-in window was closed on Google's cookie, before YouTube's own sign-in step had run; it now waits for YouTube's.
-- Fixed: a second sign-in (after a failed one, or a switch of account) could leave the window open until it timed out: Chromium keeps a cookie's creation time when it is set again, and only that time was read. Its last update now counts too.
-- Fixed: a sign-in window playing a song ("Song | YouTube Music") was not seen as having reached the app.
-- Fixed: Sign in clicked while Solfa's helper was still starting (right after install, or after a shell restart) did nothing at all. It now says "Solfa's helper is restarting", so you know to try again.
+A new look, many more things to do from the panel, and a friendlier Off state. Thank you to everyone who sent code: @shinodanpen, @ndecool, @RobLW, @theflysurfer and @mxKeaton.
+
+### New look
+
+- The whole panel and bar are redesigned: a calm palette that follows your Omarchy theme, a new logo, the bar pill that flows into the open panel, a Settings rail, and an all-keys sheet (`?`).
+- While a song plays, its cover's colour glows softly behind the panel's header (inspired by [Spinbloom](https://github.com/TeXaCoNy/spinbloom)). (#36)
+- Compact panel: on short screens a playlist or album page keeps at least four rows in view. Settings: Auto, Always or Never. (#27, @shinodanpen)
+- Plain text in the bar at rest, for see-through bars: the pill comes back on hover. Off unless you turn it on in Settings. (#26, @shinodanpen)
+- The bar keeps the player's shape while Solfa starts, so it no longer jumps from "Nothing playing" to the song. (#32)
+
+### Off, and the first run
+
+- When Solfa is off, the bar and the panel show the last song, asleep. A click on its cover turns Solfa on and plays it from where you left it. While it loads, the song is already there, with a loader on its cover. (#35)
+- The place in the song is kept every few seconds and before turning off, and Play on plays that exact song, even when YouTube Music brings back another one (for example one played later on a phone).
+- A click on the bar while Solfa is off opens the panel only. It never starts the browser by itself.
+- First run: a welcome card. Click the record to start, or a chip to start on Search, Your library or Synced lyrics. When you are signed out, Sign in is one click away.
+
+### New in the panel
+
+- Save a song to a playlist, and adding a song a playlist already has no longer adds it twice. (#15, @shinodanpen)
+- Remove a song from a playlist of your own, with Undo. (#19, @shinodanpen)
+- Find a song in a playlist or album (`F`). (#17, @shinodanpen)
+- Copy the playing song's link (`c`). (#16, @shinodanpen)
+- Go to artist opens a picker when a song has two or more artists.
+
+### Fixed
+
+- Signing in could come back signed out: Solfa now waits for YouTube's own sign-in step, and sees its cookie when it is set again. (#20, @ndecool)
+- Sign in clicked while Solfa's helper was still starting did nothing. It now says "Solfa's helper is restarting". (#22, @ndecool)
+- A sign-in window playing a song was not seen as having reached the app.
+- Lyrics: a line wider than the panel now wraps instead of being cut with an ellipsis. (#30, @shinodanpen)
+- Queue: a click on an autoplay song did nothing. It now plays it. (#28)
+- Search: the All view follows YouTube Music's own ranking, videos and episodes included. (#14, @shinodanpen)
+- A shuffled playlist's queue keeps loading after the page recycles, and the queue panel loads its next page. (#18, @shinodanpen)
+- The library lists every playlist, not only the first 25. (#6, @RobLW)
+- A library page that fails keeps the rows already listed. (#10)
+- The orphan lease outlasts a shell restart. (#8, @theflysurfer)
+- The open-panel underline is as wide as the widget's content. (#13, @shinodanpen)
+- The equaliser bars in a row stop when playback is paused.
+- QML lint is clean on Qt 6.12. (#12, @shinodanpen)
 
 ## 1.1.0
 
