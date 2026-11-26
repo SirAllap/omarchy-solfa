@@ -111,20 +111,20 @@ class Closed(unittest.TestCase):
         self.assertEqual(s["calls"], ["startAndPlay"], "button and cover both Play on (start, then play once loaded)")
         self.assertTrue(s["awake"] and not s["asleep"] and s["play"] == 1, "the pointer wakes the cover and shows the round play: " + str(s))
 
-    def test_the_off_view_with_no_last_song_is_unchanged(self):
+    def test_the_off_view_with_no_last_song_is_a_welcome(self):
         b = self.found["OFFCARD"]["bare"]
         self.assertFalse(b["hasLast"])
-        self.assertTrue(b["power"])
+        self.assertTrue(b["welcome"] and b["record"], "the welcome record shows: " + str(b))
+        self.assertTrue(b["signIn"], "not signed in: the sign-in line shows")
         self.assertFalse(b["song"])
-        self.assertEqual(b["calls"], [])
+        c = self.found["CLICKS"]
+        self.assertEqual(c["bare"], ["startEngine", "startEngine"], "the record and a chip turn Solfa on: " + str(c))
+        self.assertEqual(c["tabs"], ["search", "library"], "each opens its own tab: " + str(c))
 
-    def test_the_power_button_is_lit_when_closed_and_starts_solfa(self):
+    def test_no_power_button_while_off(self):
         s = self.found["STATE"]
-        self.assertEqual(s["powerClosed"]["tooltip"], "Turn Solfa on")
-        self.assertTrue(s["powerClosed"]["selected"])
-        self.assertEqual(s["powerClosed"]["opacity"], 1)
-        self.assertTrue(s["powerHover"]["hot"])
-        self.assertEqual(self.found["CLICKS"]["closed"], ["toggleEngine"])
+        self.assertFalse(s["powerClosed"]["visible"], "off, the card is the way on: no power button in the header")
+        self.assertTrue(s["powerHover"]["hot"], "running, the power button is there and reacts")
 
 
 if __name__ == "__main__":

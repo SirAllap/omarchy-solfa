@@ -74,7 +74,7 @@ ShellRoot {
   FakeSvc { id: closedSvc; closed: true }
   FakeSvc { id: asleepSvc; closed: true; lastTitle: "Northern Lights"; lastArtist: "The Examples" }
   FakeSvc { id: offSvc; closed: true; lastTitle: "Northern Lights"; lastArtist: "The Examples" }
-  FakeSvc { id: offBareSvc; closed: true }
+  FakeSvc { id: offBareSvc; closed: true; signedIn: false; property bool signInWhenUp: false }
 
   component FakeBar: QtObject {
     property var svc: null
@@ -128,7 +128,7 @@ ShellRoot {
         Row {
           spacing: 12
           Views.OffCard { id: offSong; objectName: "offSong"; width: 280; svc: offSvc }
-          Views.OffCard { id: offBare; objectName: "offBare"; width: 280; svc: offBareSvc }
+          Views.OffCard { id: offBare; objectName: "offBare"; width: 280; svc: offBareSvc; property var tabs: []; onTabRequested: function (k) { tabs = tabs.concat([k]) } }
         }
 
         Text { text: "Panel top: running / pointer on power / closed"; color: Color.foreground; opacity: 0.5; font.pixelSize: 11 }
@@ -207,7 +207,7 @@ ShellRoot {
           barRunning: { label: barRunning.label, controls: barRunning.showControls, opacity: barRunning.children.length },
           barAsleep: { rest: asleepRest, awake: asleepAwake, asleepSong: barAsleep.asleepSong, bareMark: barClosed.showMark, bareAsleep: barClosed.asleepSong },
           barClosed: { label: barClosed.label, controls: barClosed.showControls, closed: barClosed.closed, w: barClosed.pillBoxW, minW: barClosed.pillMinW },
-          powerClosed: { tooltip: btn.tooltipText, selected: btn.selected, opacity: btn.opacity },
+          powerClosed: { visible: btn.visible },
           powerHover: { hot: win.find(win.find(stage, "corner1"), "powerButton").hot }
         }))
         // OFF + a click on the bar pill: the panel opens, the engine is not asked to start.
@@ -224,9 +224,9 @@ ShellRoot {
         console.log("OFFCARD " + JSON.stringify({
           song: { visible: offSong.hasLast, calls: scene.offClicks.calls, awake: offSong.awake,
             title: win.find(offSong, "offLastTitle").text, artist: win.find(offSong, "offLastArtist").text,
-            note: win.find(offSong, "offNote").text, power: win.find(offSong, "offPower").visible,
+            note: win.find(offSong, "offNote").text, power: !!win.find(offSong, "offPower") || win.find(offSong, "offFirstRun").visible,
             play: win.find(offSong, "offCoverPlay").opacity, asleep: win.find(offSong, "offCover").asleep },
-          bare: { hasLast: offBare.hasLast, power: win.find(offBare, "offPower").visible, song: win.find(offBare, "offLast").visible, calls: scene.offClicks.bareCalls }
+          bare: { hasLast: offBare.hasLast, record: win.find(offBare, "offRecord").visible, welcome: win.find(offBare, "offFirstRun").visible, signIn: win.find(offBare, "offSignIn").visible, song: win.find(offBare, "offLast").visible }
         }))
         stage.grabToImage(function (r) {
           r.saveToFile(Quickshell.env("SOLFA_SCENE_OUT"))
@@ -238,18 +238,19 @@ ShellRoot {
       id: pillClick
       interval: 1500
       onTriggered: {
-        var btn = win.find(win.find(stage, "corner2"), "powerButton")
         console.log("PILLCLICK " + JSON.stringify({ opened: barClosed.opened, calls: closedSvc.calls.slice() }))
-        closedSvc.calls = []
-        tc.mouseClick(btn, btn.width / 2, btn.height / 2)
-        var clicks = { closed: closedSvc.calls }
+        // The welcome card: the record starts Solfa on Search; a chip starts it on its own tab.
+        var rec = win.find(offBare, "offRecord"), lib = win.find(offBare, "offChip_library")
+        tc.mouseClick(rec, rec.width / 2, rec.height / 2)
+        tc.mouseClick(lib, lib.width / 2, lib.height / 2)
+        var clicks = { bare: offBareSvc.calls.slice(), tabs: offBare.tabs.slice() }
         // The panel's Off view with a last song: a click on the cover is Play on.
         var cv = win.find(offSong, "offCover")
         tc.mouseClick(cv, cv.width / 2, cv.height / 2)
         var after = offSvc.calls.slice()
         tc.mouseMove(cv, 5, 5)
         offHover.start()
-        scene.offClicks = { calls: after, bareCalls: offBareSvc.calls.slice() }
+        scene.offClicks = { calls: after }
         scene.clicksLog = clicks
       }
     }

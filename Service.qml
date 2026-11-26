@@ -256,6 +256,7 @@ Item {
   // defaults nobody chose.
   onSettingsChanged: { if (root.settingsLoaded) root.maybeRestartBridge(); root.sendEq(); root.sendStart() }
   onReadyChanged: {
+    if (root.ready && root.signInWhenUp) { root.signInWhenUp = false; if (!root.signedIn) root.signIn() }
     if (root.ready) { root.sendEq(); root.settled = false; root.queueEmpty = false; settleTimer.restart(); root.probeQueue() }
     else { settleTimer.stop(); root.settled = false }
   }
@@ -767,6 +768,9 @@ Item {
   // Sign in is offered while the bridge is still starting (a fresh install,
   // a shell restart): a click then must say so, not vanish. Unlike
   // reportFailure(), bridge-down is reported too.
+  // "Sign in" on the welcome card: the engine starts first, then Google's sign-in opens.
+  property bool signInWhenUp: false
+  onGatedChanged: if (root.gated && root.signInWhenUp) root.signInWhenUp = false
   function signIn() { root.request("signin.begin", {}, function (r) { if (!r.ok) root.report(r.error) }) }
   // "Use my browser's sign-in" was removed before the marketplace release;
   // importedSession stays read-only, for a profile from before this build.

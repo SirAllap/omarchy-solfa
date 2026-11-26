@@ -176,7 +176,7 @@ Panel {
   // the only ways in and out — no new key letter is spent on it.
   property bool settingsOpen: false
   // Off with a last song known: the Off view previews it, so the header is only the name row.
-  readonly property bool offPreview: !!(svc && svc.closed && svc.lastTitle)
+  readonly property bool offPreview: !!(svc && svc.closed)
   // "Save to playlist": the song being saved ({ videoId, title }), or null.
   property var saveItem: null
   readonly property bool saveOpen: saveItem !== null
@@ -954,6 +954,7 @@ Panel {
         visible: keys.off && !root.settingsOpen
         svc: root.svc
         bar: root.bar
+        onTabRequested: function (key) { root.showTab(key) }
       }
 
       // While YouTube Music waits on Google (cookies, sign-in) there is one

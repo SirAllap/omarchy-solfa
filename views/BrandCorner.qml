@@ -141,7 +141,7 @@ Row {
     selected: root.closed
     // Off with a last song: the cover is the way back on (it plays on where it was left), so
     // a second "on" button here would only start it from 0:00.
-    visible: root.showRight && root.reachable && !(root.closed && root.svc && (root.svc.lastTitle || "") !== "")
+    visible: root.showRight && root.reachable && !root.closed
     opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: root.closed ? "Turn Solfa on" : "Turn Solfa off — the music stops"
