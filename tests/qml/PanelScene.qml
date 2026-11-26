@@ -184,11 +184,11 @@ ShellRoot {
                 fakeSvc.engine = { status: "stopped", error: "", signedIn: true, host: "", wantRunning: false }
                 fakeSvc.closed = true; fakeSvc.engineLine = Model.engineLine(fakeSvc.engine, fakeSvc.account)
                 win.after(function () {
-                  var offState = { offCard: win.shown("offCard"), turnOn: win.shown("offTurnOn"), power: win.shown("offPower"), tabs: win.shown("panelTabs"),
+                  var offState = { offCard: win.shown("offCard"), turnOn: win.shown("offTurnOn"), power: win.shown("offRecord"), tabs: win.shown("panelTabs"),
                                    hero: win.shown("panelHero") }
                   panel.onKey({ key: Qt.Key_Return, text: "\r", modifiers: 0, accepted: false })
                   offState.startsAfterEnter = fakeSvc.calls.filter(function (c) { return c === "startEngine" }).length
-                  var circle = win.find(stage, "offPower")
+                  var circle = win.find(stage, "offRecord")
                   if (circle) tc.mouseClick(circle, circle.width / 2, circle.height / 2)
                   offState.startsAfterClick = fakeSvc.calls.filter(function (c) { return c === "startEngine" }).length
                   // Signing in, signed out: the sign-in window may hand the
