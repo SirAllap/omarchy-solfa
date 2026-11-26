@@ -184,7 +184,7 @@ Column {
       }
       Text {
         width: parent.width
-        text: artistLine.visible ? "" : root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.ghost && root.svc ? root.svc.lastArtist : root.svc.artist)
+        text: artistLine.visible ? "" : root.ghost && root.svc ? root.svc.lastArtist : root.hasTrack ? (root.svc.isAd ? (root.svc.adDuration > 0 ? "Advert — your song starts in " + Model.fmtTime(root.svc.adLeft) : "Advert — your song starts after it") : root.ghost && root.svc ? root.svc.lastArtist : root.svc.artist)
           : root.svc && root.svc.ready ? "Press / to search, or pick something below."
           : root.svc && root.svc.closed ? "Nothing plays until you turn it on." : ""
         textFormat: Text.PlainText

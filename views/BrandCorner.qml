@@ -139,7 +139,9 @@ Row {
     VIcon { anchors.centerIn: parent; name: "power"; size: Style.space(22); stroke: 1.4; color: power.foreground }
     foreground: root.closed ? Calm.fg : root.muted
     selected: root.closed
-    visible: root.showRight && root.reachable
+    // Off with a last song: the cover is the way back on (it plays on where it was left), so
+    // a second "on" button here would only start it from 0:00.
+    visible: root.showRight && root.reachable && !(root.closed && root.svc && (root.svc.lastTitle || "") !== "")
     opacity: 1
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     tooltipText: root.closed ? "Turn Solfa on" : "Turn Solfa off — the music stops"
