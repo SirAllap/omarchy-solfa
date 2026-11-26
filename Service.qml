@@ -112,6 +112,7 @@ Item {
   property string lastAlbum: ""
   property real lastPosition: -1   // seconds where it was left; -1 unknown
   property real lastDuration: 0
+  property string lastVideoId: ""   // the song itself, so Play on plays THIS song, not whatever the page restores
   readonly property string lastSongPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/" + pluginId + "/last-song.json"
   FileView {
     id: lastSongFile
@@ -121,8 +122,12 @@ Item {
   }
   function rememberLast() {
     if (!root.hasTrack || root.isAd || !root.title) return
-    if (root.title === root.lastTitle && root.thumb === root.lastThumb && root.artist === root.lastArtist) return
+    // Play on is bringing the saved song back: a different song the page shows meanwhile is
+    // not "the last song" yet.
+    if ((root.playWhenReady || resumeKick.running) && root.lastVideoId !== "" && root.videoId !== root.lastVideoId) return
+    if (root.videoId === root.lastVideoId && root.title === root.lastTitle && root.thumb === root.lastThumb && root.artist === root.lastArtist) return
     root.lastTitle = root.title
+    root.lastVideoId = root.videoId
     root.lastThumb = root.thumb
     root.lastArtist = root.artist
     root.lastAlbum = root.album
@@ -134,7 +139,7 @@ Item {
   }
   function saveLast() {
     lastSongFile.setText(JSON.stringify({ title: root.lastTitle, thumb: root.lastThumb, artist: root.lastArtist,
-      album: root.lastAlbum, position: root.lastPosition, duration: root.lastDuration }))
+      album: root.lastAlbum, videoId: root.lastVideoId, position: root.lastPosition, duration: root.lastDuration }))
   }
   // Where the song was left: noted every 10 s while it plays and when it pauses.
   function notePosition() {
@@ -162,6 +167,7 @@ Item {
       root.lastAlbum = String(s.album || "")
       root.lastPosition = s.position === undefined ? -1 : Number(s.position) || 0
       root.lastDuration = Number(s.duration) || 0
+      root.lastVideoId = String(s.videoId || "")
     } catch (e) { /* no last song yet */ }
   }
   readonly property real duration: hasTrack ? (Number(player.duration) || 0) : 0
@@ -729,17 +735,24 @@ Item {
     root.startEngine()
   }
   Timer { id: playWhenReadyGuard; interval: 60000; onTriggered: { root.playWhenReady = false; resumeKick.stop() } }
-  onHasTrackChanged: if (root.hasTrack && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop(); resumeKick.tries = 0; resumeKick.restart() }
+  onHasTrackChanged: if (root.hasTrack && root.playWhenReady) { root.playWhenReady = false; playWhenReadyGuard.stop(); resumeKick.tries = 0; resumeKick.switched = false; resumeKick.restart() }
   // The page takes a moment after the track appears before it obeys seek and play, so this
   // nudges it until the song plays where it was left (at most ~10 s).
   Timer {
     id: resumeKick
     property int tries: 0
+    property bool switched: false
     interval: 700
     repeat: true
     onTriggered: {
       tries++
       if (!root.hasTrack || tries > 14) { stop(); return }
+      // The page may bring back another song (one played later on another device, or its own
+      // last one): play the song Solfa showed, once, then go on seeking it.
+      if (root.lastVideoId !== "" && root.videoId !== root.lastVideoId) {
+        if (!switched) { switched = true; root.playItem({ videoId: root.lastVideoId }) }
+        return
+      }
       if (!(root.duration > 0)) return
       var want = root.resumeAt
       if (want > 2 && want < root.duration - 2 && Math.abs(root.position - want) > 3) root.seek(want)
